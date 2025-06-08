@@ -4,9 +4,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yourname/DonutSMPAddon/releases"><img src="https://img.shields.io/github/downloads/yourname/DonutSMPAddon/total.svg?style=for-the-badge&label=Downloads" alt="Downloads"/></a>
-  <img src="https://img.shields.io/github/stars/yourname/DonutSMPAddon?style=for-the-badge" alt="Stars"/>
-  <img src="https://img.shields.io/github/repo-size/yourname/DonutSMPAddon?style=for-the-badge" alt="Repo Size"/>
+  <a href="https://github.com/realnnpg/Glazed/releases"><img src="https://img.shields.io/github/downloads/yourname/DonutSMPAddon/total.svg?style=for-the-badge&label=Downloads" alt="Downloads"/></a>
+  <img src="https://img.shields.io/github/stars/realnnpg/Glazed?style=for-the-badge" alt="Stars"/>
+  <img src="https://img.shields.io/github/repo-size/realnnpg/Glazed?style=for-the-badge" alt="Repo Size"/>
   <a href="https://discord.gg/YOURDISCORD"><img src="https://img.shields.io/discord/YOURSERVERID?color=%237289DA&label=Discord&logo=discord&logoColor=white&style=for-the-badge" alt="Discord"/></a>
 </p>
 
