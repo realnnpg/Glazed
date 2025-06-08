@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "glazed",
+  "version": "${version}",
+  "name": "Glazed",
+  "description": "An Addon made for donutsmp",
+  "authors": [
+    "nnpg"
+  ],
+  "contact": {
+    "repo": "https://github.com/realnnpg/"
+  },
+  "icon": "assets/template/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "meteor": [
+      "com.nnpg.glazed.GlazedAddon"
+    ]
+  },
+
+  "custom": {
+    "meteor-client:color": "225,25,25"
+  },
+  "depends": {
+    "java": ">=21",
+    "minecraft": ["${mc_version}"],
+    "meteor-client": "*"
+  }
+
+}
