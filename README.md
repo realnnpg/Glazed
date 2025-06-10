@@ -1,10 +1,10 @@
 # Glazed
 <p align="center">
-  <img src="https://your-image-url.com/banner.png" alt="DonutSMP Addon Banner"/>
+  <img src="https://nnpg.dev/Glazedlogo.png" alt="Glazed Addon Banner" width="300"/>
 </p>
 
 <p align="center">
-  <a href="https://github.com/realnnpg/Glazed/releases"><img src="https://img.shields.io/github/downloads/yourname/DonutSMPAddon/total.svg?style=for-the-badge&label=Downloads" alt="Downloads"/></a>
+  <a href="https://github.com/realnnpg/Glazed/releases"><img src="https://img.shields.io/github/downloads/realnnpg/Glazed/total.svg?style=for-the-badge&label=Downloads" alt="Downloads"/></a>
   <img src="https://img.shields.io/github/stars/realnnpg/Glazed?style=for-the-badge" alt="Stars"/>
   <img src="https://img.shields.io/github/repo-size/realnnpg/Glazed?style=for-the-badge" alt="Repo Size"/>
   <a href="https://discord.gg/YOURDISCORD"><img src="https://img.shields.io/discord/YOURSERVERID?color=%237289DA&label=Discord&logo=discord&logoColor=white&style=for-the-badge" alt="Discord"/></a>
@@ -16,7 +16,7 @@
 
 **Glazed** is a free Meteor Client addon designed specifically for the **DonutSMP** server. I made this to automate the boring and repetitive tasks I kept doing in-game and to give others access to high-quality tools **without paying**. I've seen many paid clients that do less than this one — this is my free alternative.
 
-If this helped you, I’d really appreciate a donation to keep it going and improving! ❤️
+
 
 ---
 
@@ -91,12 +91,7 @@ Pair your DonutSMPAddon setup with these built-in Meteor modules for max efficie
   </p>
 </details>
 
-<details>
-  <summary><strong>💸 How can I support you?</strong></summary>
-  <p>
-    Star the repo, share it with friends, or donate if you find the addon useful. It keeps me motivated and helps support future development.
-  </p>
-</details>
+
 
 ---
 
