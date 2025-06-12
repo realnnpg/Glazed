@@ -21,12 +21,17 @@ public class GlazedAddon extends MeteorAddon {
     public void onInitialize() {
         // Register modules
         Modules.get().add(new SpawnerProtect());
-        Modules.get().add(new PearlThrow());
+        Modules.get().add(new PearlThrow()); //done
         Modules.get().add(new AutoSpawnerDrop());
-        Modules.get().add(new AutoInvTotem());
+        Modules.get().add(new AutoInvTotem()); //done
         Modules.get().add(new RTPBaseFinder());
-        Modules.get().add(new webhook());
-        Modules.get().add(new AntiTrap());
+        Modules.get().add(new webhook()); //done
+        Modules.get().add(new AntiTrap()); //done
+        Modules.get().add(new CoordSnapper()); //done
+        Modules.get().add(new AutoFirework()); //done
+        Modules.get().add(new ElytraSwap()); //done
+
+
 
 
 
