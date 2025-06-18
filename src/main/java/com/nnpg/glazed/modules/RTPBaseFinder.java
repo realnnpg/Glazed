@@ -68,16 +68,17 @@ public class RTPBaseFinder extends Module {
         .description("Y level to mine down to.")
         .defaultValue(-22)
         .min(-64)
-        .max(320)
-        .sliderMax(100)
+        .max(80)
+        .sliderMax(20)
         .sliderMin(-64)
         .build());
 
-    private final Setting<Integer> storageBlockThreshold = sgGeneral.add(new IntSetting.Builder()
-        .name("Storage Blocks")
-        .defaultValue(15)
+    private final Setting<Integer> baseThreshold = sgGeneral.add(new IntSetting.Builder()
+        .name("Base Threshold")
+        .description("Minimum storage blocks to consider as a base and disconnect.")
+        .defaultValue(4)
         .min(1)
-        .sliderMax(200)
+        .sliderMax(50)
         .build());
 
     // Webhook settings
@@ -152,46 +153,78 @@ public class RTPBaseFinder extends Module {
         .defaultValue(false)
         .build());
 
-    // Loop stages: 0 = RTP, 1 = checking after RTP, 2 = mining down, 3 = checking after mining
     private int loopStage = 0;
     private long stageStartTime;
     private BlockPos lastPos;
     private long lastMoveTime;
-    private boolean hasReachedGoal = false;
-    private final int RTP_WAIT_DURATION = 6000; // Wait 6 seconds after RTP
-    private final int BASE_CHECK_DURATION = 5000; // Check for 5 seconds
-    private final int STUCK_TIMEOUT = 20000; // 20 seconds stuck timeout
-    private boolean hasCheckedForBases = false;
+    private final int RTP_WAIT_DURATION = 6000;
+    private final int STUCK_TIMEOUT = 20000;
 
-    private final Set<BlockPos> foundBases = new HashSet<>();
+    private final Set<ChunkPos> processedChunks = new HashSet<>();
 
-    // Variables for death detection
     private float lastHealth = 20.0f;
     private boolean playerWasAlive = true;
 
     public RTPBaseFinder() {
-        super(GlazedAddon.CATEGORY, "RTPBaseFinder", "RTPs, mines to a Y level, and detects bases using Baritone.");
+        super(GlazedAddon.CATEGORY, "RTPBaseFinder", "RTPs, mines to a Y level, and detects bases using chunk loading.");
     }
 
     @Override
     public void onActivate() {
+        ChatUtils.sendPlayerMsg("#set legitMine true");
+        ChatUtils.sendPlayerMsg("#set smoothLook true");
         startLoop();
     }
 
     @Override
     public void onDeactivate() {
         ChatUtils.sendPlayerMsg("#stop");
+        processedChunks.clear();
     }
 
     private void startLoop() {
-        // Start the loop with RTP
         ChatUtils.sendPlayerMsg("/rtp " + rtpRegion.get().getCommandPart());
-        loopStage = 0; // RTP stage
+        loopStage = 0;
         stageStartTime = System.currentTimeMillis();
         updateMovementTracking();
-        hasReachedGoal = false;
-        foundBases.clear();
+        processedChunks.clear();
         ChatUtils.info("Starting RTP to " + rtpRegion.get().getCommandPart());
+    }
+
+    @EventHandler
+    private void onChunkData(ChunkDataEvent event) {
+        if (mc.player == null) return;
+
+        ChunkPos chunkPos = event.chunk().getPos();
+        if (processedChunks.contains(chunkPos)) return;
+
+        StashChunk chunk = new StashChunk(chunkPos);
+
+        // Count storage blocks in the chunk
+        for (BlockEntity blockEntity : event.chunk().getBlockEntities().values()) {
+            if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
+            else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
+            else if (blockEntity instanceof ShulkerBoxBlockEntity) chunk.shulkers++;
+            else if (blockEntity instanceof EnderChestBlockEntity) chunk.enderChests++;
+            else if (blockEntity instanceof AbstractFurnaceBlockEntity) chunk.furnaces++;
+            else if (blockEntity instanceof DispenserBlockEntity) chunk.dispensersDroppers++;
+            else if (blockEntity instanceof HopperBlockEntity) chunk.hoppers++;
+            else if (blockEntity instanceof MobSpawnerBlockEntity) chunk.spawners++;
+        }
+
+        if (chunk.getTotal() >= baseThreshold.get()) {
+            processedChunks.add(chunkPos);
+
+            ChatUtils.info("Base found in chunk at " + chunk.x + ", " + chunk.z + " (" + chunk.getTotal() + " storage blocks)");
+
+            if (spawnersCritical.get() && chunk.spawners > 0) {
+                ChatUtils.info("Spawners found in base, disconnecting...");
+                disconnectAndNotify(chunk);
+                return;
+            }
+
+            disconnectAndNotify(chunk);
+        }
     }
 
     private void updateMovementTracking() {
@@ -207,14 +240,12 @@ public class RTPBaseFinder extends Module {
         BlockPos currentPos = mc.player.getBlockPos();
         long now = System.currentTimeMillis();
 
-        // Update movement tracking
         if (!currentPos.equals(lastPos)) {
             lastPos = currentPos;
             lastMoveTime = now;
             return false;
         }
 
-        // Check if stuck for too long
         return (now - lastMoveTime) > STUCK_TIMEOUT;
     }
 
@@ -229,16 +260,14 @@ public class RTPBaseFinder extends Module {
     private void startMining() {
         if (mc.player == null) return;
         BlockPos pos = mc.player.getBlockPos();
-        ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#goto " + pos.getX() + " " + mineYLevel.get() + " " + pos.getZ());
         ChatUtils.info("Started mining down to Y level " + mineYLevel.get());
     }
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
-        // Handle totem pop events
         if (event.packet instanceof EntityStatusS2CPacket packet) {
-            if (packet.getStatus() == 35) { // Totem pop status
+            if (packet.getStatus() == 35) {
                 if (totemPopWebhook.get() && !webhookUrl.get().isEmpty()) {
                     if (mc.player != null) {
                         BlockPos pos = mc.player.getBlockPos();
@@ -246,6 +275,17 @@ public class RTPBaseFinder extends Module {
                         sendTotemPopWebhook(playerName, pos);
                     }
                 }
+
+                // Stop current mining and restart RTP loop
+                ChatUtils.sendPlayerMsg("#stop");
+                ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
+
+                // Small delay to ensure the stop command processes, then restart
+                Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+                    MinecraftClient.getInstance().execute(() -> {
+                        startLoop();
+                    });
+                }, 1, TimeUnit.SECONDS);
             }
         }
     }
@@ -258,57 +298,12 @@ public class RTPBaseFinder extends Module {
         }
     }
 
-    private void checkForBasesAroundPlayer() {
-        if (mc.player == null || mc.world == null) return;
-
-        BlockPos playerPos = mc.player.getBlockPos();
-        int searchRadius = 60; // Search in a 50 block radius
-
-        for (int x = -searchRadius; x <= searchRadius; x++) {
-            for (int y = -60; y <= 200; y++) { // Check 20 blocks up and down
-                for (int z = -searchRadius; z <= searchRadius; z++) {
-                    BlockPos checkPos = playerPos.add(x, y, z);
-
-                    if (foundBases.contains(checkPos)) continue;
-
-                    BlockEntity blockEntity = mc.world.getBlockEntity(checkPos);
-                    if (blockEntity == null) continue;
-
-                    boolean isSpawner = blockEntity instanceof MobSpawnerBlockEntity;
-                    boolean isStorage = blockEntity instanceof ChestBlockEntity ||
-                        blockEntity instanceof BarrelBlockEntity ||
-                        blockEntity instanceof EnderChestBlockEntity ||
-                        blockEntity instanceof ShulkerBoxBlockEntity ||
-                        blockEntity instanceof HopperBlockEntity;
-
-                    if (isSpawner || isStorage) {
-                        foundBases.add(checkPos);
-
-                        if (isSpawner && spawnersCritical.get()) {
-                            ChatUtils.info("Spawner found at " + checkPos + ", disconnecting...");
-                            disconnectAndNotify();
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check if we found enough storage blocks to consider it a base
-        long storageCount = foundBases.size();
-        if (storageCount >= storageBlockThreshold.get()) {
-            ChatUtils.info("Base detected (" + storageCount + " storage blocks), disconnecting...");
-            disconnectAndNotify();
-        }
-    }
-
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
         long now = System.currentTimeMillis();
 
-        // Always check if player is stuck (20 seconds)
         if (isPlayerStuck()) {
             ChatUtils.info("Player stuck for 20 seconds, restarting loop...");
             ChatUtils.sendPlayerMsg("#stop");
@@ -316,7 +311,6 @@ public class RTPBaseFinder extends Module {
             return;
         }
 
-        // Toggle modules
         toggleModule(AutoTotem.class, enableAutoTotem.get());
         toggleModule(AutoTool.class, enableAutoTool.get());
         toggleModule(AutoReplenish.class, enableAutoReplenish.get());
@@ -325,20 +319,15 @@ public class RTPBaseFinder extends Module {
         toggleModule(AutoArmor.class, enableAutoArmor.get());
         toggleModule(AutoEXP.class, enableAutoExp.get());
 
-        // Death detection
         if (mc.player != null) {
             float currentHealth = mc.player.getHealth();
             boolean isAlive = mc.player.isAlive();
 
-            // Check if player just died
             if (playerWasAlive && !isAlive && currentHealth <= 0) {
                 if (deathWebhook.get() && !webhookUrl.get().isEmpty()) {
                     BlockPos deathPos = mc.player.getBlockPos();
                     String playerName = MinecraftClient.getInstance().getSession().getUsername();
-
-                    // Get reason of death from new method
                     String deathReason = getDeathReason();
-
                     sendDeathWebhook(playerName, deathPos, deathReason);
                 }
             }
@@ -347,74 +336,50 @@ public class RTPBaseFinder extends Module {
             playerWasAlive = isAlive;
         }
 
-        // Main loop logic
         switch (loopStage) {
             case 0 -> {
-                // RTP stage - wait for RTP to complete
                 if (now - stageStartTime >= RTP_WAIT_DURATION) {
-                    loopStage = 1; // Move to base checking after RTP
+                    loopStage = 1;
                     stageStartTime = now;
-                    ChatUtils.info("RTP completed, checking for bases at surface...");
-                }
-            }
-            case 1 -> {
-                // Base checking after RTP
-                checkForBasesAroundPlayer();
-                if (now - stageStartTime >= BASE_CHECK_DURATION) {
-                    loopStage = 2; // Move to mining stage
-                    stageStartTime = now;
-                    ChatUtils.info("Surface base check complete, no base found. Starting mining...");
+                    ChatUtils.info("RTP completed, starting mining...");
                     startMining();
                 }
             }
-            case 2 -> {
-                // Mining down stage
-                if (mc.player.getY() <= mineYLevel.get() + 2) { // Add small buffer
+            case 1 -> {
+                if (mc.player.getY() <= mineYLevel.get() + 2) {
                     ChatUtils.sendPlayerMsg("#stop");
-                    loopStage = 3; // Move to base checking after mining
-                    stageStartTime = now;
-                    hasReachedGoal = true;
-                    ChatUtils.info("Reached mining goal, checking for bases at depth...");
-                }
-            }
-            case 3 -> {
-                // Base checking after mining
-                checkForBasesAroundPlayer();
-                if (now - stageStartTime >= BASE_CHECK_DURATION) {
-                    ChatUtils.info("Underground base check complete, no base found. Restarting loop...");
+                    ChatUtils.info("Reached mining goal, restarting loop...");
                     startLoop(); // Restart the entire loop
                 }
             }
         }
     }
 
-        private String getDeathReason() {
-            if (mc.player == null) return "unknown";
+    private String getDeathReason() {
+        if (mc.player == null) return "unknown";
 
-            DamageSource lastDamage = ((LivingEntity) mc.player).getRecentDamageSource();
+        DamageSource lastDamage = ((LivingEntity) mc.player).getRecentDamageSource();
 
-            if (lastDamage == null) return "unknown";
+        if (lastDamage == null) return "unknown";
 
-            String name = lastDamage.getName();
+        String name = lastDamage.getName();
 
-            // Optional: more readable translations
-            switch (name) {
-                case "player": return "another player";
-                case "mob": return "a mob";
-                case "fall": return "fall damage";
-                case "lava": return "lava";
-                case "fire": return "fire";
-                case "drown": return "drowning";
-                case "magic": return "magic";
-                default: return name;
-            }
+        switch (name) {
+            case "player": return "another player";
+            case "mob": return "a mob";
+            case "fall": return "fall damage";
+            case "lava": return "lava";
+            case "fire": return "fire";
+            case "drown": return "drowning";
+            case "magic": return "magic";
+            default: return name;
         }
+    }
 
-    private void disconnectAndNotify() {
+    private void disconnectAndNotify(StashChunk chunk) {
         if (baseFindWebhook.get() && !webhookUrl.get().isEmpty()) {
-            sendBaseFindWebhook();
+            sendBaseFindWebhook(chunk);
 
-            // Delay disconnect/toggle by 2 seconds (2000 milliseconds)
             Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                 MinecraftClient.getInstance().execute(() -> {
                     if (mc.player != null) {
@@ -428,59 +393,40 @@ public class RTPBaseFinder extends Module {
         }
     }
 
-    private void sendBaseFindWebhook() {
+    private void sendBaseFindWebhook(StashChunk chunk) {
         try {
             String playerName = MinecraftClient.getInstance().getSession().getUsername();
             BlockPos playerPos = mc.player.getBlockPos();
 
-            // Determine if this was found at surface or underground
-            String location = (loopStage == 1) ? "surface" : "underground";
-
-            // Count different types of storage blocks and spawners
-            int chestCount = 0;
-            int barrelCount = 0;
-            int enderChestCount = 0;
-            int shulkerBoxCount = 0;
-            int hopperCount = 0;
-            int spawnerCount = 0;
-
-            for (BlockPos pos : foundBases) {
-                if (mc.world == null) continue;
-                BlockEntity blockEntity = mc.world.getBlockEntity(pos);
-                if (blockEntity instanceof ChestBlockEntity) chestCount++;
-                else if (blockEntity instanceof BarrelBlockEntity) barrelCount++;
-                else if (blockEntity instanceof EnderChestBlockEntity) enderChestCount++;
-                else if (blockEntity instanceof ShulkerBoxBlockEntity) shulkerBoxCount++;
-                else if (blockEntity instanceof HopperBlockEntity) hopperCount++;
-                else if (blockEntity instanceof MobSpawnerBlockEntity) spawnerCount++;
-            }
-
-            int totalStorage = chestCount + barrelCount + enderChestCount + shulkerBoxCount + hopperCount;
-
             StringBuilder description = new StringBuilder();
-            description.append("Player **").append(playerName).append("** has successfully located a hidden base ")
-                .append(location).append(" at coordinates **")
-                .append(playerPos.getX()).append(", ")
-                .append(playerPos.getY()).append(", ")
-                .append(playerPos.getZ()).append("** with:\\n\\n");
+            description.append("Player **").append(playerName).append("** discovered a base in chunk at coordinates **")
+                .append(chunk.x).append(", ").append(chunk.z).append("** containing:\\n\\n");
 
-            if (spawnerCount > 0) description.append("🔥 **").append(spawnerCount).append("** Spawner(s)\\n");
-            if (chestCount > 0) description.append("📦 **").append(chestCount).append("** Chest(s)\\n");
-            if (barrelCount > 0) description.append("🛢️ **").append(barrelCount).append("** Barrel(s)\\n");
-            if (enderChestCount > 0) description.append("🎆 **").append(enderChestCount).append("** Ender Chest(s)\\n");
-            if (shulkerBoxCount > 0) description.append("📫 **").append(shulkerBoxCount).append("** Shulker Box(es)\\n");
-            if (hopperCount > 0) description.append("⚙️ **").append(hopperCount).append("** Hopper(s)\\n");
+            if (chunk.spawners > 0) description.append("🔥 **").append(chunk.spawners).append("** Spawner(s)\\n");
+            if (chunk.chests > 0) description.append("📦 **").append(chunk.chests).append("** Chest(s)\\n");
+            if (chunk.barrels > 0) description.append("🛢️ **").append(chunk.barrels).append("** Barrel(s)\\n");
+            if (chunk.enderChests > 0) description.append("🎆 **").append(chunk.enderChests).append("** Ender Chest(s)\\n");
+            if (chunk.shulkers > 0) description.append("📫 **").append(chunk.shulkers).append("** Shulker Box(es)\\n");
+            if (chunk.hoppers > 0) description.append("⚙️ **").append(chunk.hoppers).append("** Hopper(s)\\n");
+            if (chunk.furnaces > 0) description.append("🔥 **").append(chunk.furnaces).append("** Furnace(s)\\n");
+            if (chunk.dispensersDroppers > 0) description.append("🎯 **").append(chunk.dispensersDroppers).append("** Dispenser(s)/Dropper(s)\\n");
 
-            description.append("\\n**Total Storage Blocks:** ").append(totalStorage);
+            description.append("\\n**Total Storage Blocks:** ").append(chunk.getTotal());
+            description.append("\\n**Player Position:** ").append(playerPos.getX()).append(", ")
+                .append(playerPos.getY()).append(", ").append(playerPos.getZ());
 
             String jsonPayload = String.format("""
             {
-              "username": "Base Alert",
+              "username": "Glazed Webhook",
+              "avatar_url": "https://i.imgur.com/OL2y1cr.png",
               "embeds": [
                 {
                   "title": "🏰 Base Discovery Confirmed!",
                   "description": "%s",
                   "color": 16711680,
+                  "author": {
+                    "name": "Base Alert"
+                  },
                   "footer": { "text": "Sent by Glazed" }
                 }
               ]
@@ -497,13 +443,16 @@ public class RTPBaseFinder extends Module {
         try {
             String jsonPayload = String.format("""
                 {
-                  \"username\": \"Pop Alert\",
-                  \"avatar_url\": \"https://static.wikia.nocookie.net/minecraft_gamepedia/images/2/2e/Totem_of_Undying_JE2_BE2.png/revision/latest?cb=20200522030253\",
+                  \"username\": \"Glazed Webhook\",
+                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
                   \"embeds\": [
                     {
                       \"title\": \"⚡ Totem Pop at (%d, %d, %d)\",
                       \"description\": \"Player **%s** popped a totem of undying at coordinates **%d, %d, %d**.\",
                       \"color\": 16776960,
+                      \"author\": {
+                        \"name\": \"AutoTotem Alert\"
+                      },
                       \"footer\": { \"text\": \"Sent by Glazed\" }
                     }
                   ]
@@ -520,13 +469,16 @@ public class RTPBaseFinder extends Module {
         try {
             String jsonPayload = String.format("""
                 {
-                  \"username\": \"Death Alert\",
-                  \"avatar_url\": \"https://art.pixilart.com/e342706146dbb3d.gif\",
+                  \"username\": \"Glazed Webhook\",
+                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
                   \"embeds\": [
                     {
                       \"title\": \"💀 Death at (%d, %d, %d)\",
                       \"description\": \"Player **%s** died at coordinates **%d, %d, %d**\\n\\n**Cause:** %s\",
                       \"color\": 16711680,
+                      \"author\": {
+                        \"name\": \"Death Alert\"
+                      },
                       \"footer\": { \"text\": \"Sent by Glazed\" }
                     }
                   ]
@@ -543,12 +495,16 @@ public class RTPBaseFinder extends Module {
         try {
             String jsonPayload = String.format("""
                 {
-                  \"username\": \"Disconnect Alert\",
+                  \"username\": \"Glazed Webhook\",
+                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
                   \"embeds\": [
                     {
                       \"title\": \"🔌 User %s Disconnected\",
                       \"description\": \"User **%s** has disconnected from the server.\",
                       \"color\": 8421504,
+                      \"author\": {
+                        \"name\": \"Disconnect Alert\"
+                      },
                       \"footer\": { \"text\": \"Sent by Glazed\" }
                     }
                   ]
@@ -572,17 +528,32 @@ public class RTPBaseFinder extends Module {
 
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(response -> {
-                    if (response.statusCode() >= 200 && response.statusCode() < 300)
-                        info(type + " webhook message sent successfully!");
-                    else error("Failed to send " + type + " webhook message. Status code: " + response.statusCode());
+                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                        ChatUtils.info(type + " webhook sent successfully!");
+                    } else {
+                        error("Failed to send " + type + " webhook. Status: " + response.statusCode());
+                    }
                 })
                 .exceptionally(throwable -> {
-                    error("Error sending " + type + " webhook message: " + throwable.getMessage());
+                    error("Error sending " + type + " webhook: " + throwable.getMessage());
                     return null;
                 });
-
         } catch (Exception e) {
             error("Error creating " + type + " webhook request: " + e.getMessage());
+        }
+    }
+
+    private static class StashChunk {
+        public final int x, z;
+        public int chests, barrels, shulkers, enderChests, furnaces, dispensersDroppers, hoppers, spawners;
+
+        public StashChunk(ChunkPos pos) {
+            this.x = pos.x * 16;
+            this.z = pos.z * 16;
+        }
+
+        public int getTotal() {
+            return chests + barrels + shulkers + enderChests + furnaces + dispensersDroppers + hoppers + spawners;
         }
     }
 

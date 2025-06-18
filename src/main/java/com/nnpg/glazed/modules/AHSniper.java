@@ -1,19 +1,13 @@
-/**
- *
- *
-
 package com.nnpg.glazed.modules;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -22,26 +16,13 @@ import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class AHSniper extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgAPI = settings.createGroup("API");
-    private final SettingGroup sgDelays = settings.createGroup("Delays");
-    private final SettingGroup sgNotifications = settings.createGroup("Notifications");
-
-    // General Settings
     private final Setting<Item> snipingItem = sgGeneral.add(new ItemSetting.Builder()
         .name("sniping-item")
         .description("The item to snipe from auctions.")
@@ -49,42 +30,14 @@ public class AHSniper extends Module {
         .build()
     );
 
-    private final Setting<String> price = sgGeneral.add(new StringSetting.Builder()
+    private final Setting<String> maxPrice = sgGeneral.add(new StringSetting.Builder()
         .name("max-price")
-        .description("Maximum price to pay for the item (supports K, M, B suffixes).")
+        .description("Maximum price to pay (supports K, M, B suffixes). Price is per max stack size.")
         .defaultValue("1k")
         .build()
     );
 
-    private final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>()
-        .name("mode")
-        .description("Manual is faster but API doesn't require auction GUI opened all the time.")
-        .defaultValue(Mode.MANUAL)
-        .build()
-    );
-
-    // API Settings
-    private final Setting<String> apiKey = sgAPI.add(new StringSetting.Builder()
-        .name("api-key")
-        .description("API key for auction house access. Get it by typing /api in chat.")
-        .defaultValue("")
-        .visible(() -> mode.get() == Mode.API)
-        .build()
-    );
-
-    private final Setting<Integer> apiRefreshRate = sgAPI.add(new IntSetting.Builder()
-        .name("api-refresh-rate")
-        .description("How often to query the API (in milliseconds).")
-        .defaultValue(250)
-        .min(10)
-        .max(5000)
-        .sliderMax(1000)
-        .visible(() -> mode.get() == Mode.API)
-        .build()
-    );
-
-    // Delay Settings
-    private final Setting<Integer> refreshDelay = sgDelays.add(new IntSetting.Builder()
+    private final Setting<Integer> refreshDelay = sgGeneral.add(new IntSetting.Builder()
         .name("refresh-delay")
         .description("Delay between auction page refreshes (in ticks).")
         .defaultValue(2)
@@ -94,7 +47,7 @@ public class AHSniper extends Module {
         .build()
     );
 
-    private final Setting<Integer> buyDelay = sgDelays.add(new IntSetting.Builder()
+    private final Setting<Integer> buyDelay = sgGeneral.add(new IntSetting.Builder()
         .name("buy-delay")
         .description("Delay before buying an item (in ticks).")
         .defaultValue(2)
@@ -104,149 +57,76 @@ public class AHSniper extends Module {
         .build()
     );
 
-    // Notification Settings
-    private final Setting<Boolean> showApiNotifications = sgNotifications.add(new BoolSetting.Builder()
-        .name("show-api-notifications")
-        .description("Show chat notifications for API actions.")
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat notifications.")
         .defaultValue(true)
         .build()
     );
 
-    private final Setting<Boolean> showFoundItems = sgNotifications.add(new BoolSetting.Builder()
-        .name("show-found-items")
-        .description("Notify when items are found below price threshold.")
+    private final Setting<Boolean> detailedLogs = sgGeneral.add(new BoolSetting.Builder()
+        .name("detailed-logs")
+        .description("Show detailed step-by-step notifications.")
         .defaultValue(true)
         .build()
     );
-
-    private final Setting<Boolean> debugMode = sgNotifications.add(new BoolSetting.Builder()
-        .name("debug-mode")
-        .description("Show debug information in chat.")
-        .defaultValue(false)
-        .build()
-    );
-
-    // Internal state
     private int delayCounter = 0;
     private boolean isProcessing = false;
-    private final HttpClient httpClient;
-    private final Gson gson;
-    private long lastApiCallTimestamp = 0L;
-    private final Map<String, Double> snipingItems = new HashMap<>();
-    private boolean isApiQueryInProgress = false;
-    private boolean isAuctionSniping = false;
-    private int auctionPageCounter = -1;
-    private String currentSellerName = "";
 
-    public AuctionSniper() {
-        super(Categories.Misc, "auction-sniper", "Automatically snipes items from auction houses for cheap prices.");
-        this.httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5L))
-            .build();
-        this.gson = new Gson();
+    public AHSniper() {
+        super(GlazedAddon.CATEGORY, "AH-Sniper", "Automatically snipes items from auction house for cheap prices.");
     }
 
     @Override
     public void onActivate() {
-        double maxPrice = parsePrice(price.get());
-        if (maxPrice == -1.0) {
-            error("Invalid price format!");
+        double parsedPrice = parsePrice(maxPrice.get());
+        if (parsedPrice == -1.0) {
+            if (notifications.get()) {
+                ChatUtils.error("Invalid price format!");
+            }
             toggle();
             return;
         }
 
-        if (snipingItem.get() != Items.AIR) {
-            snipingItems.put(snipingItem.get().toString(), maxPrice);
+        if (snipingItem.get() == Items.AIR) {
+            if (notifications.get()) {
+                ChatUtils.error("Please select an item to snipe!");
+            }
+            toggle();
+            return;
         }
 
-        lastApiCallTimestamp = 0L;
-        isApiQueryInProgress = false;
-        isAuctionSniping = false;
-        currentSellerName = "";
         delayCounter = 0;
         isProcessing = false;
 
-        info("Started sniping %s for max price %s",
-            getItemDisplayName(snipingItem.get()),
-            formatPrice(maxPrice));
+        int maxStackSize = snipingItem.get().getMaxCount();
+        String stackInfo = maxStackSize == 1 ? "per item" :
+            maxStackSize == 16 ? "per 16 items" :
+                "per 64 items";
+
+        if (notifications.get()) {
+            ChatUtils.info("Auction Sniper activated! Sniping %s for max %s (%s)",
+                snipingItem.get().getName().getString(), maxPrice.get(), stackInfo);
+        }
     }
 
     @Override
     public void onDeactivate() {
-        isAuctionSniping = false;
-        snipingItems.clear();
+        isProcessing = false;
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null) return;
 
-        // Handle delay counter
         if (delayCounter > 0) {
             delayCounter--;
             return;
         }
 
-        switch (mode.get()) {
-            case API -> handleApiMode();
-            case MANUAL -> handleManualMode();
-        }
-    }
-
-    private void handleApiMode() {
-        if (isAuctionSniping) {
-            ScreenHandler screenHandler = mc.player.currentScreenHandler;
-            if (screenHandler instanceof GenericContainerScreenHandler containerHandler) {
-                auctionPageCounter = -1;
-                if (containerHandler.getRows() == 6) {
-                    processSixRowAuction(containerHandler);
-                } else if (containerHandler.getRows() == 3) {
-                    processThreeRowAuction(containerHandler);
-                }
-            } else {
-                if (auctionPageCounter == -1) {
-                    sendCommand("ah " + currentSellerName);
-                    auctionPageCounter = 0;
-                } else if (auctionPageCounter > 40) {
-                    isAuctionSniping = false;
-                    currentSellerName = "";
-                } else {
-                    auctionPageCounter++;
-                }
-            }
-        } else {
-            // Close auction pages when not sniping
-            if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler &&
-                mc.currentScreen != null &&
-                mc.currentScreen.getTitle().getString().contains("Page")) {
-                mc.player.closeHandledScreen();
-                delayCounter = 20;
-                return;
-            }
-
-            // API querying logic
-            if (!isApiQueryInProgress) {
-                long currentTime = System.currentTimeMillis();
-                long timeDiff = currentTime - lastApiCallTimestamp;
-
-                if (timeDiff > apiRefreshRate.get()) {
-                    lastApiCallTimestamp = currentTime;
-                    if (apiKey.get().isEmpty()) {
-                        if (showApiNotifications.get()) {
-                            error("API key is not set. Set it using /api in-game.");
-                        }
-                        return;
-                    }
-
-                    isApiQueryInProgress = true;
-                    queryApi().thenAccept(this::processApiResponse);
-                }
-            }
-        }
-    }
-
-    private void handleManualMode() {
         ScreenHandler screenHandler = mc.player.currentScreenHandler;
+
+        // Check if we're in an auction GUI
         if (screenHandler instanceof GenericContainerScreenHandler containerHandler) {
             if (containerHandler.getRows() == 6) {
                 processSixRowAuction(containerHandler);
@@ -254,109 +134,43 @@ public class AHSniper extends Module {
                 processThreeRowAuction(containerHandler);
             }
         } else {
-            // Open auction house for the item
-            String itemName = getItemDisplayName(snipingItem.get());
-            sendCommand("ah " + itemName);
-            delayCounter = 20;
+            // Not in auction GUI, open auction house
+            openAuctionHouse();
         }
     }
 
-    private CompletableFuture<List<JsonObject>> queryApi() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                String url = "https://api.donutsmp.net/v1/auction/list/1";
-                HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Authorization", "Bearer " + apiKey.get())
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString("{\"sort\": \"recently_listed\"}"))
-                    .build();
-
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() != 200) {
-                    if (showApiNotifications.get()) {
-                        error("API Error: " + response.statusCode());
-                    }
-                    return new ArrayList<>();
-                }
-
-                JsonArray jsonArray = gson.fromJson(response.body(), JsonObject.class)
-                    .getAsJsonArray("result");
-                List<JsonObject> auctions = new ArrayList<>();
-
-                for (JsonElement element : jsonArray) {
-                    auctions.add(element.getAsJsonObject());
-                }
-
-                return auctions;
-            } catch (Exception e) {
-                if (debugMode.get()) {
-                    error("API query failed: " + e.getMessage());
-                }
-                return new ArrayList<>();
-            } finally {
-                isApiQueryInProgress = false;
-            }
-        });
+    private void openAuctionHouse() {
+        String itemName = getFormattedItemName(snipingItem.get());
+        mc.getNetworkHandler().sendChatCommand("ah " + itemName);
+        delayCounter = 20;
     }
 
-    private void processApiResponse(List<JsonObject> auctions) {
-        for (JsonObject auction : auctions) {
-            try {
-                String itemId = auction.getAsJsonObject("item").get("id").getAsString();
-                long price = auction.get("price").getAsLong();
-                String sellerName = auction.getAsJsonObject("seller").get("name").getAsString();
-
-                for (Map.Entry<String, Double> entry : snipingItems.entrySet()) {
-                    String targetItem = entry.getKey();
-                    double maxPrice = entry.getValue();
-
-                    if (itemId.contains(targetItem) && price <= maxPrice) {
-                        if (showFoundItems.get()) {
-                            info("Found %s for %s (threshold: %s) from seller: %s",
-                                itemId, formatPrice(price), formatPrice(maxPrice), sellerName);
-                        }
-
-                        isAuctionSniping = true;
-                        currentSellerName = sellerName;
-                        return;
-                    }
-                }
-            } catch (Exception e) {
-                if (debugMode.get()) {
-                    error("Error processing auction: " + e.getMessage());
-                }
-            }
-        }
-    }
-
-    private void processSixRowAuction(GenericContainerScreenHandler containerHandler) {
-        // Check refresh button
-        ItemStack refreshButton = containerHandler.getSlot(47).getStack();
-        if (!refreshButton.isOf(Items.AIR)) {
-            List<Text> tooltip = refreshButton.getTooltip(Item.TooltipContext.DEFAULT, mc.player, TooltipType.BASIC);
+    private void processSixRowAuction(GenericContainerScreenHandler handler) {
+        ItemStack recentlyListedButton = handler.getSlot(47).getStack();
+        if (!recentlyListedButton.isEmpty()) {
+            Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
+            List<Text> tooltip = recentlyListedButton.getTooltip(tooltipContext, mc.player, TooltipType.BASIC);
             for (Text line : tooltip) {
                 String text = line.getString();
                 if (text.contains("Recently Listed") &&
-                    (line.getStyle().getColor() != null && line.getStyle().getColor().equals(Formatting.WHITE.getColorValue()))) {
-                    clickSlot(containerHandler, 47);
+                    (line.getStyle().toString().contains("white") || text.contains("white"))) {
+                    mc.interactionManager.clickSlot(handler.syncId, 47, 1, SlotActionType.QUICK_MOVE, mc.player);
                     delayCounter = 5;
                     return;
                 }
             }
         }
 
-        // Check for target items
         for (int i = 0; i < 44; i++) {
-            ItemStack stack = containerHandler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getStack();
             if (stack.isOf(snipingItem.get()) && isValidAuctionItem(stack)) {
                 if (isProcessing) {
-                    clickSlot(containerHandler, i);
+                    mc.interactionManager.clickSlot(handler.syncId, i, 1, SlotActionType.QUICK_MOVE, mc.player);
                     isProcessing = false;
-                    if (showFoundItems.get()) {
-                        info("Purchased item from slot " + i);
+                    if (notifications.get()) {
+                        ChatUtils.info("Attempting to buy item!");
                     }
+                    delayCounter = refreshDelay.get() + 10;
                     return;
                 }
                 isProcessing = true;
@@ -365,30 +179,19 @@ public class AHSniper extends Module {
             }
         }
 
-        // No items found, refresh or close
-        if (isAuctionSniping) {
-            isAuctionSniping = false;
-            currentSellerName = "";
-            mc.player.closeHandledScreen();
-        } else {
-            clickSlot(containerHandler, 49); // Next page
-            delayCounter = refreshDelay.get();
-        }
+        mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
+        delayCounter = refreshDelay.get();
     }
 
-    private void processThreeRowAuction(GenericContainerScreenHandler containerHandler) {
-        ItemStack centerItem = containerHandler.getSlot(13).getStack();
-        if (isValidAuctionItem(centerItem)) {
-            clickSlot(containerHandler, 15); // Buy button
+    private void processThreeRowAuction(GenericContainerScreenHandler handler) {
+        ItemStack auctionItem = handler.getSlot(13).getStack();
+        if (isValidAuctionItem(auctionItem)) {
+            mc.interactionManager.clickSlot(handler.syncId, 15, 1, SlotActionType.QUICK_MOVE, mc.player);
             delayCounter = 20;
-            if (showFoundItems.get()) {
-                info("Purchased item from auction view");
+            if (notifications.get()) {
+                Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
+                ChatUtils.info("Buying item for " + formatPrice(parseTooltipPrice(auctionItem.getTooltip(tooltipContext, mc.player, TooltipType.BASIC))));
             }
-        }
-
-        if (isAuctionSniping) {
-            isAuctionSniping = false;
-            currentSellerName = "";
         }
     }
 
@@ -397,27 +200,53 @@ public class AHSniper extends Module {
             return false;
         }
 
-        List<Text> tooltip = stack.getTooltip(Item.TooltipContext.DEFAULT, mc.player, TooltipType.BASIC);
-        double itemPrice = parseTooltipPrice(tooltip) / stack.getCount();
-        double maxPrice = parsePrice(price.get());
+        Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
+        List<Text> tooltip = stack.getTooltip(tooltipContext, mc.player, TooltipType.BASIC);
+        double itemPrice = parseTooltipPrice(tooltip);
+        double maxPriceValue = parsePrice(maxPrice.get());
 
-        if (maxPrice == -1.0) {
-            error("Invalid max price format");
+        if (maxPriceValue == -1.0) {
+            if (notifications.get()) {
+                ChatUtils.error("Invalid max price format!");
+            }
             toggle();
             return false;
         }
 
         if (itemPrice == -1.0) {
-            if (debugMode.get()) {
-                error("Could not parse item price from tooltip");
-                for (int i = 0; i < tooltip.size(); i++) {
-                    System.out.println(i + ". " + tooltip.get(i).getString());
-                }
+            if (notifications.get()) {
+                ChatUtils.warning("Could not parse auction item price");
             }
             return false;
         }
 
-        return itemPrice <= maxPrice;
+        double effectivePrice = calculateEffectivePrice(itemPrice, stack.getCount(), snipingItem.get().getMaxCount());
+
+        boolean isValid = effectivePrice <= maxPriceValue;
+
+        if (detailedLogs.get() && notifications.get()) {
+            ChatUtils.info("Item: %s, Auction Price: %s, Effective Price: %s, Max Price: %s, Valid: %s",
+                stack.getItem().getName().getString(),
+                formatPrice(itemPrice),
+                formatPrice(effectivePrice),
+                formatPrice(maxPriceValue),
+                isValid ? "Yes" : "No"
+            );
+        }
+
+        return isValid;
+    }
+
+    private double calculateEffectivePrice(double auctionPrice, int stackCount, int maxStackSize) {
+        double pricePerItem = auctionPrice / stackCount;
+
+        if (maxStackSize == 1) {
+            return pricePerItem;
+        } else if (maxStackSize == 16) {
+            return pricePerItem * 16;
+        } else {
+            return pricePerItem * 64;
+        }
     }
 
     private double parseTooltipPrice(List<Text> tooltip) {
@@ -428,14 +257,15 @@ public class AHSniper extends Module {
         for (Text line : tooltip) {
             String text = line.getString();
             if (text.matches("(?i).*price\\s*:\\s*\\$.*")) {
-                String cleanText = text.replaceAll("[,$]", "");
+                String cleanedText = text.replaceAll("[,$]", "");
+
                 Matcher matcher = Pattern.compile("([\\d]+(?:\\.[\\d]+)?)\\s*([KMB])?", Pattern.CASE_INSENSITIVE)
-                    .matcher(cleanText);
+                    .matcher(cleanedText);
 
                 if (matcher.find()) {
-                    String number = matcher.group(1);
+                    String numberStr = matcher.group(1);
                     String suffix = matcher.group(2) != null ? matcher.group(2).toUpperCase() : "";
-                    return parsePrice(number + suffix);
+                    return parsePrice(numberStr + suffix);
                 }
             }
         }
@@ -447,22 +277,22 @@ public class AHSniper extends Module {
             return -1.0;
         }
 
-        String cleanStr = priceStr.trim().toUpperCase();
+        String cleaned = priceStr.trim().toUpperCase();
         double multiplier = 1.0;
 
-        if (cleanStr.endsWith("B")) {
+        if (cleaned.endsWith("B")) {
             multiplier = 1_000_000_000.0;
-            cleanStr = cleanStr.substring(0, cleanStr.length() - 1);
-        } else if (cleanStr.endsWith("M")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        } else if (cleaned.endsWith("M")) {
             multiplier = 1_000_000.0;
-            cleanStr = cleanStr.substring(0, cleanStr.length() - 1);
-        } else if (cleanStr.endsWith("K")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        } else if (cleaned.endsWith("K")) {
             multiplier = 1_000.0;
-            cleanStr = cleanStr.substring(0, cleanStr.length() - 1);
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
         }
 
         try {
-            return Double.parseDouble(cleanStr) * multiplier;
+            return Double.parseDouble(cleaned) * multiplier;
         } catch (NumberFormatException e) {
             return -1.0;
         }
@@ -480,60 +310,24 @@ public class AHSniper extends Module {
         }
     }
 
-    private String getItemDisplayName(Item item) {
-        if (item == Items.AIR) return "Air";
-
-        String[] parts = item.getTranslationKey().split("\\.");
+    private String getFormattedItemName(Item item) {
+        String translationKey = item.getTranslationKey();
+        String[] parts = translationKey.split("\\.");
         String itemName = parts[parts.length - 1];
 
-        return Arrays.stream(itemName.replace("_", " ").split(" "))
-            .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1))
-            .collect(Collectors.joining(" "));
-    }
+        String[] words = itemName.replace("_", " ").split(" ");
+        StringBuilder result = new StringBuilder();
 
-    private void clickSlot(GenericContainerScreenHandler handler, int slot) {
-        if (mc.interactionManager != null) {
-            mc.interactionManager.clickSlot(handler.syncId, slot, 1, SlotActionType.QUICK_MOVE, mc.player);
-        }
-    }
-
-    private void sendCommand(String command) {
-        if (mc.getNetworkHandler() != null) {
-            mc.getNetworkHandler().sendChatCommand(command);
-        }
-    }
-
-    @Override
-    public String getInfoString() {
-        if (snipingItem.get() == Items.AIR) {
-            return "No Item";
+        for (String word : words) {
+            if (!word.isEmpty()) {
+                result.append(Character.toUpperCase(word.charAt(0)))
+                    .append(word.substring(1).toLowerCase())
+                    .append(" ");
+            }
         }
 
-        String itemName = getItemDisplayName(snipingItem.get());
-        String maxPrice = formatPrice(parsePrice(price.get()));
+        String finalName = result.toString().trim();
 
-        if (isAuctionSniping) {
-            return String.format("Sniping %s - %s", itemName, currentSellerName);
-        } else {
-            return String.format("%s ≤ %s", itemName, maxPrice);
-        }
-    }
-
-    public enum Mode {
-        API("API"),
-        MANUAL("Manual");
-
-        private final String name;
-
-        Mode(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
+        return finalName;
     }
 }
-
- **/

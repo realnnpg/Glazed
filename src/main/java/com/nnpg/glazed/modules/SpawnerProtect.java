@@ -1,429 +1,354 @@
 package com.nnpg.glazed.modules;
 
+import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.BoolSetting;
-import meteordevelopment.meteorclient.settings.Setting;
-import meteordevelopment.meteorclient.settings.SettingGroup;
-import meteordevelopment.meteorclient.settings.StringSetting;
+import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.Entity;
+import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.Blocks;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.util.math.Direction;
+import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket.Mode;
-import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket;
 import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.text.Text;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
-import com.nnpg.glazed.GlazedAddon;
 
-import baritone.api.BaritoneAPI;
-import baritone.api.IBaritone;
-
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SpawnerProtect extends Module {
-    private boolean isTriggered = false;
-    private boolean isMiningDone = false;
-    private boolean detectedPlayer = false;
-    private IBaritone baritone;
-    private boolean baritoneAvailable = false;
-    private int commandCooldown = 0;
-    private int timer = 0;
-    private boolean isAtEnderChest = false;
-
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Boolean> webhook = sgGeneral.add(new BoolSetting.Builder()
-        .name("Webhook")
-        .description("Sends a webhook when a player is nearby")
-        .defaultValue(true)
+        .name("webhook")
+        .description("Enable webhook notifications")
+        .defaultValue(false)
         .build()
     );
 
     private final Setting<String> webhookUrl = sgGeneral.add(new StringSetting.Builder()
         .name("webhook-url")
-        .description("Discord webhook URL")
+        .description("Discord webhook URL for notifications")
         .defaultValue("")
+        .visible(webhook::get)
         .build()
     );
 
-    private final HttpClient httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(10))
-        .build();
+    private final Setting<Integer> spawnerRange = sgGeneral.add(new IntSetting.Builder()
+        .name("spawner-range")
+        .description("Range to check for remaining spawners")
+        .defaultValue(16)
+        .min(1)
+        .max(50)
+        .sliderMax(50)
+        .build()
+    );
+
+    private enum State {
+        IDLE,
+        GOING_TO_SPAWNERS,
+        GOING_TO_CHEST,
+        DEPOSITING_ITEMS,
+        DISCONNECTING
+    }
+
+    private State currentState = State.IDLE;
+    private String detectedPlayer = "";
+    private long detectionTime = 0;
+    private boolean spawnersMinedSuccessfully = false;
+    private boolean itemsDepositedSuccessfully = false;
+    private int tickCounter = 0;
+    private boolean chestOpened = false;
+    private int transferDelayCounter = 0;
+    private int lastProcessedSlot = -1;
 
     public SpawnerProtect() {
-        super(GlazedAddon.CATEGORY, "SpawnerProtect", "Mines spawners when players are nearby, stores them in an Ender Chest, and disconnects.");
+        super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
     }
 
     @Override
     public void onActivate() {
-        isTriggered = false;
-        isMiningDone = false;
-        detectedPlayer = false;
-        commandCooldown = 0;
-        timer = 0;
-        isAtEnderChest = false;
+        currentState = State.IDLE;
+        detectedPlayer = "";
+        detectionTime = 0;
+        spawnersMinedSuccessfully = false;
+        itemsDepositedSuccessfully = false;
+        tickCounter = 0;
+        chestOpened = false;
+        transferDelayCounter = 0;
+        lastProcessedSlot = -1;
 
-        try {
-            baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
-            baritoneAvailable = true;
-            ChatUtils.info("SpawnerProtect activated - Baritone ready, watching for players...");
-        } catch (Exception e) {
-            ChatUtils.error("Failed to initialize Baritone: " + e.getMessage());
-            baritoneAvailable = false;
-            this.toggle();
-            return;
-        }
-    }
+        ChatUtils.sendPlayerMsg("#set legitMine true");
+        ChatUtils.sendPlayerMsg("#set smoothLook true");
 
-    @EventHandler
-    private void onEntityAdded(EntityAddedEvent event) {
-        if (!isActive() || !baritoneAvailable) return;
+        ChatUtils.info("SpawnerProtect activated - monitoring for players...");
+        ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
 
-        if (!this.detectedPlayer) {
-            Entity entity = event.entity;
-            if (entity instanceof PlayerEntity && entity != mc.player) {
-                this.detectedPlayer = true;
-                this.isTriggered = true;
-                ChatUtils.info("Player detected! Starting spawner mining...");
-
-                startSneaking();
-
-                commandCooldown = 10;
-                sendwebhook();
-            }
-        }
-    }
-
-    @EventHandler
-    private void sendwebhook() {
-        // Only send if webhook setting is enabled
-        if (!webhook.get()) {
-            return;
-        }
-
-        // Check if webhook URL is provided
-        if (webhookUrl.get().isEmpty()) {
-            ChatUtils.error("Please provide a webhook URL in the settings!");
-            return;
-        }
-
-        try {
-            //String playerName = MinecraftClient.getInstance().getSession().getUsername();
-
-            String jsonPayload = String.format(
-                "{\"embeds\":[{\"title\":\"%s\",\"description\":\"%s\",\"color\":%d,\"footer\":{\"text\":\"Sent by Glazed\"}}]}",
-                "Player detected nearby!!!",
-                "Starting mining process",
-                16777215
-            );
-
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(webhookUrl.get()))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                .timeout(Duration.ofSeconds(10))
-                .build();
-
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenAccept(response -> {
-                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        ChatUtils.info("Webhook message sent successfully!");
-                    } else {
-                        ChatUtils.error("Failed to send webhook message. Status code: " + response.statusCode());
-                    }
-                })
-                .exceptionally(throwable -> {
-                    ChatUtils.error("Error sending webhook message: " + throwable.getMessage());
-                    return null;
-                });
-
-        } catch (Exception e) {
-            ChatUtils.error("Error creating webhook request: " + e.getMessage());
-        }
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (!isActive() || !baritoneAvailable || !isTriggered) return;
+        if (mc.player == null || mc.world == null) return;
 
-        // Handle command cooldown (initial mining command)
-        if (commandCooldown > 0) {
-            commandCooldown--;
-            if (commandCooldown == 0) {
-                startMiningSequence();
-            }
+        tickCounter++;
+
+        if (transferDelayCounter > 0) {
+            transferDelayCounter--;
             return;
         }
 
-        if (isTriggered && !isMiningDone) {
-            boolean stillMining = false;
-            try {
-                stillMining = baritone.getPathingBehavior().isPathing() ||
-                    baritone.getMineProcess().isActive();
-            } catch (Exception e) {
-                stillMining = false;
-            }
+        switch (currentState) {
+            case IDLE:
+                checkForPlayers();
+                break;
+            case GOING_TO_SPAWNERS:
+                handleGoingToSpawners();
+                break;
+            case GOING_TO_CHEST:
+                handleGoingToChest();
+                break;
+            case DEPOSITING_ITEMS:
+                handleDepositingItems();
+                break;
+            case DISCONNECTING:
+                handleDisconnecting();
+                break;
+        }
+    }
 
-            if (!stillMining) {
-                if (timer == 0) {
-                    timer = 20;
-                    ChatUtils.info("Mining stopped, waiting for item collection...");
-                } else {
-                    timer--;
-                    if (timer == 0) {
-                        isMiningDone = true;
-                        stopSneaking();
-                        ChatUtils.info("Spawner mining complete! Going to Ender Chest...");
-                        timer = 10;
+    private void checkForPlayers() {
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player == mc.player) continue;
+            if (!(player instanceof AbstractClientPlayerEntity)) continue;
+
+            detectedPlayer = player.getGameProfile().getName();
+            detectionTime = System.currentTimeMillis();
+
+            ChatUtils.sendPlayerMsg("SpawnerProtect: Player detected - " + detectedPlayer);
+
+            currentState = State.GOING_TO_SPAWNERS;
+            ChatUtils.info("Player detected! Starting protection sequence...");
+            mc.player.setSneaking(true);
+            ChatUtils.sendPlayerMsg("#mine spawner");
+
+            break;
+        }
+    }
+
+    private void handleGoingToSpawners() {
+        boolean spawnersRemain = false;
+        BlockPos playerPos = mc.player.getBlockPos();
+
+        for (int x = -spawnerRange.get(); x <= spawnerRange.get(); x++) {
+            for (int y = -spawnerRange.get(); y <= spawnerRange.get(); y++) {
+                for (int z = -spawnerRange.get(); z <= spawnerRange.get(); z++) {
+                    BlockPos pos = playerPos.add(x, y, z);
+                    if (mc.world.getBlockState(pos).getBlock() == Blocks.SPAWNER) {
+                        spawnersRemain = true;
+                        break;
+                    }
+                }
+                if (spawnersRemain) break;
+            }
+            if (spawnersRemain) break;
+        }
+
+        if (!spawnersRemain) {
+            spawnersMinedSuccessfully = true;
+            mc.player.setSneaking(false);
+            currentState = State.GOING_TO_CHEST;
+            ChatUtils.info("All spawners mined successfully. Going to ender chest...");
+            ChatUtils.sendPlayerMsg("#goto ender_chest");
+            tickCounter = 0;
+        } else {
+            if (tickCounter % 60 == 0) {
+                ChatUtils.sendPlayerMsg("#mine spawner");
+            }
+        }
+    }
+
+    private void handleGoingToChest() {
+        boolean nearEnderChest = false;
+        BlockPos playerPos = mc.player.getBlockPos();
+
+        for (int x = -3; x <= 3; x++) {
+            for (int y = -3; y <= 3; y++) {
+                for (int z = -3; z <= 3; z++) {
+                    BlockPos pos = playerPos.add(x, y, z);
+                    if (mc.world.getBlockState(pos).getBlock() == Blocks.ENDER_CHEST) {
+                        nearEnderChest = true;
+                        break;
                     }
                 }
             }
-            return;
         }
 
-        if (isMiningDone && timer > 0) {
-            timer--;
-            if (timer == 0) {
-                int spawnerCount = countSpawnersInInventory();
-                ChatUtils.info("Mining complete! Found " + spawnerCount + " spawners in inventory. Disconnecting...");
-                disconnect();
-            }
-            return;
+        if (nearEnderChest) {
+            currentState = State.DEPOSITING_ITEMS;
+            tickCounter = 0;
+            ChatUtils.info("Reached ender chest area. Opening and depositing items...");
         }
 
-        /** COMMENTED OUT - ENDER CHEST FUNCTIONALITY (NOT WORKING)
-         // Go to ender chest after mining is confirmed complete
-         if (isMiningDone && !isAtEnderChest && timer > 0) {
-         timer--;
-         if (timer == 0) {
-         goToEnderChest();
-         }
-         return;
-         }
-
-         // Check if we've reached the ender chest (and it's been opened by goto command)
-         if (isMiningDone && !isAtEnderChest && !baritone.getPathingBehavior().isPathing()) {
-         isAtEnderChest = true;
-         ChatUtils.info("Reached Ender Chest and opened it. Preparing to transfer spawners...");
-         timer = 40; // Wait 2 seconds before starting inventory operations
-         }
-
-         // Handle spawner storage after reaching ender chest
-         if (isAtEnderChest) {
-         handleInventoryManagement();
-         }
-         **/
-    }
-
-    private void startMiningSequence() {
-        if (!baritoneAvailable || baritone == null) {
-            ChatUtils.error("Baritone is not available!");
-            return;
-        }
-
-        try {
-            baritone.getCommandManager().execute("set legitMine true");
-            baritone.getCommandManager().execute("mine minecraft:spawner");
-
-
-        } catch (Exception e) {
-            ChatUtils.error("Failed to send Baritone command: " + e.getMessage());
-
-            try {
-                ChatUtils.info("Trying fallback method...");
-                ChatUtils.sendPlayerMsg("#set legitMine true");
-                ChatUtils.sendPlayerMsg("#mine minecraft:spawner");
-            } catch (Exception e2) {
-                ChatUtils.error("All methods failed: " + e2.getMessage());
-            }
+        if (tickCounter > 600) {
+            ChatUtils.error("Timed out trying to reach ender chest!");
+            currentState = State.DISCONNECTING;
         }
     }
 
-    private void startSneaking() {
-        if (mc.player != null && mc.getNetworkHandler() != null) {
-            try {
-                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.PRESS_SHIFT_KEY));
-                ChatUtils.info("Started sneaking");
-            } catch (Exception e) {
-                ChatUtils.error("Failed to start sneaking: " + e.getMessage());
+    private void handleDepositingItems() {
+        if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler) {
+            GenericContainerScreenHandler handler = (GenericContainerScreenHandler) mc.player.currentScreenHandler;
+
+            if (!chestOpened) {
+                chestOpened = true;
+                lastProcessedSlot = -1;
+                ChatUtils.info("Ender chest opened, starting item transfer...");
             }
+
+            if (!hasItemsToDeposit()) {
+                itemsDepositedSuccessfully = true;
+                ChatUtils.info("All items deposited successfully!");
+                mc.player.closeHandledScreen();
+                transferDelayCounter = 40;
+                currentState = State.DISCONNECTING;
+                return;
+            }
+
+            transferItemsToChest(handler);
+
+        } else {
+            if (tickCounter % 20 == 0) {
+                ChatUtils.sendPlayerMsg("#goto ender_chest");
+            }
+        }
+
+        if (tickCounter > 900) {
+            ChatUtils.error("Timed out depositing items!");
+            currentState = State.DISCONNECTING;
         }
     }
 
-    private void stopSneaking() {
-        if (mc.player != null && mc.getNetworkHandler() != null) {
-            try {
-                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.RELEASE_SHIFT_KEY));
-                ChatUtils.info("Stopped sneaking");
-            } catch (Exception e) {
-                ChatUtils.error("Failed to stop sneaking: " + e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * COMMENTED OUT - ENDER CHEST METHODS (NOT WORKING)
-     * private void goToEnderChest() {
-     * try {
-     * baritone.getCommandManager().execute("goto minecraft:ender_chest");
-     * ChatUtils.info("Pathfinding to nearest Ender Chest (will auto-open)...");
-     * } catch (Exception e) {
-     * ChatUtils.error("Failed to navigate to Ender Chest: " + e.getMessage());
-     * // Try fallback
-     * try {
-     * ChatUtils.sendPlayerMsg("#goto minecraft:ender_chest");
-     * } catch (Exception e2) {
-     * ChatUtils.error("Fallback navigation failed: " + e2.getMessage());
-     * }
-     * }
-     * }
-     * <p>
-     * private void handleInventoryManagement() {
-     * if (timer > 0) {
-     * timer--;
-     * if (timer == 30) { // When timer hits 30, show inventory info
-     * int spawnerCount = countSpawnersInInventory();
-     * ChatUtils.info("Found " + spawnerCount + " spawners in inventory");
-     * }
-     * return;
-     * }
-     * <p>
-     * // Check if ender chest is properly opened
-     * if (mc.player == null) return;
-     * <p>
-     * if (mc.player.currentScreenHandler == null ||
-     * mc.player.currentScreenHandler == mc.player.playerScreenHandler) {
-     * // Ender chest not open yet, wait a bit more
-     * ChatUtils.info("Ender chest not fully opened yet, waiting...");
-     * timer = 20; // Wait 1 second and try again
-     * return;
-     * }
-     * <p>
-     * // Find spawners in inventory and move them with shift-click
-     * boolean foundSpawner = false;
-     * <p>
-     * // Check hotbar first (slots 0-8 in inventory, slots 36-44 in screen handler)
-     * for (int i = 0; i < 9; i++) {
-     * ItemStack stack = mc.player.getInventory().getStack(i);
-     * if (!stack.isEmpty() && stack.getItem().equals(Items.SPAWNER)) {
-     * try {
-     * int screenSlot = i + 36; // Hotbar: inventory slots 0-8 → screen slots 36-44
-     * mc.interactionManager.clickSlot(
-     * mc.player.currentScreenHandler.syncId,
-     * screenSlot,
-     * 0,
-     * SlotActionType.QUICK_MOVE,
-     * mc.player
-     * );
-     * ChatUtils.info("Shift-clicked " + stack.getCount() + " spawner(s) from hotbar slot " + (i + 1));
-     * foundSpawner = true;
-     * timer = 8; // Wait 0.4 seconds between moves
-     * break;
-     * } catch (Exception e) {
-     * ChatUtils.error("Failed to shift-click spawner from hotbar slot " + (i + 1) + ": " + e.getMessage());
-     * }
-     * }
-     * }
-     * <p>
-     * // If no spawner found in hotbar, check main inventory (slots 9-35 in inventory, slots 9-35 in screen handler)
-     * if (!foundSpawner) {
-     * for (int i = 9; i < 36; i++) {
-     * ItemStack stack = mc.player.getInventory().getStack(i);
-     * if (!stack.isEmpty() && stack.getItem().equals(Items.SPAWNER)) {
-     * try {
-     * int screenSlot = i; // Main inventory: same slot numbers
-     * mc.interactionManager.clickSlot(
-     * mc.player.currentScreenHandler.syncId,
-     * screenSlot,
-     * 0,
-     * SlotActionType.QUICK_MOVE,
-     * mc.player
-     * );
-     * ChatUtils.info("Shift-clicked " + stack.getCount() + " spawner(s) from inventory slot " + (i - 8));
-     * foundSpawner = true;
-     * timer = 8; // Wait 0.4 seconds between moves
-     * break;
-     * } catch (Exception e) {
-     * ChatUtils.error("Failed to shift-click spawner from inventory slot " + (i - 8) + ": " + e.getMessage());
-     * }
-     * }
-     * }
-     * }
-     * <p>
-     * // If no more spawners found, disconnect
-     * if (!foundSpawner && timer == 0) {
-     * int remainingSpawners = countSpawnersInInventory();
-     * if (remainingSpawners == 0) {
-     * ChatUtils.info("All spawners successfully moved to Ender Chest. Disconnecting...");
-     * timer = 60; // Wait 3 seconds before disconnect
-     * disconnect();
-     * } else {
-     * ChatUtils.warning("Still have " + remainingSpawners + " spawner(s) but couldn't move them. Retrying...");
-     * timer = 20; // Wait 1 second and try again
-     * }
-     * }
-     * }
-     **/ // END OF COMMENTED ENDER CHEST CODE
-    private int countSpawnersInInventory() {
-        if (mc.player == null) return 0;
-
-        int count = 0;
-        for (int i = 0; i < mc.player.getInventory().size(); i++) {
+    private boolean hasItemsToDeposit() {
+        for (int i = 0; i < 36; i++) {
             ItemStack stack = mc.player.getInventory().getStack(i);
-            if (!stack.isEmpty() && stack.getItem().equals(Items.SPAWNER)) {
-                count += stack.getCount();
+            if (!stack.isEmpty() && stack.getItem() != Items.AIR) {
+                return true;
             }
         }
-        return count;
+        return false;
     }
 
-    private void disconnect() {
-        try {
-            ClientPlayNetworkHandler networkHandler = mc.getNetworkHandler();
-            if (networkHandler != null && mc.player != null) {
-                mc.player.networkHandler.onDisconnect(new DisconnectS2CPacket(Text.literal("Someone found you - SpawnerProtect")));
+    private void transferItemsToChest(GenericContainerScreenHandler handler) {
+        int totalSlots = handler.slots.size();
+        int chestSlots = totalSlots - 36;
+        int playerInventoryStart = chestSlots;
+        int startSlot = Math.max(lastProcessedSlot + 1, playerInventoryStart);
+
+        for (int i = 0; i < 36; i++) {
+            int slotId = playerInventoryStart + ((startSlot - playerInventoryStart + i) % 36);
+            ItemStack stack = handler.getSlot(slotId).getStack();
+
+            if (stack.isEmpty() || stack.getItem() == Items.AIR) {
+                continue;
             }
-        } catch (Exception e) {
-            ChatUtils.error("Failed to disconnect: " + e.getMessage());
-            try {
-                if (mc.world != null) {
-                    mc.disconnect();
-                }
-            } catch (Exception e2) {
-                ChatUtils.error("Alternative disconnect failed: " + e2.getMessage());
-            }
+
+            ChatUtils.info("Transferring item from slot " + slotId + ": " + stack.getItem().toString());
+
+            mc.interactionManager.clickSlot(
+                handler.syncId,
+                slotId,
+                0,
+                SlotActionType.QUICK_MOVE,
+                mc.player
+            );
+
+            lastProcessedSlot = slotId;
+            transferDelayCounter = 8;
+            return;
         }
+
+        if (lastProcessedSlot >= playerInventoryStart) {
+            lastProcessedSlot = playerInventoryStart - 1;
+            transferDelayCounter = 10;
+        }
+    }
+
+    private void handleDisconnecting() {
+        sendWebhookNotification();
+
+        ChatUtils.info("SpawnerProtect: Player detected - "  + detectedPlayer);
+
+        if (mc.world != null) {
+            mc.world.disconnect();
+        }
+
+        ChatUtils.info("Disconnected due to player detection.");
+        toggle();
+    }
+
+    private void sendWebhookNotification() {
+        if (!webhook.get() || webhookUrl.get().isEmpty()) {
+            ChatUtils.info("Webhook disabled or URL not configured.");
+            return;
+        }
+
+        long discordTimestamp = detectionTime / 1000L;
+        String embedJson = String.format("""
+            {
+                "username": "Glazed Webhook",
+                "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                "embeds": [{
+                    "title": "SpawnerProtect Alert",
+                    "description": "**Player Detected:** %s\\n**Detection Time:** <t:%d:R>\\n**Spawners Mined:** %s\\n**Items Deposited:** %s\\n**Disconnected:** Yes",
+                    "color": 16766720,
+                    "timestamp": "%s",
+                    "footer": {
+                        "text": "Sent by Glazed"
+                    }
+                }]
+            }""",
+            detectedPlayer,
+            discordTimestamp,
+            spawnersMinedSuccessfully ? "✅ Success" : "❌ Failed",
+            itemsDepositedSuccessfully ? "✅ Success" : "❌ Failed",
+            Instant.now().toString()
+        );
+
+        new Thread(() -> {
+            try {
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(webhookUrl.get()))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(embedJson))
+                    .build();
+
+                client.send(request, HttpResponse.BodyHandlers.ofString());
+                ChatUtils.info("Webhook notification sent successfully!");
+            } catch (Exception e) {
+                ChatUtils.error("Failed to send webhook notification: " + e.getMessage());
+            }
+        }).start();
     }
 
     @Override
     public void onDeactivate() {
-        isTriggered = false;
-        isMiningDone = false;
-        detectedPlayer = false;
-        commandCooldown = 0;
-        timer = 0;
-        isAtEnderChest = false;
-
-        stopSneaking();
-
-        if (baritoneAvailable && baritone != null) {
-            try {
-                baritone.getPathingBehavior().cancelEverything();
-            } catch (Exception e) {
-            }
+        if (mc.player != null) {
+            mc.player.setSneaking(false);
         }
 
+        ChatUtils.sendPlayerMsg("#stop");
     }
 }
