@@ -1,6 +1,6 @@
 # Glazed
 <p align="center">
-  <img src="https://nnpg.dev/Glazed.png" alt="Glazed Addon Banner" width="300"/>
+  <img src="https://nnpg.dev/Glazedlogo.png" alt="Glazed Addon Banner" width="300"/>
 </p>
 
 <p align="center">
