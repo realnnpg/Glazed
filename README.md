@@ -148,7 +148,7 @@ This project is provided **as-is** with **no warranty** of any kind.
 
 > I am **not responsible** for any **bans, data loss, in-game money loss**, or **any other consequences** that may arise from using this addon.
 >
-> **Use at your own risk.** If you lose items, get banned, or otherwise suffer any kind of issue — I simply don’t care. You’ve been warned.
+> **Use at your own risk.** If you lose items, get banned, or otherwise suffer any kind of issue — I simply don’t care. You’ve been warned. Use an alt
 
 
 
