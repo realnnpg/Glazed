@@ -136,7 +136,7 @@ public class SpawnerProtect extends Module {
             detectedPlayer = player.getGameProfile().getName();
             detectionTime = System.currentTimeMillis();
 
-            ChatUtils.sendPlayerMsg("SpawnerProtect: Player detected - " + detectedPlayer);
+            ChatUtils.info("SpawnerProtect: Player detected - " + detectedPlayer);
 
             currentState = State.GOING_TO_SPAWNERS;
             ChatUtils.info("Player detected! Starting protection sequence...");

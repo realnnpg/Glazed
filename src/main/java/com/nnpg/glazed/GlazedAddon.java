@@ -20,7 +20,7 @@ public class GlazedAddon extends MeteorAddon {
     @Override
     public void onInitialize() {
         // Register modules
-        Modules.get().add(new SpawnerProtect()); //working on it
+        Modules.get().add(new SpawnerProtect()); //done
         Modules.get().add(new PearlThrow()); //done
         Modules.get().add(new AutoInvTotem()); //done
         Modules.get().add(new RTPBaseFinder()); //done
