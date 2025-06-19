@@ -64,7 +64,6 @@ public class AHSniper extends Module {
         .build()
     );
 
-
     private int delayCounter = 0;
     private boolean isProcessing = false;
 
@@ -218,6 +217,16 @@ public class AHSniper extends Module {
         double effectivePrice = calculateEffectivePrice(itemPrice, stack.getCount(), snipingItem.get().getMaxCount());
 
         boolean isValid = effectivePrice <= maxPriceValue;
+
+        if (notifications.get()) {
+            ChatUtils.info("Item: %s, Auction Price: %s, Effective Price: %s, Max Price: %s, Valid: %s",
+                stack.getItem().getName().getString(),
+                formatPrice(itemPrice),
+                formatPrice(effectivePrice),
+                formatPrice(maxPriceValue),
+                isValid ? "Yes" : "No"
+            );
+        }
 
         return isValid;
     }
