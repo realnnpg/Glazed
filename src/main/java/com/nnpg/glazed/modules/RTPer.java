@@ -214,16 +214,33 @@ public class RTPer extends Module {
     private int parseDistance() {
         String dist = distance.get().toLowerCase().trim();
 
+        if (dist.isEmpty()) {
+            error("Distance is empty. Using default 1000.");
+            return 1000;
+        }
+
         try {
             if (dist.endsWith("k")) {
-                return (int) (Double.parseDouble(dist.substring(0, dist.length() - 1)) * 1000);
+                String numberPart = dist.substring(0, dist.length() - 1).trim();
+                if (numberPart.isEmpty()) {
+                    error("Invalid distance format: '%s'. Using default 1000.", dist);
+                    return 1000;
+                }
+                double value = Double.parseDouble(numberPart);
+                return (int) (value * 1000);
             } else if (dist.endsWith("m")) {
-                return (int) (Double.parseDouble(dist.substring(0, dist.length() - 1)) * 1000000);
+                String numberPart = dist.substring(0, dist.length() - 1).trim();
+                if (numberPart.isEmpty()) {
+                    error("Invalid distance format: '%s'. Using default 1000.", dist);
+                    return 1000;
+                }
+                double value = Double.parseDouble(numberPart);
+                return (int) (value * 1000000);
             } else {
                 return Integer.parseInt(dist);
             }
         } catch (NumberFormatException e) {
-            error("Invalid distance format: %s. Using default 1000.", dist);
+            error("Invalid distance format: '%s'. Error: %s. Using default 1000.", dist, e.getMessage());
             return 1000;
         }
     }

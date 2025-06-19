@@ -64,12 +64,7 @@ public class AHSniper extends Module {
         .build()
     );
 
-    private final Setting<Boolean> detailedLogs = sgGeneral.add(new BoolSetting.Builder()
-        .name("detailed-logs")
-        .description("Show detailed step-by-step notifications.")
-        .defaultValue(true)
-        .build()
-    );
+
     private int delayCounter = 0;
     private boolean isProcessing = false;
 
@@ -223,16 +218,6 @@ public class AHSniper extends Module {
         double effectivePrice = calculateEffectivePrice(itemPrice, stack.getCount(), snipingItem.get().getMaxCount());
 
         boolean isValid = effectivePrice <= maxPriceValue;
-
-        if (detailedLogs.get() && notifications.get()) {
-            ChatUtils.info("Item: %s, Auction Price: %s, Effective Price: %s, Max Price: %s, Valid: %s",
-                stack.getItem().getName().getString(),
-                formatPrice(itemPrice),
-                formatPrice(effectivePrice),
-                formatPrice(maxPriceValue),
-                isValid ? "Yes" : "No"
-            );
-        }
 
         return isValid;
     }
