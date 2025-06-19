@@ -92,6 +92,8 @@ public class SpawnerProtect extends Module {
 
         ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#set smoothLook true");
+        ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
+
 
         ChatUtils.info("SpawnerProtect activated - monitoring for players...");
         ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");

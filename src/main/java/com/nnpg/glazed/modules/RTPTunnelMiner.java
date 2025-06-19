@@ -50,7 +50,7 @@ import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
 
 
-public class RTPBaseFinder extends Module {
+public class RTPTunnelMiner extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgother = settings.createGroup("Other module");
     private final SettingGroup sgwebhook = settings.createGroup("Webhook");
@@ -66,7 +66,7 @@ public class RTPBaseFinder extends Module {
     private final Setting<Integer> mineYLevel = sgGeneral.add(new IntSetting.Builder()
         .name("Mine Y Level")
         .description("Y level to mine down to.")
-        .defaultValue(-22)
+        .defaultValue(-60)
         .min(-64)
         .max(80)
         .sliderMax(20)
@@ -89,7 +89,7 @@ public class RTPBaseFinder extends Module {
 
     private final Setting<Boolean> disconnectOnBaseFind = sgGeneral.add(new BoolSetting.Builder()
         .name("Disconnect on Base Find")
-        .description("Automatically disconnect when a base is found.")
+        .description("Disconnect from server when a base is found")
         .defaultValue(true)
         .build());
 
@@ -164,8 +164,8 @@ public class RTPBaseFinder extends Module {
     private float lastHealth = 20.0f;
     private boolean playerWasAlive = true;
 
-    public RTPBaseFinder() {
-        super(GlazedAddon.CATEGORY, "RTPBaseFinder", "RTPs, mines to a Y level, and detects bases using chunk loading.");
+    public RTPTunnelMiner() {
+        super(GlazedAddon.CATEGORY, "RTPTunnelMiner", "RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.");
     }
 
     @Override
@@ -173,7 +173,6 @@ public class RTPBaseFinder extends Module {
         ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#set smoothLook true");
         ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
-
         startLoop();
     }
 
@@ -201,7 +200,6 @@ public class RTPBaseFinder extends Module {
 
         StashChunk chunk = new StashChunk(chunkPos);
 
-        // Count storage blocks in the chunk
         for (BlockEntity blockEntity : event.chunk().getBlockEntities().values()) {
             if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
             else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
@@ -265,6 +263,14 @@ public class RTPBaseFinder extends Module {
         ChatUtils.info("Started mining down to Y level " + mineYLevel.get());
     }
 
+    private void startTunneling() {
+        if (mc.player == null) return;
+        ChatUtils.sendPlayerMsg("#tunnel");
+        ChatUtils.info("Started tunneling at Y level " + mineYLevel.get());
+    }
+
+
+
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof EntityStatusS2CPacket packet) {
@@ -277,9 +283,11 @@ public class RTPBaseFinder extends Module {
                     }
                 }
 
+                // Stop current mining and restart RTP loop
                 ChatUtils.sendPlayerMsg("#stop");
                 ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
 
+                // Small delay to ensure the stop command processes, then restart
                 Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                     MinecraftClient.getInstance().execute(() -> {
                         startLoop();
@@ -288,7 +296,6 @@ public class RTPBaseFinder extends Module {
             }
         }
     }
-
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
@@ -339,10 +346,14 @@ public class RTPBaseFinder extends Module {
             }
             case 1 -> {
                 if (mc.player.getY() <= mineYLevel.get() + 2) {
-                    ChatUtils.sendPlayerMsg("#stop");
-                    ChatUtils.info("Reached mining goal, restarting loop...");
-                    startLoop(); // Restart the entire loop
+                    loopStage = 2;
+                    stageStartTime = now;
+                    ChatUtils.info("Reached mining goal, starting tunnel...");
+                    startTunneling();
                 }
+            }
+            case 2 -> {
+
             }
         }
     }
@@ -385,7 +396,14 @@ public class RTPBaseFinder extends Module {
                 ChatUtils.info("Base found but disconnect is disabled. Continuing mining...");
             }
         } else {
-            error("Webhook is enabled, but the URL is empty!");
+            if (disconnectOnBaseFind.get()) {
+                if (mc.player != null) {
+                    mc.player.networkHandler.onDisconnect(new DisconnectS2CPacket(Text.literal("YOU FOUND A BASE!")));
+                    toggle();
+                }
+            } else {
+                ChatUtils.info("Base found but disconnect is disabled. Continuing mining...");
+            }
         }
     }
 
@@ -486,7 +504,6 @@ public class RTPBaseFinder extends Module {
             error("Error creating death webhook request: " + e.getMessage());
         }
     }
-
 
     private void sendWebhookRequest(String jsonPayload, String type) {
         try {

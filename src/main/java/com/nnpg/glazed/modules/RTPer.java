@@ -91,7 +91,6 @@ public class RTPer extends Module {
         .build()
     );
 
-    // Webhook Settings
     private final Setting<Boolean> webhookEnabled = sgWebhook.add(new BoolSetting.Builder()
         .name("webhook-enabled")
         .description("Enable webhook notifications.")

@@ -19,7 +19,6 @@ public class GlazedAddon extends MeteorAddon {
 
     @Override
     public void onInitialize() {
-        // Register modules
         Modules.get().add(new SpawnerProtect()); //done
         Modules.get().add(new PearlThrow()); //done
         Modules.get().add(new AutoInvTotem()); //done
@@ -30,7 +29,9 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new ElytraSwap()); //done
         Modules.get().add(new PlayerDetection()); //done
         Modules.get().add(new AHSniper()); //done
-        Modules.get().add(new RTPer()); //fix k not working
+        Modules.get().add(new RTPer()); //done
+        Modules.get().add(new RTPTunnelMiner()); //working on it
+
 
 
 
