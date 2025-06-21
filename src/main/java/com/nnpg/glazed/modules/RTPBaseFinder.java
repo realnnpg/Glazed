@@ -22,6 +22,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -79,6 +80,13 @@ public class RTPBaseFinder extends Module {
         .defaultValue(4)
         .min(1)
         .sliderMax(50)
+        .build());
+
+    // Add storage blocks setting (you'll need to implement StorageBlockListSetting)
+    private final Setting<List<BlockEntityType<?>>> storageBlocks = sgGeneral.add(new StorageBlockListSetting.Builder()
+        .name("storage-blocks")
+        .description("Select the storage blocks to search for.")
+        .defaultValue(StorageBlockListSetting.STORAGE_BLOCKS)
         .build());
 
     private final Setting<Boolean> spawnersCritical = sgGeneral.add(new BoolSetting.Builder()
@@ -173,6 +181,10 @@ public class RTPBaseFinder extends Module {
         ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#set smoothLook true");
         ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
+        ChatUtils.sendPlayerMsg("#freelook false");
+        ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
+        ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
+        ChatUtils.sendPlayerMsg("#blocksToAvoid gravel");
 
         startLoop();
     }
@@ -201,30 +213,38 @@ public class RTPBaseFinder extends Module {
 
         StashChunk chunk = new StashChunk(chunkPos);
 
-        // Count storage blocks in the chunk
         for (BlockEntity blockEntity : event.chunk().getBlockEntities().values()) {
-            if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
-            else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
-            else if (blockEntity instanceof ShulkerBoxBlockEntity) chunk.shulkers++;
-            else if (blockEntity instanceof EnderChestBlockEntity) chunk.enderChests++;
-            else if (blockEntity instanceof AbstractFurnaceBlockEntity) chunk.furnaces++;
-            else if (blockEntity instanceof DispenserBlockEntity) chunk.dispensersDroppers++;
-            else if (blockEntity instanceof HopperBlockEntity) chunk.hoppers++;
-            else if (blockEntity instanceof MobSpawnerBlockEntity) chunk.spawners++;
-        }
+            BlockEntityType<?> type = blockEntity.getType();
 
-        if (chunk.getTotal() >= baseThreshold.get()) {
-            processedChunks.add(chunkPos);
-
-            ChatUtils.info("Base found in chunk at " + chunk.x + ", " + chunk.z + " (" + chunk.getTotal() + " storage blocks)");
-
-            if (spawnersCritical.get() && chunk.spawners > 0) {
-                ChatUtils.info("Spawners found in base, disconnecting...");
-                disconnectAndNotify(chunk);
-                return;
+            if (blockEntity instanceof MobSpawnerBlockEntity) {
+                chunk.spawners++;
+                continue;
             }
 
-            disconnectAndNotify(chunk);
+            if (storageBlocks.get().contains(type)) {
+                if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
+                else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
+                else if (blockEntity instanceof ShulkerBoxBlockEntity) chunk.shulkers++;
+                else if (blockEntity instanceof EnderChestBlockEntity) chunk.enderChests++;
+                else if (blockEntity instanceof AbstractFurnaceBlockEntity) chunk.furnaces++;
+                else if (blockEntity instanceof DispenserBlockEntity) chunk.dispensersDroppers++;
+                else if (blockEntity instanceof HopperBlockEntity) chunk.hoppers++;
+            }
+        }
+
+        boolean isBaseFound = false;
+        String detectionReason = "";
+
+        if (spawnersCritical.get() && chunk.spawners > 0) {
+            isBaseFound = true;
+        }
+        else if (chunk.getTotal() >= baseThreshold.get()) {
+            isBaseFound = true;
+        }
+
+        if (isBaseFound) {
+            processedChunks.add(chunkPos);
+            disconnectAndNotify(chunk, detectionReason);
         }
     }
 
@@ -289,7 +309,6 @@ public class RTPBaseFinder extends Module {
         }
     }
 
-
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
@@ -314,6 +333,13 @@ public class RTPBaseFinder extends Module {
         if (mc.player != null) {
             float currentHealth = mc.player.getHealth();
             boolean isAlive = mc.player.isAlive();
+
+            if (currentHealth < 11.0f && isAlive) {
+                ChatUtils.info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
+                ChatUtils.sendPlayerMsg("#stop");
+                startLoop();
+                return;
+            }
 
             if (playerWasAlive && !isAlive && currentHealth <= 0) {
                 if (deathWebhook.get() && !webhookUrl.get().isEmpty()) {
@@ -341,7 +367,7 @@ public class RTPBaseFinder extends Module {
                 if (mc.player.getY() <= mineYLevel.get() + 2) {
                     ChatUtils.sendPlayerMsg("#stop");
                     ChatUtils.info("Reached mining goal, restarting loop...");
-                    startLoop(); // Restart the entire loop
+                    startLoop();
                 }
             }
         }
@@ -368,9 +394,9 @@ public class RTPBaseFinder extends Module {
         }
     }
 
-    private void disconnectAndNotify(StashChunk chunk) {
+    private void disconnectAndNotify(StashChunk chunk, String detectionReason) {
         if (baseFindWebhook.get() && !webhookUrl.get().isEmpty()) {
-            sendBaseFindWebhook(chunk);
+            sendBaseFindWebhook(chunk, detectionReason);
 
             if (disconnectOnBaseFind.get()) {
                 Executors.newSingleThreadScheduledExecutor().schedule(() -> {
@@ -384,12 +410,19 @@ public class RTPBaseFinder extends Module {
             } else {
                 ChatUtils.info("Base found but disconnect is disabled. Continuing mining...");
             }
-        } else {
-            error("Webhook is enabled, but the URL is empty!");
+        } else if (disconnectOnBaseFind.get()) {
+            Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+                MinecraftClient.getInstance().execute(() -> {
+                    if (mc.player != null) {
+                        mc.player.networkHandler.onDisconnect(new DisconnectS2CPacket(Text.literal("YOU FOUND A BASE!")));
+                        toggle();
+                    }
+                });
+            }, 2, TimeUnit.SECONDS);
         }
     }
 
-    private void sendBaseFindWebhook(StashChunk chunk) {
+    private void sendBaseFindWebhook(StashChunk chunk, String detectionReason) {
         try {
             String playerName = MinecraftClient.getInstance().getSession().getUsername();
             BlockPos playerPos = mc.player.getBlockPos();
@@ -408,6 +441,7 @@ public class RTPBaseFinder extends Module {
             if (chunk.dispensersDroppers > 0) description.append("🎯 **").append(chunk.dispensersDroppers).append("** Dispenser(s)/Dropper(s)\\n");
 
             description.append("\\n**Total Storage Blocks:** ").append(chunk.getTotal());
+            description.append("\\n**Detection Reason:** ").append(detectionReason);
             description.append("\\n**Player Position:** ").append(playerPos.getX()).append(", ")
                 .append(playerPos.getY()).append(", ").append(playerPos.getZ());
 
@@ -486,7 +520,6 @@ public class RTPBaseFinder extends Module {
             error("Error creating death webhook request: " + e.getMessage());
         }
     }
-
 
     private void sendWebhookRequest(String jsonPayload, String type) {
         try {

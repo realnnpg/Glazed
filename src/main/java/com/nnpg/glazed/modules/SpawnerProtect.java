@@ -9,10 +9,12 @@ import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.util.math.Direction;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.item.ItemStack;
@@ -30,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class SpawnerProtect extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgWhitelist = settings.createGroup("Whitelist");
 
     private final Setting<Boolean> webhook = sgGeneral.add(new BoolSetting.Builder()
         .name("webhook")
@@ -56,6 +59,33 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Integer> delaySeconds = sgGeneral.add(new IntSetting.Builder()
+        .name("recheck-delay-seconds")
+        .description("Delay in seconds before rechecking for spawners")
+        .defaultValue(1)
+        .min(1)
+        .sliderMax(10)
+        .build()
+    );
+
+    // Whitelist settings
+    private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
+        .name("enable-whitelist")
+        .description("Enable player whitelist (whitelisted players won't trigger protection)")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
+        .name("whitelisted-players")
+        .description("List of player names to ignore (case-insensitive)")
+        .defaultValue(new ArrayList<>())
+        .visible(enableWhitelist::get)
+        .build()
+    );
+
+
+
     private enum State {
         IDLE,
         GOING_TO_SPAWNERS,
@@ -74,6 +104,12 @@ public class SpawnerProtect extends Module {
     private int transferDelayCounter = 0;
     private int lastProcessedSlot = -1;
 
+    private boolean sneaking = false;
+    private BlockPos currentTarget = null;
+    private int recheckDelay = 0;
+    private int confirmDelay = 0;
+    private boolean waiting = false;
+
     public SpawnerProtect() {
         super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
     }
@@ -90,10 +126,18 @@ public class SpawnerProtect extends Module {
         transferDelayCounter = 0;
         lastProcessedSlot = -1;
 
+        sneaking = false;
+        currentTarget = null;
+        recheckDelay = 0;
+        confirmDelay = 0;
+        waiting = false;
+
         ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#set smoothLook true");
         ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
-
+        ChatUtils.sendPlayerMsg("#freelook false");
+        ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
+        ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
 
         ChatUtils.info("SpawnerProtect activated - monitoring for players...");
         ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
@@ -135,50 +179,143 @@ public class SpawnerProtect extends Module {
             if (player == mc.player) continue;
             if (!(player instanceof AbstractClientPlayerEntity)) continue;
 
-            detectedPlayer = player.getGameProfile().getName();
+            String playerName = player.getGameProfile().getName();
+
+            if (enableWhitelist.get() && isPlayerWhitelisted(playerName)) {
+                continue;
+            }
+
+            detectedPlayer = playerName;
             detectionTime = System.currentTimeMillis();
 
             ChatUtils.info("SpawnerProtect: Player detected - " + detectedPlayer);
 
             currentState = State.GOING_TO_SPAWNERS;
             ChatUtils.info("Player detected! Starting protection sequence...");
-            mc.player.setSneaking(true);
-            ChatUtils.sendPlayerMsg("#mine spawner");
+
+            if (!sneaking) {
+                mc.player.setSneaking(true);
+                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
+                sneaking = true;
+            }
 
             break;
         }
     }
 
+    private boolean isPlayerWhitelisted(String playerName) {
+        if (!enableWhitelist.get() || whitelistPlayers.get().isEmpty()) {
+            return false;
+        }
+
+        for (String whitelistedName : whitelistPlayers.get()) {
+            if (whitelistedName.equalsIgnoreCase(playerName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void handleGoingToSpawners() {
-        boolean spawnersRemain = false;
-        BlockPos playerPos = mc.player.getBlockPos();
-
-        for (int x = -spawnerRange.get(); x <= spawnerRange.get(); x++) {
-            for (int y = -spawnerRange.get(); y <= spawnerRange.get(); y++) {
-                for (int z = -spawnerRange.get(); z <= spawnerRange.get(); z++) {
-                    BlockPos pos = playerPos.add(x, y, z);
-                    if (mc.world.getBlockState(pos).getBlock() == Blocks.SPAWNER) {
-                        spawnersRemain = true;
-                        break;
-                    }
-                }
-                if (spawnersRemain) break;
-            }
-            if (spawnersRemain) break;
+        if (!sneaking) {
+            mc.player.setSneaking(true);
+            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
+            sneaking = true;
         }
 
-        if (!spawnersRemain) {
-            spawnersMinedSuccessfully = true;
-            mc.player.setSneaking(false);
-            currentState = State.GOING_TO_CHEST;
-            ChatUtils.info("All spawners mined successfully. Going to ender chest...");
-            ChatUtils.sendPlayerMsg("#goto ender_chest");
-            tickCounter = 0;
+        if (currentTarget == null) {
+            currentTarget = findNearestSpawner();
+
+            if (currentTarget == null && !waiting) {
+                waiting = true;
+                recheckDelay = 0;
+                confirmDelay = 0;
+                ChatUtils.info("No more spawners found, waiting to confirm...");
+            }
         } else {
-            if (tickCounter % 60 == 0) {
-                ChatUtils.sendPlayerMsg("#mine spawner");
+            lookAtBlock(currentTarget);
+
+            mc.interactionManager.updateBlockBreakingProgress(currentTarget, Direction.UP);
+            KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
+
+            if (mc.world.getBlockState(currentTarget).isAir()) {
+                ChatUtils.info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
+                currentTarget = null;
+                KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
+
+                transferDelayCounter = 5;
             }
         }
+
+        if (waiting) {
+            recheckDelay++;
+            if (recheckDelay == delaySeconds.get() * 20) {
+                BlockPos foundSpawner = findNearestSpawner();
+
+                if (foundSpawner != null) {
+                    waiting = false;
+                    currentTarget = foundSpawner;
+                    ChatUtils.info("Found additional spawner at " + foundSpawner);
+                    return;
+                }
+            }
+
+            if (recheckDelay > delaySeconds.get() * 20) {
+                confirmDelay++;
+                if (confirmDelay >= 20) {
+                    KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
+                    spawnersMinedSuccessfully = true;
+                    if (sneaking && mc.player.isSneaking()) {
+                        mc.player.setSneaking(false);
+                        mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
+                        sneaking = false;
+                    }
+                    currentState = State.GOING_TO_CHEST;
+                    ChatUtils.info("All spawners mined successfully. Going to ender chest...");
+                    ChatUtils.sendPlayerMsg("#goto ender_chest");
+                    tickCounter = 0;
+                }
+            }
+        }
+    }
+
+    private BlockPos findNearestSpawner() {
+        BlockPos playerPos = mc.player.getBlockPos();
+        BlockPos nearestSpawner = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (BlockPos pos : BlockPos.iterate(
+            playerPos.add(-spawnerRange.get(), -spawnerRange.get(), -spawnerRange.get()),
+            playerPos.add(spawnerRange.get(), spawnerRange.get(), spawnerRange.get()))) {
+
+            if (mc.world.getBlockState(pos).getBlock() == Blocks.SPAWNER) {
+                double distance = pos.getSquaredDistance(mc.player.getPos());
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestSpawner = pos.toImmutable();
+                }
+            }
+        }
+
+        if (nearestSpawner != null) {
+            ChatUtils.info("Found spawner at " + nearestSpawner + " (distance: " + Math.sqrt(nearestDistance) + ")");
+        }
+
+        return nearestSpawner;
+    }
+
+    private void lookAtBlock(BlockPos pos) {
+        Vec3d targetPos = Vec3d.ofCenter(pos);
+        Vec3d playerPos = mc.player.getEyePos();
+
+        Vec3d direction = targetPos.subtract(playerPos).normalize();
+
+        double yaw = Math.toDegrees(Math.atan2(-direction.x, direction.z));
+        double pitch = Math.toDegrees(-Math.asin(direction.y));
+
+        mc.player.setYaw((float) yaw);
+        mc.player.setPitch((float) pitch);
     }
 
     private void handleGoingToChest() {
@@ -347,8 +484,10 @@ public class SpawnerProtect extends Module {
 
     @Override
     public void onDeactivate() {
-        if (mc.player != null) {
+        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
+        if (sneaking && mc.player != null && mc.player.isSneaking()) {
             mc.player.setSneaking(false);
+            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
         }
 
         ChatUtils.sendPlayerMsg("#stop");

@@ -22,6 +22,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -79,6 +80,12 @@ public class RTPTunnelMiner extends Module {
         .defaultValue(4)
         .min(1)
         .sliderMax(50)
+        .build());
+
+    private final Setting<List<BlockEntityType<?>>> storageBlocks = sgGeneral.add(new StorageBlockListSetting.Builder()
+        .name("storage-blocks")
+        .description("Select the storage blocks to search for.")
+        .defaultValue(StorageBlockListSetting.STORAGE_BLOCKS)
         .build());
 
     private final Setting<Boolean> spawnersCritical = sgGeneral.add(new BoolSetting.Builder()
@@ -173,6 +180,10 @@ public class RTPTunnelMiner extends Module {
         ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#set smoothLook true");
         ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
+        ChatUtils.sendPlayerMsg("#freelook false");
+        ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
+        ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
+        ChatUtils.sendPlayerMsg("#blocksToAvoid gravel");
         startLoop();
     }
 
@@ -199,25 +210,35 @@ public class RTPTunnelMiner extends Module {
         if (processedChunks.contains(chunkPos)) return;
 
         StashChunk chunk = new StashChunk(chunkPos);
+        List<BlockEntityType<?>> selectedStorageBlocks = storageBlocks.get();
 
         for (BlockEntity blockEntity : event.chunk().getBlockEntities().values()) {
-            if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
-            else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
-            else if (blockEntity instanceof ShulkerBoxBlockEntity) chunk.shulkers++;
-            else if (blockEntity instanceof EnderChestBlockEntity) chunk.enderChests++;
-            else if (blockEntity instanceof AbstractFurnaceBlockEntity) chunk.furnaces++;
-            else if (blockEntity instanceof DispenserBlockEntity) chunk.dispensersDroppers++;
-            else if (blockEntity instanceof HopperBlockEntity) chunk.hoppers++;
-            else if (blockEntity instanceof MobSpawnerBlockEntity) chunk.spawners++;
+            if (blockEntity instanceof MobSpawnerBlockEntity) {
+                chunk.spawners++;
+            } else if (selectedStorageBlocks.contains(blockEntity.getType())) {
+                if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
+                else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
+                else if (blockEntity instanceof ShulkerBoxBlockEntity) chunk.shulkers++;
+                else if (blockEntity instanceof EnderChestBlockEntity) chunk.enderChests++;
+                else if (blockEntity instanceof AbstractFurnaceBlockEntity) chunk.furnaces++;
+                else if (blockEntity instanceof DispenserBlockEntity) chunk.dispensersDroppers++;
+                else if (blockEntity instanceof HopperBlockEntity) chunk.hoppers++;
+            }
         }
 
-        if (chunk.getTotal() >= baseThreshold.get()) {
+        int totalStorageBlocks = chunk.getTotal();
+
+        boolean isBase = totalStorageBlocks >= baseThreshold.get();
+
+        if (spawnersCritical.get() && chunk.spawners > 0) {
+            isBase = true;
+        }
+
+        if (isBase) {
             processedChunks.add(chunkPos);
 
-            ChatUtils.info("Base found in chunk at " + chunk.x + ", " + chunk.z + " (" + chunk.getTotal() + " storage blocks)");
 
             if (spawnersCritical.get() && chunk.spawners > 0) {
-                ChatUtils.info("Spawners found in base, disconnecting...");
                 disconnectAndNotify(chunk);
                 return;
             }
@@ -283,11 +304,9 @@ public class RTPTunnelMiner extends Module {
                     }
                 }
 
-                // Stop current mining and restart RTP loop
                 ChatUtils.sendPlayerMsg("#stop");
                 ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
 
-                // Small delay to ensure the stop command processes, then restart
                 Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                     MinecraftClient.getInstance().execute(() -> {
                         startLoop();
@@ -321,6 +340,13 @@ public class RTPTunnelMiner extends Module {
         if (mc.player != null) {
             float currentHealth = mc.player.getHealth();
             boolean isAlive = mc.player.isAlive();
+
+            if (currentHealth < 11.0f && isAlive) {
+                ChatUtils.info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
+                ChatUtils.sendPlayerMsg("#stop");
+                startLoop();
+                return;
+            }
 
             if (playerWasAlive && !isAlive && currentHealth <= 0) {
                 if (deathWebhook.get() && !webhookUrl.get().isEmpty()) {
