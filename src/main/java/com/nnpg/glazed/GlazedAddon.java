@@ -30,7 +30,8 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new PlayerDetection()); //done
         Modules.get().add(new AHSniper()); //done
         Modules.get().add(new RTPer()); //done
-        Modules.get().add(new RTPTunnelMiner()); //working on it
+        Modules.get().add(new RTPTunnelMiner()); //done
+        //Modules.get().add(new DonutSmpXray()); //working
 
 
 

@@ -100,6 +100,16 @@ public class RTPTunnelMiner extends Module {
         .defaultValue(true)
         .build());
 
+    private final Setting<Boolean> rtptotempop = sgGeneral.add(new BoolSetting.Builder()
+        .name("RTP on Totem Pop")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> rtplowhealth = sgGeneral.add(new BoolSetting.Builder()
+        .name("RTP on low health")
+        .defaultValue(true)
+        .build());
+
     private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
         .name("webhook-url")
         .description("Discord webhook URL")
@@ -165,6 +175,8 @@ public class RTPTunnelMiner extends Module {
     private long lastMoveTime;
     private final int RTP_WAIT_DURATION = 6000;
     private final int STUCK_TIMEOUT = 20000;
+    private boolean emergencyRtpTriggered = false;
+
 
     private final Set<ChunkPos> processedChunks = new HashSet<>();
 
@@ -183,7 +195,8 @@ public class RTPTunnelMiner extends Module {
         ChatUtils.sendPlayerMsg("#freelook false");
         ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
         ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
-        ChatUtils.sendPlayerMsg("#blocksToAvoid gravel");
+        ChatUtils.sendPlayerMsg("#blocksToAvoidBreaking gravel");
+        ChatUtils.sendPlayerMsg("#blocksToAvoidBreaking gravel");
         startLoop();
     }
 
@@ -291,7 +304,6 @@ public class RTPTunnelMiner extends Module {
     }
 
 
-
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof EntityStatusS2CPacket packet) {
@@ -303,15 +315,16 @@ public class RTPTunnelMiner extends Module {
                         sendTotemPopWebhook(playerName, pos);
                     }
                 }
+                if (rtptotempop.get()) {
+                    ChatUtils.sendPlayerMsg("#stop");
+                    ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
 
-                ChatUtils.sendPlayerMsg("#stop");
-                ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
-
-                Executors.newSingleThreadScheduledExecutor().schedule(() -> {
-                    MinecraftClient.getInstance().execute(() -> {
-                        startLoop();
-                    });
-                }, 1, TimeUnit.SECONDS);
+                    Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+                        MinecraftClient.getInstance().execute(() -> {
+                            startLoop();
+                        });
+                    }, 1, TimeUnit.SECONDS);
+                }
             }
         }
     }
@@ -337,15 +350,21 @@ public class RTPTunnelMiner extends Module {
         toggleModule(AutoArmor.class, enableAutoArmor.get());
         toggleModule(AutoEXP.class, enableAutoExp.get());
 
+
         if (mc.player != null) {
             float currentHealth = mc.player.getHealth();
             boolean isAlive = mc.player.isAlive();
 
-            if (currentHealth < 11.0f && isAlive) {
+            if (currentHealth < 11.0f && isAlive && !emergencyRtpTriggered && rtplowhealth.get()) {
                 ChatUtils.info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
                 ChatUtils.sendPlayerMsg("#stop");
                 startLoop();
+                emergencyRtpTriggered = true;
                 return;
+            }
+
+            if (emergencyRtpTriggered && currentHealth >= 14.0f) {
+                emergencyRtpTriggered = false;
             }
 
             if (playerWasAlive && !isAlive && currentHealth <= 0) {
@@ -394,14 +413,22 @@ public class RTPTunnelMiner extends Module {
         String name = lastDamage.getName();
 
         switch (name) {
-            case "player": return "another player";
-            case "mob": return "a mob";
-            case "fall": return "fall damage";
-            case "lava": return "lava";
-            case "fire": return "fire";
-            case "drown": return "drowning";
-            case "magic": return "magic";
-            default: return name;
+            case "player":
+                return "another player";
+            case "mob":
+                return "a mob";
+            case "fall":
+                return "fall damage";
+            case "lava":
+                return "lava";
+            case "fire":
+                return "fire";
+            case "drown":
+                return "drowning";
+            case "magic":
+                return "magic";
+            default:
+                return name;
         }
     }
 
@@ -445,33 +472,35 @@ public class RTPTunnelMiner extends Module {
             if (chunk.spawners > 0) description.append("🔥 **").append(chunk.spawners).append("** Spawner(s)\\n");
             if (chunk.chests > 0) description.append("📦 **").append(chunk.chests).append("** Chest(s)\\n");
             if (chunk.barrels > 0) description.append("🛢️ **").append(chunk.barrels).append("** Barrel(s)\\n");
-            if (chunk.enderChests > 0) description.append("🎆 **").append(chunk.enderChests).append("** Ender Chest(s)\\n");
+            if (chunk.enderChests > 0)
+                description.append("🎆 **").append(chunk.enderChests).append("** Ender Chest(s)\\n");
             if (chunk.shulkers > 0) description.append("📫 **").append(chunk.shulkers).append("** Shulker Box(es)\\n");
             if (chunk.hoppers > 0) description.append("⚙️ **").append(chunk.hoppers).append("** Hopper(s)\\n");
             if (chunk.furnaces > 0) description.append("🔥 **").append(chunk.furnaces).append("** Furnace(s)\\n");
-            if (chunk.dispensersDroppers > 0) description.append("🎯 **").append(chunk.dispensersDroppers).append("** Dispenser(s)/Dropper(s)\\n");
+            if (chunk.dispensersDroppers > 0)
+                description.append("🎯 **").append(chunk.dispensersDroppers).append("** Dispenser(s)/Dropper(s)\\n");
 
             description.append("\\n**Total Storage Blocks:** ").append(chunk.getTotal());
             description.append("\\n**Player Position:** ").append(playerPos.getX()).append(", ")
                 .append(playerPos.getY()).append(", ").append(playerPos.getZ());
 
             String jsonPayload = String.format("""
-            {
-              "username": "Glazed Webhook",
-              "avatar_url": "https://i.imgur.com/OL2y1cr.png",
-              "embeds": [
                 {
-                  "title": "🏰 Base Discovery Confirmed!",
-                  "description": "%s",
-                  "color": 16711680,
-                  "author": {
-                    "name": "Base Alert"
-                  },
-                  "footer": { "text": "Sent by Glazed" }
+                  "username": "Glazed Webhook",
+                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                  "embeds": [
+                    {
+                      "title": "🏰 Base Discovery Confirmed!",
+                      "description": "%s",
+                      "color": 16711680,
+                      "author": {
+                        "name": "Base Alert"
+                      },
+                      "footer": { "text": "Sent by Glazed" }
+                    }
+                  ]
                 }
-              ]
-            }
-            """, description.toString());
+                """, description.toString());
 
             sendWebhookRequest(jsonPayload, "Base find");
         } catch (Exception e) {
