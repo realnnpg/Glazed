@@ -22,26 +22,28 @@
 
 ## 🚀 Features
 
-| Module Name      | Description                                                                 | Status   |
-|------------------|-----------------------------------------------------------------------------|----------|
-| Elytra Swap      | Automatically swaps between Elytra and Chestplate based on context          | ✅ Added |
-| Auto Inv Totem   | Automatically puts a Totem into your offhand when inventory opens           | ✅ Added |
-| Auto Firework    | Automatically uses fireworks for elytra flying.                             | ✅ Added |
-| Cord Snapper     | Instantly copies your current coordinates to clipboard                      | ✅ Added |
-| Pearl Throw      | Instantly throws a pearl                                                    | ✅ Added |
-| Player Detection | Detects when players are rendered                                           | ✅ Added |
-| RTP Base Finder  | Uses /rtp and checks for bases using storage/spawner detection              | ✅ Added |
-| Anti Trap        | Allows you to escape from armor stands and chest minecarts.                 | ✅ Added |
-| AHSniper         | Refreshes and snipes underpriced items from the auction house               | ✅ Added |
-| SpawnerProtect   | Mines all your spawners and stores them when a player is nearby             | ✅ Added |
-| RTPer            | Automatically RTPs until near specified coordinates                         | ✅ Added |
-| RTPTunnelMiner   | RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.       | ✅ Added |
-| Netherite Finder | Highlights netherite blocks in the nether                                   | 🟠 Coming soon |
-| Diamond Finder   | Highlights diamond ores underground                                         | 🟠 Coming soon |
-| Auto Sell        | Automatically sells sea pickles via /sell                                   | 🟠 Coming soon |
-| Hover Totem      | Equips Totem of Undying when hovered in inventory                           | ❌ Not Yet |
-| Bone Dropper     | Automatically drops bones collected from spawners                           | ❌ Not Yet |
-| Auto Order       | Automatically executes /order for configured items                          | ❌ Not Yet |
+| Module Name      | Description                                                           | Status        |
+|------------------|-----------------------------------------------------------------------|---------------|
+| Elytra Swap      | Automatically swaps between Elytra and Chestplate based on context    | ✅ Added       |
+| Auto Inv Totem   | Automatically puts a Totem into your offhand when inventory opens     | ✅ Added       |
+| Auto Firework    | Automatically uses fireworks for elytra flying.                       | ✅ Added       |
+| Cord Snapper     | Instantly copies your current coordinates to clipboard                | ✅ Added       |
+| Pearl Throw      | Instantly throws a pearl                                              | ✅ Added       |
+| Player Detection | Detects when players are rendered                                     | ✅ Added       |
+| RTP Base Finder  | Uses /rtp and checks for bases using storage/spawner detection        | ✅ Added       |
+| Anti Trap        | Allows you to escape from armor stands and chest minecarts.           | ✅ Added       |
+| AHSniper         | Refreshes and snipes underpriced items from the auction house         | ✅ Added       |
+| SpawnerProtect   | Mines all your spawners and stores them when a player is nearby       | ✅ Added       |
+| RTPer            | Automatically RTPs until near specified coordinates                   | ✅ Added       |
+| RTPTunnelMiner   | RTPs, mines to a Y level, and then uses #tunnel to mine horizontally. | ✅ Added       |
+| Auto Sell        | Automatically sells sea pickles via /sell                             | ✅ Added       |
+| Xray             | Xray for DonutSMP                                                     | 🟠 Coming soon |
+| Bone Dropper     | Automatically drops bones collected from spawners                     | 🟠 Coming soon |
+| Auto Order       | Automatically executes /order for configured items                    | 🟠 Coming soon |
+| TPSniper         | Automatically spams specific players with /tpa or /tpahere requests   | ❌ Not Yet     |
+| ShulkerOrder     | Buys and then /orders the shulkers                                    | ❌ Not Yet     |
+| OrderSniper      | Snipes for good order prices and sells your stuff                     | ❌ Not Yet     |
+
 
 ---
 
