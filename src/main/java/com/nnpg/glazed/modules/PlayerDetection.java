@@ -25,14 +25,14 @@ public class PlayerDetection extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Boolean> enableWebhook = sgGeneral.add(new BoolSetting.Builder()
-        .name("enable-webhook")
+        .name("Webhook")
         .description("Send webhook notifications when players are detected")
         .defaultValue(false)
         .build()
     );
 
     private final Setting<String> webhookUrl = sgGeneral.add(new StringSetting.Builder()
-        .name("webhook-url")
+        .name("Webhook URL")
         .description("Discord webhook URL")
         .defaultValue("")
         .visible(enableWebhook::get)
@@ -40,7 +40,7 @@ public class PlayerDetection extends Module {
     );
 
     private final Setting<Boolean> enableDisconnect = sgGeneral.add(new BoolSetting.Builder()
-        .name("enable-disconnect")
+        .name("Disconnect")
         .description("Automatically disconnect when players are detected")
         .defaultValue(true)
         .build()
@@ -50,6 +50,13 @@ public class PlayerDetection extends Module {
         .name("notification-mode")
         .description("How to notify when players are detected")
         .defaultValue(Mode.Both)
+        .build()
+    );
+
+    private final Setting<Boolean> toggleonplayer = sgGeneral.add(new BoolSetting.Builder()
+        .name("Toggle when a player is detected")
+        .description("Automatically toggles the module when a player is detected")
+        .defaultValue(true)
         .build()
     );
 
@@ -69,15 +76,12 @@ public class PlayerDetection extends Module {
 
         Set<String> currentPlayers = new HashSet<>();
 
-        // Check for rendered players
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
 
-            // Player is being rendered if it's in the world
             currentPlayers.add(player.getGameProfile().getName());
         }
 
-        // If new players detected
         if (!currentPlayers.isEmpty() && !currentPlayers.equals(detectedPlayers)) {
             detectedPlayers.clear();
             detectedPlayers.addAll(currentPlayers);
@@ -91,7 +95,6 @@ public class PlayerDetection extends Module {
     private void handlePlayerDetection(Set<String> players) {
         String playerList = String.join(", ", players);
 
-        // Send notifications
         switch (notificationMode.get()) {
             case Chat -> info("Player(s) detected: (highlight)%s", playerList);
             case Toast -> mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, "Player Detected!"));
@@ -101,15 +104,19 @@ public class PlayerDetection extends Module {
             }
         }
 
-        // Send webhook if enabled
         if (enableWebhook.get()) {
             sendWebhookNotification(players);
         }
 
-        // Disconnect if enabled
+        if(toggleonplayer.get()) {
+            toggle();
+        }
+
+
         if (enableDisconnect.get()) {
             disconnectFromServer(playerList);
         }
+
     }
 
     private void sendWebhookNotification(Set<String> players) {
@@ -135,7 +142,7 @@ public class PlayerDetection extends Module {
                         "{\"name\":\"Server\",\"value\":\"%s\",\"inline\":true}," +
                         "{\"name\":\"Time\",\"value\":\"<t:%d:R>\",\"inline\":true}" +
                         "]," +
-                        "\"footer\":{\"text\":\"Meteor Player Detection\"}" +
+                        "\"footer\":{\"text\":\"Sent by Glazed\"}" +
                         "}]}",
                     playerList.replace("\"", "\\\""),
                     serverInfo.replace("\"", "\\\""),

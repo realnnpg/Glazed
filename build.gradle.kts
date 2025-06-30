@@ -39,8 +39,9 @@ repositories {
         modImplementation("meteordevelopment:baritone:${properties["baritone_version"] as String}-SNAPSHOT")
 
 
-    }
 
+
+    }
 
 
 

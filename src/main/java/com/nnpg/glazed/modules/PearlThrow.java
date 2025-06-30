@@ -48,28 +48,19 @@ public class PearlThrow extends Module {
             mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
             mc.player.getInventory().selectedSlot = currentSlot;
         } else {
-            // Save the current item in hand
             int invSlot = pearlSlot;
 
-            // Pick up the pearl
             mc.interactionManager.clickSlot(0, invSlot, 0, SlotActionType.PICKUP, mc.player);
-            // Pick up item in hand to put it in the pearl's old slot
             mc.interactionManager.clickSlot(0, hotbarIndex, 0, SlotActionType.PICKUP, mc.player);
-            // Place old item into pearl's original slot
             mc.interactionManager.clickSlot(0, invSlot, 0, SlotActionType.PICKUP, mc.player);
 
-            // Throw the pearl now in hand
             mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
 
-            // Wait a tick might be safer, but we immediately reverse:
-            // Pick up pearl slot again (now empty or with remaining pearls)
             mc.interactionManager.clickSlot(0, invSlot, 0, SlotActionType.PICKUP, mc.player);
-            // Pick up original item from hotbar again
             mc.interactionManager.clickSlot(0, hotbarIndex, 0, SlotActionType.PICKUP, mc.player);
-            // Put it back into hotbar
             mc.interactionManager.clickSlot(0, invSlot, 0, SlotActionType.PICKUP, mc.player);
         }
 
-        toggle(); // Disable after throw
+        toggle();
     }
 }

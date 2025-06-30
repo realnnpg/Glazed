@@ -21,7 +21,6 @@ public class GlazedAddon extends MeteorAddon {
     public void onInitialize() {
         Modules.get().add(new SpawnerProtect()); //done
         Modules.get().add(new PearlThrow()); //done
-        Modules.get().add(new AutoInvTotem()); //done
         Modules.get().add(new RTPBaseFinder()); //done
         Modules.get().add(new AntiTrap()); //done
         Modules.get().add(new CoordSnapper()); //done
@@ -31,7 +30,8 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new AHSniper()); //done
         Modules.get().add(new RTPer()); //done
         Modules.get().add(new RTPTunnelMiner()); //done
-        //Modules.get().add(new DonutSmpXray()); //working
+        Modules.get().add(new ShulkerDropper()); //have to test
+        Modules.get().add(new AutoSell()); //working on it
 
 
 

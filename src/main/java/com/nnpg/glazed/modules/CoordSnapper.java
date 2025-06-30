@@ -22,7 +22,6 @@ public class CoordSnapper extends Module {
             BlockPos pos = mc.player.getBlockPos();
             String coords = String.format("%d %d %d", pos.getX(), pos.getY(), pos.getZ());
 
-            // Use Meteor's clipboard method
             mc.keyboard.setClipboard(coords);
 
             info("Copied coordinates: " + coords);
@@ -30,7 +29,6 @@ public class CoordSnapper extends Module {
         } catch (Exception e) {
             error("Failed to copy coordinates: " + e.getMessage());
         } finally {
-            // Always deactivate
             toggle();
         }
     }

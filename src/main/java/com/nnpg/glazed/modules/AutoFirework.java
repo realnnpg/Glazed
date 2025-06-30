@@ -65,47 +65,38 @@ public class AutoFirework extends Module {
 
         ClientPlayerEntity player = mc.player;
 
-        // Check if enough time has passed since last firework
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastFireworkTime < delay.get() * 1000) return;
 
 
-        // Check elytra durability if enabled
         if (checkDurability.get()) {
-            ItemStack chestItem = player.getInventory().getArmorStack(2); // Elytra slot
+            ItemStack chestItem = player.getInventory().getArmorStack(2);
             if (!chestItem.isEmpty() && chestItem.isDamaged()) {
                 int durability = chestItem.getMaxDamage() - chestItem.getDamage();
                 if (durability <= minDurability.get()) return;
             }
         }
 
-        // Get the specified hotbar slot (convert from 1-9 to 0-8)
         int slotIndex = hotbarSlot.get() - 1;
         ItemStack fireworkStack = player.getInventory().getStack(slotIndex);
 
-        // Check if the slot contains fireworks
         if (fireworkStack.isEmpty() || !(fireworkStack.getItem() instanceof FireworkRocketItem)) {
             return;
         }
 
-        // Store current selected slot
         int originalSlot = player.getInventory().selectedSlot;
 
-        // Switch to firework slot
         player.getInventory().selectedSlot = slotIndex;
 
-        // Use the firework
         mc.interactionManager.interactItem(player, Hand.MAIN_HAND);
 
-        // Switch back to original slot
         player.getInventory().selectedSlot = originalSlot;
 
-        // Update last firework time
         lastFireworkTime = currentTime;
     }
 
     @Override
     public void onActivate() {
-        lastFireworkTime = 0; // Reset timer when module is activated
+        lastFireworkTime = 0;
     }
 }
