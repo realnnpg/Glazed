@@ -141,6 +141,9 @@ Huge thanks to the projects that make this addon possible:
 - [Baritone](https://github.com/cabaletta/baritone)
 - [FabricMC](https://fabricmc.net/)
 - [Claude AI](https://claude.ai/)
+- [Kez]
+- [szpuszi]
+- [Potato]
 
 ---
 
