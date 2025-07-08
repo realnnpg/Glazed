@@ -5,6 +5,8 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.render.StorageESP;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
@@ -20,6 +22,8 @@ import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.screen.slot.SlotActionType;
+import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
+
 
 import java.io.IOException;
 import java.net.URI;
@@ -68,6 +72,13 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Boolean> disableAutoReconnect = sgGeneral.add(new BoolSetting.Builder()
+        .name("Disable AutoReconnect")
+        .description("Disables AutoReconnect")
+        .defaultValue(true)
+        .build()
+    );
+
     // Whitelist settings
     private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
         .name("enable-whitelist")
@@ -78,7 +89,7 @@ public class SpawnerProtect extends Module {
 
     private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
         .name("whitelisted-players")
-        .description("List of player names to ignore (case-insensitive)")
+        .description("List of player names to ignore")
         .defaultValue(new ArrayList<>())
         .visible(enableWhitelist::get)
         .build()
@@ -144,6 +155,15 @@ public class SpawnerProtect extends Module {
 
     }
 
+    private void toggleModule(Class<? extends Module> moduleClass, boolean disable) {
+        Module module = Modules.get().get(moduleClass);
+        if (module != null) {
+            if (disable && module.isActive()) module.toggle();
+            else if (!disable && module.isActive()) module.toggle();
+        }
+    }
+
+
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
@@ -172,6 +192,8 @@ public class SpawnerProtect extends Module {
                 handleDisconnecting();
                 break;
         }
+
+        toggleModule(AutoReconnect.class, disableAutoReconnect.get());
     }
 
     private void checkForPlayers() {
@@ -263,7 +285,7 @@ public class SpawnerProtect extends Module {
 
             if (recheckDelay > delaySeconds.get() * 20) {
                 confirmDelay++;
-                if (confirmDelay >= 20) {
+                if (confirmDelay >= 5) {
                     KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
                     spawnersMinedSuccessfully = true;
                     if (sneaking && mc.player.isSneaking()) {
@@ -360,7 +382,7 @@ public class SpawnerProtect extends Module {
                 itemsDepositedSuccessfully = true;
                 ChatUtils.info("All items deposited successfully!");
                 mc.player.closeHandledScreen();
-                transferDelayCounter = 40;
+                transferDelayCounter = 10;
                 currentState = State.DISCONNECTING;
                 return;
             }
@@ -414,13 +436,13 @@ public class SpawnerProtect extends Module {
             );
 
             lastProcessedSlot = slotId;
-            transferDelayCounter = 8;
+            transferDelayCounter = 2;
             return;
         }
 
         if (lastProcessedSlot >= playerInventoryStart) {
             lastProcessedSlot = playerInventoryStart - 1;
-            transferDelayCounter = 10;
+            transferDelayCounter = 3;
         }
     }
 

@@ -8,8 +8,12 @@
     "nnpg"
   ],
   "contact": {
-    "repo": "https://github.com/realnnpg/"
+    "homepage": "https://glazedclient.com",
+    "repo": "https://github.com/realnnpg/",
+    "discord": "https://discord.gg/TCQDpG8ByY"
+
   },
+  "license": "GPL-3.0",
   "icon": "assets/template/icon.png",
   "environment": "client",
   "entrypoints": {
@@ -18,8 +22,15 @@
     ]
   },
 
+
   "custom": {
-    "meteor-client:color": "225,25,25"
+    "meteor-client:color": "225,25,25",
+    "modmenu": {
+      "links": {
+        "modmenu.website": "https://glazedclient.com",
+        "modmenu.discord": "https://discord.gg/TCQDpG8ByY"
+      }
+    }
   },
   "depends": {
     "java": ">=21",

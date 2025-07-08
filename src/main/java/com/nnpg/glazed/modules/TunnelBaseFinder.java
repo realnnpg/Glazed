@@ -51,7 +51,7 @@ import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
 
 
-public class RTPTunnelMiner extends Module {
+public class TunnelBaseFinder extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgother = settings.createGroup("Other module");
     private final SettingGroup sgwebhook = settings.createGroup("Webhook");
@@ -183,8 +183,8 @@ public class RTPTunnelMiner extends Module {
     private float lastHealth = 20.0f;
     private boolean playerWasAlive = true;
 
-    public RTPTunnelMiner() {
-        super(GlazedAddon.CATEGORY, "RTPTunnelMiner", "RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.");
+    public TunnelBaseFinder() {
+        super(GlazedAddon.CATEGORY, "TunnelBaseFinder", "RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.");
     }
 
     @Override

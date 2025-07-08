@@ -58,7 +58,7 @@ public class AutoSell extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null) return;
+        if (mc.player == null || mc.interactionManager == null) return;
 
         if (delayCounter > 0) {
             delayCounter--;
@@ -71,22 +71,23 @@ public class AutoSell extends Module {
     private void handleSellMode() {
         ScreenHandler currentScreenHandler = mc.player.currentScreenHandler;
 
+        // If not inside a container, send the /sell command
         if (!(currentScreenHandler instanceof GenericContainerScreenHandler)) {
             mc.getNetworkHandler().sendChatCommand("sell");
             delayCounter = 20;
             return;
         }
 
+        int totalSlots = currentScreenHandler.slots.size();
         boolean foundItemToSell = false;
 
-        for (int slot = 45; slot <= 80; slot++) {
+        // Player inventory usually starts at slot 36
+        for (int slot = 36; slot < totalSlots; slot++) {
             ItemStack stack = currentScreenHandler.getSlot(slot).getStack();
 
             if (stack.isEmpty()) continue;
 
             Item itemInSlot = stack.getItem();
-
-
             if (!shouldSellItem(itemInSlot)) continue;
 
             foundItemToSell = true;
@@ -96,11 +97,14 @@ public class AutoSell extends Module {
         }
 
         if (!foundItemToSell) {
-            info("No items to sell found in player inventory, closing GUI");
+            info("No items to sell found in inventory. Closing GUI.");
             mc.player.closeHandledScreen();
+            toggle();
             delayCounter = 40;
         }
     }
+
+
 
     private boolean shouldSellItem(Item item) {
         List<Item> selectedItems = itemList.get();
