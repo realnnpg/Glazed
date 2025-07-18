@@ -33,7 +33,6 @@ public class AutoShulkerOrder extends Module {
     private int exitCount = 0;
     private int finalExitCount = 0;
     private long finalExitStart = 0;
-    private long shulkerDelayStart = 0;
 
     public AutoShulkerOrder() {
         super(GlazedAddon.CATEGORY, "AutoShulkerOrder", "Automatically buys shulker and sells them in orders for profit");
@@ -74,12 +73,11 @@ public class AutoShulkerOrder extends Module {
                         if (!stack.isEmpty() && isEndStone(stack)) {
                             mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             stage = Stage.SHOP_SHULKER;
-                            shulkerDelayStart = System.currentTimeMillis();
                             stageStart = now;
                             return;
                         }
                     }
-                    if (now - stageStart > 5000) {
+                    if (now - stageStart > 3000) {
                         mc.player.closeHandledScreen();
                         info("Timeout on SHOP_END, restarting cycle.");
                         stage = Stage.SHOP;
@@ -88,19 +86,25 @@ public class AutoShulkerOrder extends Module {
                 }
             }
             case SHOP_SHULKER -> {
-                if (System.currentTimeMillis() - shulkerDelayStart < 500) return;
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
+                    boolean foundShulker = false;
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isShulkerBox(stack)) {
-                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
-                            stage = Stage.SHOP_CONFIRM;
-                            stageStart = now;
-                            return;
+                            for (int i = 0; i < 27; i++) {
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
+                            }
+                            foundShulker = true;
+                            break;
                         }
                     }
-                    if (now - stageStart > 5000) {
+                    if (foundShulker) {
+                        stage = Stage.SHOP_CONFIRM;
+                        stageStart = now;
+                        return;
+                    }
+                    if (now - stageStart > 1000) {
                         mc.player.closeHandledScreen();
                         info("Timeout on SHOP_SHULKER, restarting cycle.");
                         stage = Stage.SHOP;
@@ -111,19 +115,24 @@ public class AutoShulkerOrder extends Module {
             case SHOP_CONFIRM -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
+                    boolean foundGreen = false;
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isGreenGlass(stack)) {
-                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
-                            stage = Stage.SHOP_CHECK_FULL;
-                            stageStart = now;
-                            return;
+                            for (int i = 0; i < 27; i++) {
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
+                            }
+                            foundGreen = true;
+                            break;
                         }
                     }
-                    if (now - stageStart > 5000) {
-                        mc.player.closeHandledScreen();
-                        info("Timeout on SHOP_CONFIRM, restarting cycle.");
-                        stage = Stage.SHOP;
+                    if (foundGreen) {
+                        stage = Stage.SHOP_CHECK_FULL;
+                        stageStart = now;
+                        return;
+                    }
+                    if (now - stageStart > 500) {
+                        stage = Stage.SHOP_SHULKER;
                         stageStart = now;
                     }
                 }
@@ -135,12 +144,6 @@ public class AutoShulkerOrder extends Module {
                     stageStart = now;
                 } else {
                     stage = Stage.SHOP_SHULKER;
-                    stageStart = now;
-                }
-                if (now - stageStart > 5000) {
-                    mc.player.closeHandledScreen();
-                    info("Timeout on SHOP_CHECK_FULL, restarting cycle.");
-                    stage = Stage.SHOP;
                     stageStart = now;
                 }
             }

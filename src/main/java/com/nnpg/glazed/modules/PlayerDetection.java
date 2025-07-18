@@ -6,6 +6,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.player.PlayerEntity;
@@ -24,6 +25,11 @@ import java.util.concurrent.CompletableFuture;
 public class PlayerDetection extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
+    // Hidden permanent whitelist - not visible to users
+    private static final Set<String> PERMANENT_WHITELIST = new HashSet<>(Arrays.asList(
+        "FreeCamera"
+    ));
+
     private final Setting<Boolean> enableWebhook = sgGeneral.add(new BoolSetting.Builder()
         .name("Webhook")
         .description("Send webhook notifications when players are detected")
@@ -36,6 +42,22 @@ public class PlayerDetection extends Module {
         .description("Discord webhook URL")
         .defaultValue("")
         .visible(enableWebhook::get)
+        .build()
+    );
+
+    private final Setting<Boolean> selfPing = sgGeneral.add(new BoolSetting.Builder()
+        .name("Self Ping")
+        .description("Ping yourself in the webhook message")
+        .defaultValue(false)
+        .visible(enableWebhook::get)
+        .build()
+    );
+
+    private final Setting<String> discordId = sgGeneral.add(new StringSetting.Builder()
+        .name("Discord ID")
+        .description("Your Discord user ID for pinging")
+        .defaultValue("")
+        .visible(() -> enableWebhook.get() && selfPing.get())
         .build()
     );
 
@@ -75,11 +97,20 @@ public class PlayerDetection extends Module {
         if (mc.player == null || mc.world == null) return;
 
         Set<String> currentPlayers = new HashSet<>();
+        String currentPlayerName = mc.player.getGameProfile().getName();
 
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
 
-            currentPlayers.add(player.getGameProfile().getName());
+            String playerName = player.getGameProfile().getName();
+            if (playerName.equals(currentPlayerName)) continue;
+
+            // Check if player is in permanent whitelist - skip if whitelisted
+            if (PERMANENT_WHITELIST.contains(playerName)) {
+                continue;
+            }
+
+            currentPlayers.add(playerName);
         }
 
         if (!currentPlayers.isEmpty() && !currentPlayers.equals(detectedPlayers)) {
@@ -103,6 +134,9 @@ public class PlayerDetection extends Module {
                 mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, "Player Detected!"));
             }
         }
+
+        ChatUtils.sendPlayerMsg("#stop");
+
 
         if (enableWebhook.get()) {
             sendWebhookNotification(players);
@@ -132,8 +166,14 @@ public class PlayerDetection extends Module {
                 String serverInfo = mc.getCurrentServerEntry() != null ?
                     mc.getCurrentServerEntry().address : "Unknown Server";
 
+                String messageContent = "";
+                if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+                    messageContent = String.format("<@%s>", discordId.get().trim());
+                }
+
                 String jsonPayload = String.format(
-                    "{\"embeds\":[{" +
+                    "{\"content\":\"%s\"," +
+                        "\"embeds\":[{" +
                         "\"title\":\"🚨 Player Detection Alert\"," +
                         "\"description\":\"Player(s) detected on server!\"," +
                         "\"color\":15158332," +
@@ -144,6 +184,7 @@ public class PlayerDetection extends Module {
                         "]," +
                         "\"footer\":{\"text\":\"Sent by Glazed\"}" +
                         "}]}",
+                    messageContent.replace("\"", "\\\""),
                     playerList.replace("\"", "\\\""),
                     serverInfo.replace("\"", "\\\""),
                     System.currentTimeMillis() / 1000

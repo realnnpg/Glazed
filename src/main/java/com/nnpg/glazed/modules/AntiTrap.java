@@ -1,8 +1,10 @@
 package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
+import com.nnpg.glazed.MyScreen;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiThemes;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
@@ -16,6 +18,8 @@ import net.minecraft.entity.vehicle.ChestMinecartEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class AntiTrap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -55,6 +59,9 @@ public class AntiTrap extends Module {
 
     @Override
     public void onActivate() {
+        mc.setScreen(new MyScreen(GuiThemes.get()));
+
+
         if (removeExisting.get()) {
             removeTrapEntities();
         }
@@ -74,7 +81,6 @@ public class AntiTrap extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.world == null) return;
 
-        // Periodically check for trap entities (in case some bypass the spawn event)
         if (mc.player.age % 20 == 0) { // Check every second
             List<Entity> toRemove = new ArrayList<>();
 

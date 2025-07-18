@@ -37,19 +37,37 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SpawnerProtect extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgWhitelist = settings.createGroup("Whitelist");
+    private final SettingGroup sgwebhook = settings.createGroup("Webhook");
 
-    private final Setting<Boolean> webhook = sgGeneral.add(new BoolSetting.Builder()
+
+    private final Setting<Boolean> webhook = sgwebhook.add(new BoolSetting.Builder()
         .name("webhook")
         .description("Enable webhook notifications")
         .defaultValue(false)
         .build()
     );
 
-    private final Setting<String> webhookUrl = sgGeneral.add(new StringSetting.Builder()
+    private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
         .name("webhook-url")
         .description("Discord webhook URL for notifications")
         .defaultValue("")
         .visible(webhook::get)
+        .build()
+    );
+
+    private final Setting<Boolean> selfPing = sgwebhook.add(new BoolSetting.Builder()
+        .name("Self Ping")
+        .description("Ping yourself in the webhook message")
+        .defaultValue(false)
+        .visible(webhook::get)
+        .build()
+    );
+
+    private final Setting<String> discordId = sgGeneral.add(new StringSetting.Builder()
+        .name("Discord ID")
+        .description("Your Discord user ID for pinging")
+        .defaultValue("")
+        .visible(() -> webhook.get() && selfPing.get())
         .build()
     );
 
@@ -150,7 +168,7 @@ public class SpawnerProtect extends Module {
         ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
         ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
 
-        ChatUtils.info("SpawnerProtect activated - monitoring for players...");
+        info("SpawnerProtect activated - monitoring for players...");
         ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
 
     }
@@ -210,10 +228,10 @@ public class SpawnerProtect extends Module {
             detectedPlayer = playerName;
             detectionTime = System.currentTimeMillis();
 
-            ChatUtils.info("SpawnerProtect: Player detected - " + detectedPlayer);
+            info("SpawnerProtect: Player detected - " + detectedPlayer);
 
             currentState = State.GOING_TO_SPAWNERS;
-            ChatUtils.info("Player detected! Starting protection sequence...");
+            info("Player detected! Starting protection sequence...");
 
             if (!sneaking) {
                 mc.player.setSneaking(true);
@@ -253,7 +271,7 @@ public class SpawnerProtect extends Module {
                 waiting = true;
                 recheckDelay = 0;
                 confirmDelay = 0;
-                ChatUtils.info("No more spawners found, waiting to confirm...");
+                info("No more spawners found, waiting to confirm...");
             }
         } else {
             lookAtBlock(currentTarget);
@@ -262,7 +280,7 @@ public class SpawnerProtect extends Module {
             KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
 
             if (mc.world.getBlockState(currentTarget).isAir()) {
-                ChatUtils.info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
+                info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
                 currentTarget = null;
                 KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
 
@@ -278,7 +296,7 @@ public class SpawnerProtect extends Module {
                 if (foundSpawner != null) {
                     waiting = false;
                     currentTarget = foundSpawner;
-                    ChatUtils.info("Found additional spawner at " + foundSpawner);
+                    info("Found additional spawner at " + foundSpawner);
                     return;
                 }
             }
@@ -294,7 +312,7 @@ public class SpawnerProtect extends Module {
                         sneaking = false;
                     }
                     currentState = State.GOING_TO_CHEST;
-                    ChatUtils.info("All spawners mined successfully. Going to ender chest...");
+                    info("All spawners mined successfully. Going to ender chest...");
                     ChatUtils.sendPlayerMsg("#goto ender_chest");
                     tickCounter = 0;
                 }
@@ -321,7 +339,7 @@ public class SpawnerProtect extends Module {
         }
 
         if (nearestSpawner != null) {
-            ChatUtils.info("Found spawner at " + nearestSpawner + " (distance: " + Math.sqrt(nearestDistance) + ")");
+            info("Found spawner at " + nearestSpawner + " (distance: " + Math.sqrt(nearestDistance) + ")");
         }
 
         return nearestSpawner;
@@ -359,7 +377,7 @@ public class SpawnerProtect extends Module {
         if (nearEnderChest) {
             currentState = State.DEPOSITING_ITEMS;
             tickCounter = 0;
-            ChatUtils.info("Reached ender chest area. Opening and depositing items...");
+            info("Reached ender chest area. Opening and depositing items...");
         }
 
         if (tickCounter > 600) {
@@ -375,12 +393,12 @@ public class SpawnerProtect extends Module {
             if (!chestOpened) {
                 chestOpened = true;
                 lastProcessedSlot = -1;
-                ChatUtils.info("Ender chest opened, starting item transfer...");
+                info("Ender chest opened, starting item transfer...");
             }
 
             if (!hasItemsToDeposit()) {
                 itemsDepositedSuccessfully = true;
-                ChatUtils.info("All items deposited successfully!");
+                info("All items deposited successfully!");
                 mc.player.closeHandledScreen();
                 transferDelayCounter = 10;
                 currentState = State.DISCONNECTING;
@@ -425,7 +443,7 @@ public class SpawnerProtect extends Module {
                 continue;
             }
 
-            ChatUtils.info("Transferring item from slot " + slotId + ": " + stack.getItem().toString());
+            info("Transferring item from slot " + slotId + ": " + stack.getItem().toString());
 
             mc.interactionManager.clickSlot(
                 handler.syncId,
@@ -449,27 +467,34 @@ public class SpawnerProtect extends Module {
     private void handleDisconnecting() {
         sendWebhookNotification();
 
-        ChatUtils.info("SpawnerProtect: Player detected - "  + detectedPlayer);
+        info("SpawnerProtect: Player detected - "  + detectedPlayer);
 
         if (mc.world != null) {
             mc.world.disconnect();
         }
 
-        ChatUtils.info("Disconnected due to player detection.");
+        info("Disconnected due to player detection.");
         toggle();
     }
 
     private void sendWebhookNotification() {
         if (!webhook.get() || webhookUrl.get().isEmpty()) {
-            ChatUtils.info("Webhook disabled or URL not configured.");
+            info("Webhook disabled or URL not configured.");
             return;
         }
 
         long discordTimestamp = detectionTime / 1000L;
+
+        String messageContent = "";
+        if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+            messageContent = String.format("<@%s>", discordId.get().trim());
+        }
+
         String embedJson = String.format("""
             {
                 "username": "Glazed Webhook",
                 "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                "content": "%s",
                 "embeds": [{
                     "title": "SpawnerProtect Alert",
                     "description": "**Player Detected:** %s\\n**Detection Time:** <t:%d:R>\\n**Spawners Mined:** %s\\n**Items Deposited:** %s\\n**Disconnected:** Yes",
@@ -480,6 +505,7 @@ public class SpawnerProtect extends Module {
                     }
                 }]
             }""",
+            messageContent.replace("\"", "\\\""),
             detectedPlayer,
             discordTimestamp,
             spawnersMinedSuccessfully ? "✅ Success" : "❌ Failed",
@@ -497,7 +523,7 @@ public class SpawnerProtect extends Module {
                     .build();
 
                 client.send(request, HttpResponse.BodyHandlers.ofString());
-                ChatUtils.info("Webhook notification sent successfully!");
+                info("Webhook notification sent successfully!");
             } catch (Exception e) {
                 ChatUtils.error("Failed to send webhook notification: " + e.getMessage());
             }

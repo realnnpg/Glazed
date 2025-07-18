@@ -54,7 +54,6 @@ public class ShulkerDropper extends Module {
 
         ScreenHandler currentScreenHandler = mc.player.currentScreenHandler;
 
-        // If not in a container, open shop
         if (!(currentScreenHandler instanceof GenericContainerScreenHandler)) {
             ChatUtils.sendPlayerMsg("/shop");
             delayCounter = 20;
@@ -63,10 +62,8 @@ public class ShulkerDropper extends Module {
 
         GenericContainerScreenHandler containerHandler = (GenericContainerScreenHandler) currentScreenHandler;
 
-        // Check if it's a 3-row container (shop)
         if (containerHandler.getRows() != 3) return;
 
-        // Check for end stone in slot 11 (navigate to next page or category)
         if (currentScreenHandler.getSlot(11).getStack().isOf(Items.END_STONE) &&
             currentScreenHandler.getSlot(11).getStack().getCount() == 1) {
             mc.interactionManager.clickSlot(currentScreenHandler.syncId, 11, 0, SlotActionType.PICKUP, mc.player);
@@ -74,14 +71,12 @@ public class ShulkerDropper extends Module {
             return;
         }
 
-        // Click shulker box in slot 17
         if (currentScreenHandler.getSlot(17).getStack().isOf(Items.SHULKER_BOX)) {
             mc.interactionManager.clickSlot(currentScreenHandler.syncId, 17, 0, SlotActionType.PICKUP, mc.player);
             delayCounter = 20;
             return;
         }
 
-        // If shulker box in slot 13, buy it and drop
         if (currentScreenHandler.getSlot(13).getStack().isOf(Items.SHULKER_BOX)) {
             mc.interactionManager.clickSlot(currentScreenHandler.syncId, 23, 0, SlotActionType.PICKUP, mc.player);
             delayCounter = delay.get();

@@ -1,7 +1,7 @@
-
 package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
+import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -10,7 +10,6 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.item.FireworkRocketItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Hand;
-
 
 public class AutoFirework extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -34,7 +33,6 @@ public class AutoFirework extends Module {
         .sliderMax(5.0)
         .build()
     );
-
 
     private final Setting<Boolean> checkDurability = sgGeneral.add(new BoolSetting.Builder()
         .name("check-durability")
@@ -68,9 +66,9 @@ public class AutoFirework extends Module {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastFireworkTime < delay.get() * 1000) return;
 
-
         if (checkDurability.get()) {
-            ItemStack chestItem = player.getInventory().getArmorStack(2);
+            //versionutils
+            ItemStack chestItem = VersionUtil.getArmorStack(player, 2);
             if (!chestItem.isEmpty() && chestItem.isDamaged()) {
                 int durability = chestItem.getMaxDamage() - chestItem.getDamage();
                 if (durability <= minDurability.get()) return;
@@ -84,13 +82,16 @@ public class AutoFirework extends Module {
             return;
         }
 
-        int originalSlot = player.getInventory().selectedSlot;
+        //versionutils
+        int originalSlot = VersionUtil.getSelectedSlot(player);
 
-        player.getInventory().selectedSlot = slotIndex;
+        //versionutils
+        VersionUtil.setSelectedSlot(player, slotIndex);
 
         mc.interactionManager.interactItem(player, Hand.MAIN_HAND);
 
-        player.getInventory().selectedSlot = originalSlot;
+        //versionutils
+        VersionUtil.setSelectedSlot(player, originalSlot);
 
         lastFireworkTime = currentTime;
     }
