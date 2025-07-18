@@ -111,30 +111,6 @@ public class RTPBaseFinder extends Module {
         .defaultValue(true)
         .build());
 
-    private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
-        .name("webhook-url")
-        .description("Discord webhook URL")
-        .defaultValue("")
-        .build());
-
-    private final Setting<Boolean> baseFindWebhook = sgwebhook.add(new BoolSetting.Builder()
-        .name("Base Find Webhook")
-        .description("Send webhook message when a base gets found")
-        .defaultValue(true)
-        .build());
-
-    private final Setting<Boolean> totemPopWebhook = sgwebhook.add(new BoolSetting.Builder()
-        .name("Totem Pop Webhook")
-        .description("Send webhook message when player pops a totem")
-        .defaultValue(false)
-        .build());
-
-    private final Setting<Boolean> deathWebhook = sgwebhook.add(new BoolSetting.Builder()
-        .name("Death Webhook")
-        .description("Send webhook message when player dies")
-        .defaultValue(false)
-        .build());
-
     private final Setting<Boolean> enableAutoTotem = sgother.add(new BoolSetting.Builder()
         .name("Enable AutoTotem")
         .defaultValue(false)
@@ -170,6 +146,47 @@ public class RTPBaseFinder extends Module {
         .defaultValue(false)
         .build());
 
+    private final Setting<Boolean> baseFindWebhook = sgwebhook.add(new BoolSetting.Builder()
+        .name("Base Find Webhook")
+        .description("Send webhook message when a base gets found")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<Boolean> totemPopWebhook = sgwebhook.add(new BoolSetting.Builder()
+        .name("Totem Pop Webhook")
+        .description("Send webhook message when player pops a totem")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<Boolean> deathWebhook = sgwebhook.add(new BoolSetting.Builder()
+        .name("Death Webhook")
+        .description("Send webhook message when player dies")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
+        .name("webhook-url")
+        .description("Discord webhook URL")
+        .defaultValue("")
+        .visible(this::isAnyWebhookEnabled)
+        .build());
+
+    private final Setting<Boolean> selfPing = sgwebhook.add(new BoolSetting.Builder()
+        .name("Self Ping")
+        .description("Ping yourself in the webhook message")
+        .defaultValue(false)
+        .visible(this::isAnyWebhookEnabled)
+        .build()
+    );
+
+    private final Setting<String> discordId = sgwebhook.add(new StringSetting.Builder()
+        .name("Discord ID")
+        .description("Your Discord user ID for pinging")
+        .defaultValue("")
+        .visible(() -> isAnyWebhookEnabled() && selfPing.get())
+        .build()
+    );
+
     private int loopStage = 0;
     private long stageStartTime;
     private BlockPos lastPos;
@@ -186,6 +203,10 @@ public class RTPBaseFinder extends Module {
 
     public RTPBaseFinder() {
         super(GlazedAddon.CATEGORY, "RTPBaseFinder", "RTPs, mines to a Y level, and detects bases using chunk loading.");
+    }
+
+    private boolean isAnyWebhookEnabled() {
+        return baseFindWebhook.get() || totemPopWebhook.get() || deathWebhook.get();
     }
 
     @Override
@@ -215,7 +236,7 @@ public class RTPBaseFinder extends Module {
         stageStartTime = System.currentTimeMillis();
         updateMovementTracking();
         processedChunks.clear();
-        ChatUtils.info("Starting RTP to " + rtpRegion.get().getCommandPart());
+        info("Starting RTP to " + rtpRegion.get().getCommandPart());
     }
 
     @EventHandler
@@ -251,12 +272,16 @@ public class RTPBaseFinder extends Module {
 
         if (spawnersCritical.get() && chunk.spawners > 0) {
             isBaseFound = true;
-        } else if (chunk.getTotal() >= baseThreshold.get()) {
+            detectionReason = "Spawner(s) detected (Critical mode)";
+        }
+        else if (chunk.getTotal() >= baseThreshold.get()) {
             isBaseFound = true;
+            detectionReason = "Storage threshold reached (" + chunk.getTotal() + " blocks)";
         }
 
         if (isBaseFound) {
             processedChunks.add(chunkPos);
+            info("Base found! Reason: " + detectionReason + " at chunk " + chunkPos.x + ", " + chunkPos.z);
             disconnectAndNotify(chunk, detectionReason);
         }
     }
@@ -295,7 +320,7 @@ public class RTPBaseFinder extends Module {
         if (mc.player == null) return;
         BlockPos pos = mc.player.getBlockPos();
         ChatUtils.sendPlayerMsg("#goto " + pos.getX() + " " + mineYLevel.get() + " " + pos.getZ());
-        ChatUtils.info("Started mining down to Y level " + mineYLevel.get());
+        info("Started mining down to Y level " + mineYLevel.get());
     }
 
     @EventHandler
@@ -311,7 +336,7 @@ public class RTPBaseFinder extends Module {
                 }
                 if (rtptotempop.get()) {
                     ChatUtils.sendPlayerMsg("#stop");
-                    ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
+                    info("Totem popped! Stopping mining and restarting RTP loop for safety...");
 
                     Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                         MinecraftClient.getInstance().execute(() -> {
@@ -330,7 +355,7 @@ public class RTPBaseFinder extends Module {
         long now = System.currentTimeMillis();
 
         if (isPlayerStuck()) {
-            ChatUtils.info("Player stuck for 20 seconds, restarting loop...");
+            info("Player stuck for 20 seconds, restarting loop...");
             ChatUtils.sendPlayerMsg("#stop");
             startLoop();
             return;
@@ -349,7 +374,7 @@ public class RTPBaseFinder extends Module {
             boolean isAlive = mc.player.isAlive();
 
             if (currentHealth < 11.0f && isAlive && !emergencyRtpTriggered && rtplowhealth.get()) {
-                ChatUtils.info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
+                info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
                 ChatUtils.sendPlayerMsg("#stop");
                 startLoop();
                 emergencyRtpTriggered = true;
@@ -378,14 +403,14 @@ public class RTPBaseFinder extends Module {
                 if (now - stageStartTime >= RTP_WAIT_DURATION) {
                     loopStage = 1;
                     stageStartTime = now;
-                    ChatUtils.info("RTP completed, starting mining...");
+                    info("RTP completed, starting mining...");
                     startMining();
                 }
             }
             case 1 -> {
                 if (mc.player.getY() <= mineYLevel.get() + 2) {
                     ChatUtils.sendPlayerMsg("#stop");
-                    ChatUtils.info("Reached mining goal, restarting loop...");
+                    info("Reached mining goal, restarting loop...");
                     startLoop();
                 }
             }
@@ -435,7 +460,7 @@ public class RTPBaseFinder extends Module {
                     });
                 }, 2, TimeUnit.SECONDS);
             } else {
-                ChatUtils.info("Base found but disconnect is disabled. Continuing mining...");
+                info("Base found but disconnect is disabled. Continuing mining...");
             }
         } else if (disconnectOnBaseFind.get()) {
             Executors.newSingleThreadScheduledExecutor().schedule(() -> {
@@ -453,6 +478,11 @@ public class RTPBaseFinder extends Module {
         try {
             String playerName = MinecraftClient.getInstance().getSession().getUsername();
             BlockPos playerPos = mc.player.getBlockPos();
+
+            String messageContent = "";
+            if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+                messageContent = String.format("<@%s>", discordId.get().trim());
+            }
 
             StringBuilder description = new StringBuilder();
             description.append("Player **").append(playerName).append("** discovered a base in chunk at coordinates **")
@@ -475,22 +505,23 @@ public class RTPBaseFinder extends Module {
                 .append(playerPos.getY()).append(", ").append(playerPos.getZ());
 
             String jsonPayload = String.format("""
+            {
+              "username": "Glazed Webhook",
+              "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+              "content": "%s",
+              "embeds": [
                 {
-                  "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
-                  "embeds": [
-                    {
-                      "title": "🏰 Base Discovery Confirmed!",
-                      "description": "%s",
-                      "color": 16711680,
-                      "author": {
-                        "name": "Base Alert"
-                      },
-                      "footer": { "text": "Sent by Glazed" }
-                    }
-                  ]
+                  "title": "🏰 Base Discovery Confirmed!",
+                  "description": "%s",
+                  "color": 16711680,
+                  "author": {
+                    "name": "Base Alert"
+                  },
+                  "footer": { "text": "Sent by Glazed" }
                 }
-                """, description.toString());
+              ]
+            }
+            """, messageContent, description.toString());
 
             sendWebhookRequest(jsonPayload, "Base find");
         } catch (Exception e) {
@@ -562,7 +593,7 @@ public class RTPBaseFinder extends Module {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(response -> {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        ChatUtils.info(type + " webhook sent successfully!");
+                        info(type + " webhook sent successfully!");
                     } else {
                         error("Failed to send " + type + " webhook. Status: " + response.statusCode());
                     }

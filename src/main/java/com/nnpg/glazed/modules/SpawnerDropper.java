@@ -29,9 +29,9 @@ public class SpawnerDropper extends Module {
     private int tickCounter = 0;
     private boolean hasClickedSlots = false;
     private int warningCooldown = 0;
-    private int currentStep = 0; // 0: click 50, 1: click 53, 2: wait and check, 3: click 50 again, 4: click 45, 5: wait and check
+    private int currentStep = 0;
     private int checkDelayCounter = 0;
-    private static final int CHECK_DELAY = 3; // Wait 3 ticks before checking slot 0
+    private static final int CHECK_DELAY = 3;
     private static final boolean shouldrepeat = true;
 
     public SpawnerDropper() {
@@ -42,17 +42,14 @@ public class SpawnerDropper extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.interactionManager == null) return;
 
-        // Decrement warning cooldown
         if (warningCooldown > 0) {
             warningCooldown--;
         }
 
-        // Check if we're on a screen
         if (!(mc.currentScreen instanceof HandledScreen)) {
-            // If module gets toggled and player isn't on a screen, notify them with 1 second cooldown
             if (isActive() && !hasClickedSlots && warningCooldown == 0) {
                 warning("You need to be on the spawner screen to use this module.");
-                warningCooldown = 20; // 1 second = 20 ticks
+                warningCooldown = 20;
             }
             return;
         }
@@ -68,11 +65,10 @@ public class SpawnerDropper extends Module {
                     toggle();
                     return;
                 } else {
-                    // Items still remain, continue the cycle
                     if (currentStep == 2) {
-                        currentStep = 3; // Continue to click 50 again
+                        currentStep = 3;
                     } else if (currentStep == 5) {
-                        currentStep = 0; // Loop back to start (click 50)
+                        currentStep = 0;
                     }
                 }
                 checkDelayCounter = 0;
@@ -80,19 +76,15 @@ public class SpawnerDropper extends Module {
             return;
         }
 
-        // Increment tick counter
         tickCounter++;
 
-        // Only perform actions if enough ticks have passed (delay)
         if (tickCounter < delay.get()) {
             return;
         }
 
-        // Reset tick counter
         tickCounter = 0;
         hasClickedSlots = true;
 
-        // Execute clicks step by step with delay between each
         switch (currentStep) {
             case 0:
                 mc.interactionManager.clickSlot(screen.getScreenHandler().syncId, 50, 0, SlotActionType.PICKUP, mc.player);

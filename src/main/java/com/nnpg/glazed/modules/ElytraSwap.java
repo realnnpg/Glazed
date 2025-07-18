@@ -1,5 +1,7 @@
 package com.nnpg.glazed.modules;
+
 import com.nnpg.glazed.GlazedAddon;
+import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -61,7 +63,8 @@ public class ElytraSwap extends Module {
         if (mc.player == null || mc.interactionManager == null) return;
 
         ClientPlayerEntity player = mc.player;
-        ItemStack chestSlot = player.getInventory().getArmorStack(2); // Chest armor slot
+        //versionutils
+        ItemStack chestSlot = VersionUtil.getArmorStack(player, 2); // Chest armor slot
 
         // Check what's currently equipped
         boolean hasElytra = chestSlot.getItem() == Items.ELYTRA;

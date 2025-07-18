@@ -99,7 +99,7 @@ public class AHSniper extends Module {
                 "per 64 items";
 
         if (notifications.get()) {
-            ChatUtils.info("Auction Sniper activated! Sniping %s for max %s (%s)",
+            info("Auction Sniper activated! Sniping %s for max %s (%s)",
                 snipingItem.get().getName().getString(), maxPrice.get(), stackInfo);
         }
     }
@@ -128,7 +128,6 @@ public class AHSniper extends Module {
                 processThreeRowAuction(containerHandler);
             }
         } else {
-            // Not in auction GUI, open auction house
             openAuctionHouse();
         }
     }
@@ -162,7 +161,7 @@ public class AHSniper extends Module {
                     mc.interactionManager.clickSlot(handler.syncId, i, 1, SlotActionType.QUICK_MOVE, mc.player);
                     isProcessing = false;
                     if (notifications.get()) {
-                        ChatUtils.info("Attempting to buy item!");
+                        info("Attempting to buy item!");
                     }
                     delayCounter = refreshDelay.get() + 10;
                     return;
@@ -184,7 +183,7 @@ public class AHSniper extends Module {
             delayCounter = 20;
             if (notifications.get()) {
                 Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
-                ChatUtils.info("Buying item for " + formatPrice(parseTooltipPrice(auctionItem.getTooltip(tooltipContext, mc.player, TooltipType.BASIC))));
+                info("Buying item for " + formatPrice(parseTooltipPrice(auctionItem.getTooltip(tooltipContext, mc.player, TooltipType.BASIC))));
             }
         }
     }
@@ -219,7 +218,7 @@ public class AHSniper extends Module {
         boolean isValid = effectivePrice <= maxPriceValue;
 
         if (notifications.get()) {
-            ChatUtils.info("Item: %s, Auction Price: %s, Effective Price: %s, Max Price: %s, Valid: %s",
+            info("Item: %s, Auction Price: %s, Effective Price: %s, Max Price: %s, Valid: %s",
                 stack.getItem().getName().getString(),
                 formatPrice(itemPrice),
                 formatPrice(effectivePrice),

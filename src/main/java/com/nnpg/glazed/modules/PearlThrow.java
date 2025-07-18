@@ -1,5 +1,6 @@
 package com.nnpg.glazed.modules;
 
+import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.MeteorClient;
 import net.minecraft.item.Items;
@@ -24,7 +25,6 @@ public class PearlThrow extends Module {
 
         int pearlSlot = -1;
 
-        // Search entire inventory (0–35) for ender pearl
         for (int i = 0; i < mc.player.getInventory().size(); i++) {
             ItemStack stack = mc.player.getInventory().getStack(i);
             if (stack.getItem() == Items.ENDER_PEARL) {
@@ -39,14 +39,17 @@ public class PearlThrow extends Module {
             return;
         }
 
-        int currentSlot = mc.player.getInventory().selectedSlot;
+        //versionutils
+        int currentSlot = VersionUtil.getSelectedSlot(mc.player);
         int hotbarIndex = 36 + currentSlot;
 
         if (pearlSlot >= 0 && pearlSlot <= 8) {
             // Pearl is in hotbar
-            mc.player.getInventory().selectedSlot = pearlSlot;
+            //versionutils
+            VersionUtil.setSelectedSlot(mc.player, pearlSlot);
             mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
-            mc.player.getInventory().selectedSlot = currentSlot;
+            //versionutils
+            VersionUtil.setSelectedSlot(mc.player, currentSlot);
         } else {
             int invSlot = pearlSlot;
 

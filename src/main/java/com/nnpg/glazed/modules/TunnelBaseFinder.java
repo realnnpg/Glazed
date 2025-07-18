@@ -110,30 +110,6 @@ public class TunnelBaseFinder extends Module {
         .defaultValue(true)
         .build());
 
-    private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
-        .name("webhook-url")
-        .description("Discord webhook URL")
-        .defaultValue("")
-        .build());
-
-    private final Setting<Boolean> baseFindWebhook = sgwebhook.add(new BoolSetting.Builder()
-        .name("Base Find Webhook")
-        .description("Send webhook message when a base gets found")
-        .defaultValue(true)
-        .build());
-
-    private final Setting<Boolean> totemPopWebhook = sgwebhook.add(new BoolSetting.Builder()
-        .name("Totem Pop Webhook")
-        .description("Send webhook message when player pops a totem")
-        .defaultValue(false)
-        .build());
-
-    private final Setting<Boolean> deathWebhook = sgwebhook.add(new BoolSetting.Builder()
-        .name("Death Webhook")
-        .description("Send webhook message when player dies")
-        .defaultValue(false)
-        .build());
-
     private final Setting<Boolean> enableAutoTotem = sgother.add(new BoolSetting.Builder()
         .name("Enable AutoTotem")
         .defaultValue(false)
@@ -156,7 +132,7 @@ public class TunnelBaseFinder extends Module {
 
     private final Setting<Boolean> enableStorageESP = sgother.add(new BoolSetting.Builder()
         .name("Enable StorageESP")
-        .defaultValue(false)
+        .defaultValue(true)
         .build());
 
     private final Setting<Boolean> enableAutoArmor = sgother.add(new BoolSetting.Builder()
@@ -169,6 +145,47 @@ public class TunnelBaseFinder extends Module {
         .defaultValue(false)
         .build());
 
+    private final Setting<Boolean> baseFindWebhook = sgwebhook.add(new BoolSetting.Builder()
+        .name("Base Find Webhook")
+        .description("Send webhook message when a base gets found")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<Boolean> totemPopWebhook = sgwebhook.add(new BoolSetting.Builder()
+        .name("Totem Pop Webhook")
+        .description("Send webhook message when player pops a totem")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<Boolean> deathWebhook = sgwebhook.add(new BoolSetting.Builder()
+        .name("Death Webhook")
+        .description("Send webhook message when player dies")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
+        .name("webhook-url")
+        .description("Discord webhook URL")
+        .defaultValue("")
+        .visible(this::isAnyWebhookEnabled)
+        .build());
+
+    private final Setting<Boolean> selfPing = sgwebhook.add(new BoolSetting.Builder()
+        .name("Self Ping")
+        .description("Ping yourself in the webhook message")
+        .defaultValue(false)
+        .visible(this::isAnyWebhookEnabled)
+        .build()
+    );
+
+    private final Setting<String> discordId = sgwebhook.add(new StringSetting.Builder()
+        .name("Discord ID")
+        .description("Your Discord user ID for pinging")
+        .defaultValue("")
+        .visible(() -> isAnyWebhookEnabled() && selfPing.get())
+        .build()
+    );
+
     private int loopStage = 0;
     private long stageStartTime;
     private BlockPos lastPos;
@@ -177,7 +194,6 @@ public class TunnelBaseFinder extends Module {
     private final int STUCK_TIMEOUT = 20000;
     private boolean emergencyRtpTriggered = false;
 
-
     private final Set<ChunkPos> processedChunks = new HashSet<>();
 
     private float lastHealth = 20.0f;
@@ -185,6 +201,10 @@ public class TunnelBaseFinder extends Module {
 
     public TunnelBaseFinder() {
         super(GlazedAddon.CATEGORY, "TunnelBaseFinder", "RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.");
+    }
+
+    private boolean isAnyWebhookEnabled() {
+        return baseFindWebhook.get() || totemPopWebhook.get() || deathWebhook.get();
     }
 
     @Override
@@ -212,7 +232,7 @@ public class TunnelBaseFinder extends Module {
         stageStartTime = System.currentTimeMillis();
         updateMovementTracking();
         processedChunks.clear();
-        ChatUtils.info("Starting RTP to " + rtpRegion.get().getCommandPart());
+        info("Starting RTP to " + rtpRegion.get().getCommandPart());
     }
 
     @EventHandler
@@ -241,21 +261,19 @@ public class TunnelBaseFinder extends Module {
 
         int totalStorageBlocks = chunk.getTotal();
 
-        boolean isBase = totalStorageBlocks >= baseThreshold.get();
+        boolean isBase = false;
 
         if (spawnersCritical.get() && chunk.spawners > 0) {
             isBase = true;
+            info("Spawner detected! Treating as critical base find.");
+        }
+        else if (totalStorageBlocks >= baseThreshold.get()) {
+            isBase = true;
+            info("Storage threshold reached: " + totalStorageBlocks + " blocks found.");
         }
 
         if (isBase) {
             processedChunks.add(chunkPos);
-
-
-            if (spawnersCritical.get() && chunk.spawners > 0) {
-                disconnectAndNotify(chunk);
-                return;
-            }
-
             disconnectAndNotify(chunk);
         }
     }
@@ -294,15 +312,14 @@ public class TunnelBaseFinder extends Module {
         if (mc.player == null) return;
         BlockPos pos = mc.player.getBlockPos();
         ChatUtils.sendPlayerMsg("#goto " + pos.getX() + " " + mineYLevel.get() + " " + pos.getZ());
-        ChatUtils.info("Started mining down to Y level " + mineYLevel.get());
+        info("Started mining down to Y level " + mineYLevel.get());
     }
 
     private void startTunneling() {
         if (mc.player == null) return;
         ChatUtils.sendPlayerMsg("#tunnel");
-        ChatUtils.info("Started tunneling at Y level " + mineYLevel.get());
+        info("Started tunneling at Y level " + mineYLevel.get());
     }
-
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
@@ -317,7 +334,7 @@ public class TunnelBaseFinder extends Module {
                 }
                 if (rtptotempop.get()) {
                     ChatUtils.sendPlayerMsg("#stop");
-                    ChatUtils.info("Totem popped! Stopping mining and restarting RTP loop for safety...");
+                    info("Totem popped! Stopping mining and restarting RTP loop for safety...");
 
                     Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                         MinecraftClient.getInstance().execute(() -> {
@@ -336,7 +353,7 @@ public class TunnelBaseFinder extends Module {
         long now = System.currentTimeMillis();
 
         if (isPlayerStuck()) {
-            ChatUtils.info("Player stuck for 20 seconds, restarting loop...");
+            info("Player stuck for 20 seconds, restarting loop...");
             ChatUtils.sendPlayerMsg("#stop");
             startLoop();
             return;
@@ -350,13 +367,12 @@ public class TunnelBaseFinder extends Module {
         toggleModule(AutoArmor.class, enableAutoArmor.get());
         toggleModule(AutoEXP.class, enableAutoExp.get());
 
-
         if (mc.player != null) {
             float currentHealth = mc.player.getHealth();
             boolean isAlive = mc.player.isAlive();
 
             if (currentHealth < 11.0f && isAlive && !emergencyRtpTriggered && rtplowhealth.get()) {
-                ChatUtils.info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
+                info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
                 ChatUtils.sendPlayerMsg("#stop");
                 startLoop();
                 emergencyRtpTriggered = true;
@@ -385,7 +401,7 @@ public class TunnelBaseFinder extends Module {
                 if (now - stageStartTime >= RTP_WAIT_DURATION) {
                     loopStage = 1;
                     stageStartTime = now;
-                    ChatUtils.info("RTP completed, starting mining...");
+                    info("RTP completed, starting mining...");
                     startMining();
                 }
             }
@@ -393,12 +409,12 @@ public class TunnelBaseFinder extends Module {
                 if (mc.player.getY() <= mineYLevel.get() + 2) {
                     loopStage = 2;
                     stageStartTime = now;
-                    ChatUtils.info("Reached mining goal, starting tunnel...");
+                    info("Reached mining goal, starting tunnel...");
                     startTunneling();
                 }
             }
             case 2 -> {
-
+                // Tunneling stage - continue mining
             }
         }
     }
@@ -446,7 +462,7 @@ public class TunnelBaseFinder extends Module {
                     });
                 }, 2, TimeUnit.SECONDS);
             } else {
-                ChatUtils.info("Base found but disconnect is disabled. Continuing mining...");
+                info("Base found but disconnect is disabled. Continuing mining...");
             }
         } else {
             if (disconnectOnBaseFind.get()) {
@@ -455,7 +471,7 @@ public class TunnelBaseFinder extends Module {
                     toggle();
                 }
             } else {
-                ChatUtils.info("Base found but disconnect is disabled. Continuing mining...");
+                info("Base found but disconnect is disabled. Continuing mining...");
             }
         }
     }
@@ -464,6 +480,11 @@ public class TunnelBaseFinder extends Module {
         try {
             String playerName = MinecraftClient.getInstance().getSession().getUsername();
             BlockPos playerPos = mc.player.getBlockPos();
+
+            String messageContent = "";
+            if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+                messageContent = String.format("<@%s>", discordId.get().trim());
+            }
 
             StringBuilder description = new StringBuilder();
             description.append("Player **").append(playerName).append("** discovered a base in chunk at coordinates **")
@@ -486,6 +507,7 @@ public class TunnelBaseFinder extends Module {
 
             String jsonPayload = String.format("""
                 {
+                  "content": "%s",
                   "username": "Glazed Webhook",
                   "avatar_url": "https://i.imgur.com/OL2y1cr.png",
                   "embeds": [
@@ -500,7 +522,7 @@ public class TunnelBaseFinder extends Module {
                     }
                   ]
                 }
-                """, description.toString());
+                """, messageContent, description.toString());
 
             sendWebhookRequest(jsonPayload, "Base find");
         } catch (Exception e) {
@@ -510,23 +532,29 @@ public class TunnelBaseFinder extends Module {
 
     private void sendTotemPopWebhook(String playerName, BlockPos pos) {
         try {
+            String messageContent = "";
+            if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+                messageContent = String.format("<@%s>", discordId.get().trim());
+            }
+
             String jsonPayload = String.format("""
                 {
-                  \"username\": \"Glazed Webhook\",
-                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
-                  \"embeds\": [
+                  "content": "%s",
+                  "username": "Glazed Webhook",
+                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                  "embeds": [
                     {
-                      \"title\": \"⚡ Totem Pop at (%d, %d, %d)\",
-                      \"description\": \"Player **%s** popped a totem of undying at coordinates **%d, %d, %d**.\",
-                      \"color\": 16776960,
-                      \"author\": {
-                        \"name\": \"AutoTotem Alert\"
+                      "title": "⚡ Totem Pop at (%d, %d, %d)",
+                      "description": "Player **%s** popped a totem of undying at coordinates **%d, %d, %d**.",
+                      "color": 16776960,
+                      "author": {
+                        "name": "AutoTotem Alert"
                       },
-                      \"footer\": { \"text\": \"Sent by Glazed\" }
+                      "footer": { "text": "Sent by Glazed" }
                     }
                   ]
                 }
-                """, pos.getX(), pos.getY(), pos.getZ(), playerName, pos.getX(), pos.getY(), pos.getZ());
+                """, messageContent, pos.getX(), pos.getY(), pos.getZ(), playerName, pos.getX(), pos.getY(), pos.getZ());
 
             sendWebhookRequest(jsonPayload, "Totem pop");
         } catch (Exception e) {
@@ -536,23 +564,29 @@ public class TunnelBaseFinder extends Module {
 
     private void sendDeathWebhook(String playerName, BlockPos pos, String deathReason) {
         try {
+            String messageContent = "";
+            if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+                messageContent = String.format("<@%s>", discordId.get().trim());
+            }
+
             String jsonPayload = String.format("""
                 {
-                  \"username\": \"Glazed Webhook\",
-                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
-                  \"embeds\": [
+                  "content": "%s",
+                  "username": "Glazed Webhook",
+                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                  "embeds": [
                     {
-                      \"title\": \"💀 Death at (%d, %d, %d)\",
-                      \"description\": \"Player **%s** died at coordinates **%d, %d, %d**\\n\\n**Cause:** %s\",
-                      \"color\": 16711680,
-                      \"author\": {
-                        \"name\": \"Death Alert\"
+                      "title": "💀 Death at (%d, %d, %d)",
+                      "description": "Player **%s** died at coordinates **%d, %d, %d**\\n\\n**Cause:** %s",
+                      "color": 16711680,
+                      "author": {
+                        "name": "Death Alert"
                       },
-                      \"footer\": { \"text\": \"Sent by Glazed\" }
+                      "footer": { "text": "Sent by Glazed" }
                     }
                   ]
                 }
-                """, pos.getX(), pos.getY(), pos.getZ(), playerName, pos.getX(), pos.getY(), pos.getZ(), deathReason);
+                """, messageContent, pos.getX(), pos.getY(), pos.getZ(), playerName, pos.getX(), pos.getY(), pos.getZ(), deathReason);
 
             sendWebhookRequest(jsonPayload, "Death");
         } catch (Exception e) {
@@ -572,7 +606,7 @@ public class TunnelBaseFinder extends Module {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(response -> {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        ChatUtils.info(type + " webhook sent successfully!");
+                        info(type + " webhook sent successfully!");
                     } else {
                         error("Failed to send " + type + " webhook. Status: " + response.statusCode());
                     }

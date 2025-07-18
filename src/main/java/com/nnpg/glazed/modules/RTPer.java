@@ -140,7 +140,6 @@ public class RTPer extends Module {
 
         tickTimer++;
 
-        // Check if we're close enough to target
         if (isNearTarget()) {
             info("Reached target coordinates! Distance: %.0f blocks", getCurrentDistance());
 
@@ -162,7 +161,6 @@ public class RTPer extends Module {
             return;
         }
 
-        // Convert seconds to ticks (20 ticks = 1 second)
         if (tickTimer >= rtpDelay.get() * 20 && !isRtping) {
             performRTP();
             tickTimer = 0;

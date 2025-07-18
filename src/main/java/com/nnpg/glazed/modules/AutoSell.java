@@ -42,6 +42,7 @@ public class AutoSell extends Module {
     );
 
     private int delayCounter;
+    private boolean shouldReopen = false;
 
     public AutoSell() {
         super(GlazedAddon.CATEGORY, "AutoSell", "Automatically sells items.");
@@ -50,10 +51,12 @@ public class AutoSell extends Module {
     @Override
     public void onActivate() {
         delayCounter = 20;
+        shouldReopen = false;
     }
 
     @Override
     public void onDeactivate() {
+        shouldReopen = false;
     }
 
     @EventHandler
@@ -65,23 +68,36 @@ public class AutoSell extends Module {
             return;
         }
 
+        if (shouldReopen) {
+            mc.getNetworkHandler().sendChatCommand("sell");
+            shouldReopen = false;
+            delayCounter = delay.get();
+            return;
+        }
+
         handleSellMode();
     }
 
     private void handleSellMode() {
         ScreenHandler currentScreenHandler = mc.player.currentScreenHandler;
 
-        // If not inside a container, send the /sell command
         if (!(currentScreenHandler instanceof GenericContainerScreenHandler)) {
             mc.getNetworkHandler().sendChatCommand("sell");
             delayCounter = 20;
             return;
         }
 
+        if (areAllSellSlotsOccupied(currentScreenHandler)) {
+            info("All sell menu slots (0-35) are occupied. Closing and reopening menu.");
+            mc.player.closeHandledScreen();
+            shouldReopen = true;
+            delayCounter = delay.get();
+            return;
+        }
+
         int totalSlots = currentScreenHandler.slots.size();
         boolean foundItemToSell = false;
 
-        // Player inventory usually starts at slot 36
         for (int slot = 36; slot < totalSlots; slot++) {
             ItemStack stack = currentScreenHandler.getSlot(slot).getStack();
 
@@ -97,14 +113,26 @@ public class AutoSell extends Module {
         }
 
         if (!foundItemToSell) {
-            info("No items to sell found in inventory. Closing GUI.");
+            info("All items sold. Closing GUI.");
             mc.player.closeHandledScreen();
             toggle();
             delayCounter = 40;
         }
     }
 
+    private boolean areAllSellSlotsOccupied(ScreenHandler screenHandler) {
+        for (int slot = 0; slot <= 35; slot++) {
+            if (slot >= screenHandler.slots.size()) {
+                return false; // If we don't have enough slots, they can't all be occupied
+            }
 
+            ItemStack stack = screenHandler.getSlot(slot).getStack();
+            if (stack.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private boolean shouldSellItem(Item item) {
         List<Item> selectedItems = itemList.get();
