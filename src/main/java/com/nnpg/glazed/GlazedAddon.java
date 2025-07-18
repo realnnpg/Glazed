@@ -41,6 +41,7 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new HideScoreboard());
         Modules.get().add(new AutoInvTotem());
         Modules.get().add(new CrystalMacro());
+		Modules.get().add(new AHSell());
 
         // Register this class for events
         MeteorClient.EVENT_BUS.subscribe(this);
