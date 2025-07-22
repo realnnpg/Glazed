@@ -2,12 +2,10 @@ package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.events.game.ReceiveMessageEvent;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -23,48 +21,74 @@ import java.util.regex.Pattern;
 
 public class AHSniper extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    public enum PriceMode {
+        PER_ITEM,
+        FULL_STACK,
+        TOTAL
+    }
+
     private final Setting<Item> snipingItem = sgGeneral.add(new ItemSetting.Builder()
-        .name("sniping-item")
-        .description("The item to snipe from auctions.")
-        .defaultValue(Items.AIR)
-        .build()
+            .name("sniping-item")
+            .description("The item to snipe from auctions.")
+            .defaultValue(Items.AIR)
+            .build()
     );
 
     private final Setting<String> maxPrice = sgGeneral.add(new StringSetting.Builder()
-        .name("max-price")
-        .description("Maximum price to pay (supports K, M, B suffixes). Price is per max stack size.")
-        .defaultValue("1k")
-        .build()
+            .name("max-price")
+            .description("Maximum price to pay (supports K, M, B suffixes).")
+            .defaultValue("1k")
+            .build()
+    );
+
+    private final Setting<PriceMode> priceMode = sgGeneral.add(new EnumSetting.Builder<PriceMode>()
+            .name("price-mode")
+            .description("How to interpret the max price.")
+            .defaultValue(PriceMode.FULL_STACK)
+            .build()
     );
 
     private final Setting<Integer> refreshDelay = sgGeneral.add(new IntSetting.Builder()
-        .name("refresh-delay")
-        .description("Delay between auction page refreshes (in ticks).")
-        .defaultValue(2)
-        .min(0)
-        .max(100)
-        .sliderMax(20)
-        .build()
+            .name("refresh-speed")
+            .description("Delay between auction page refreshes (in ms).")
+            .defaultValue(15)
+            .min(0)
+            .sliderMax(1000)
+            .build()
     );
 
     private final Setting<Integer> buyDelay = sgGeneral.add(new IntSetting.Builder()
-        .name("buy-delay")
-        .description("Delay before buying an item (in ticks).")
-        .defaultValue(2)
-        .min(0)
-        .max(100)
-        .sliderMax(20)
-        .build()
+            .name("purchase-speed")
+            .description("Delay before buying an item (in ms).")
+            .defaultValue(1)
+            .min(0)
+            .sliderMax(1000)
+            .build()
     );
 
-    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
-        .name("notifications")
-        .description("Show chat notifications.")
-        .defaultValue(true)
-        .build()
+    private final Setting<Boolean> logPurchases = sgGeneral.add(new BoolSetting.Builder()
+            .name("log-purchases")
+            .description("Log successful purchases in chat.")
+            .defaultValue(true)
+            .build()
     );
 
-    private int delayCounter = 0;
+    private final Setting<Boolean> logDetails = sgGeneral.add(new BoolSetting.Builder()
+            .name("log-details")
+            .description("Log all scanned auction items and their prices.")
+            .defaultValue(false)
+            .build()
+    );
+
+    private final Setting<Boolean> donutPlus = sgGeneral.add(new BoolSetting.Builder()
+            .name("donut-plus")
+            .description("Skips confirmation click if enabled.")
+            .defaultValue(false)
+            .build()
+    );
+
+    private long delayUntil = 0;
     private boolean isProcessing = false;
 
     public AHSniper() {
@@ -75,32 +99,29 @@ public class AHSniper extends Module {
     public void onActivate() {
         double parsedPrice = parsePrice(maxPrice.get());
         if (parsedPrice == -1.0) {
-            if (notifications.get()) {
-                ChatUtils.error("Invalid price format!");
-            }
+            if (logPurchases.get()) error("Invalid price format!");
             toggle();
             return;
         }
 
         if (snipingItem.get() == Items.AIR) {
-            if (notifications.get()) {
-                ChatUtils.error("Please select an item to snipe!");
-            }
+            if (logPurchases.get()) error("Please select an item to snipe!");
             toggle();
             return;
         }
 
-        delayCounter = 0;
+        delayUntil = 0;
         isProcessing = false;
 
-        int maxStackSize = snipingItem.get().getMaxCount();
-        String stackInfo = maxStackSize == 1 ? "per item" :
-            maxStackSize == 16 ? "per 16 items" :
-                "per 64 items";
+        String modeInfo = switch (priceMode.get()) {
+            case PER_ITEM -> "per item";
+            case FULL_STACK -> "per " + snipingItem.get().getMaxCount() + " items";
+            case TOTAL -> "total";
+        };
 
-        if (notifications.get()) {
+        if (logPurchases.get()) {
             info("Auction Sniper activated! Sniping %s for max %s (%s)",
-                snipingItem.get().getName().getString(), maxPrice.get(), stackInfo);
+                    snipingItem.get().getName().getString(), maxPrice.get(), modeInfo);
         }
     }
 
@@ -111,16 +132,10 @@ public class AHSniper extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null) return;
-
-        if (delayCounter > 0) {
-            delayCounter--;
-            return;
-        }
+        if (mc.player == null || System.currentTimeMillis() < delayUntil) return;
 
         ScreenHandler screenHandler = mc.player.currentScreenHandler;
 
-        // Check if we're in an auction GUI
         if (screenHandler instanceof GenericContainerScreenHandler containerHandler) {
             if (containerHandler.getRows() == 6) {
                 processSixRowAuction(containerHandler);
@@ -133,22 +148,19 @@ public class AHSniper extends Module {
     }
 
     private void openAuctionHouse() {
-        String itemName = getFormattedItemName(snipingItem.get());
-        mc.getNetworkHandler().sendChatCommand("ah " + itemName);
-        delayCounter = 20;
+        mc.getNetworkHandler().sendChatCommand("ah " + getFormattedItemName(snipingItem.get()));
+        delayUntil = System.currentTimeMillis() + 500;
     }
 
     private void processSixRowAuction(GenericContainerScreenHandler handler) {
         ItemStack recentlyListedButton = handler.getSlot(47).getStack();
         if (!recentlyListedButton.isEmpty()) {
-            Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
-            List<Text> tooltip = recentlyListedButton.getTooltip(tooltipContext, mc.player, TooltipType.BASIC);
-            for (Text line : tooltip) {
+            Item.TooltipContext ctx = Item.TooltipContext.create(mc.world);
+            for (Text line : recentlyListedButton.getTooltip(ctx, mc.player, TooltipType.BASIC)) {
                 String text = line.getString();
-                if (text.contains("Recently Listed") &&
-                    (line.getStyle().toString().contains("white") || text.contains("white"))) {
+                if (text.contains("Recently Listed") && (line.getStyle().toString().contains("white") || text.contains("white"))) {
                     mc.interactionManager.clickSlot(handler.syncId, 47, 1, SlotActionType.QUICK_MOVE, mc.player);
-                    delayCounter = 5;
+                    delayUntil = System.currentTimeMillis() + 100;
                     return;
                 }
             }
@@ -160,70 +172,60 @@ public class AHSniper extends Module {
                 if (isProcessing) {
                     mc.interactionManager.clickSlot(handler.syncId, i, 1, SlotActionType.QUICK_MOVE, mc.player);
                     isProcessing = false;
-                    if (notifications.get()) {
-                        info("Attempting to buy item!");
-                    }
-                    delayCounter = refreshDelay.get() + 10;
+                    if (logPurchases.get()) info("Attempting to buy item!");
+                    delayUntil = System.currentTimeMillis() + (refreshDelay.get() + 10);
                     return;
                 }
                 isProcessing = true;
-                delayCounter = buyDelay.get();
+                delayUntil = System.currentTimeMillis() + buyDelay.get();
                 return;
             }
         }
 
         mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
-        delayCounter = refreshDelay.get();
+        delayUntil = System.currentTimeMillis() + refreshDelay.get();
     }
 
     private void processThreeRowAuction(GenericContainerScreenHandler handler) {
         ItemStack auctionItem = handler.getSlot(13).getStack();
         if (isValidAuctionItem(auctionItem)) {
-            mc.interactionManager.clickSlot(handler.syncId, 15, 1, SlotActionType.QUICK_MOVE, mc.player);
-            delayCounter = 20;
-            if (notifications.get()) {
-                Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
-                info("Buying item for " + formatPrice(parseTooltipPrice(auctionItem.getTooltip(tooltipContext, mc.player, TooltipType.BASIC))));
+            if (!donutPlus.get()) {
+                mc.interactionManager.clickSlot(handler.syncId, 15, 1, SlotActionType.QUICK_MOVE, mc.player);
+            }
+            delayUntil = System.currentTimeMillis() + 200;
+
+            if (logPurchases.get()) {
+                double price = parseTooltipPrice(auctionItem.getTooltip(Item.TooltipContext.create(mc.world), mc.player, TooltipType.BASIC));
+                info("Bought %s ×%d for %s", auctionItem.getName().getString(), auctionItem.getCount(), formatPrice(price));
             }
         }
     }
 
     private boolean isValidAuctionItem(ItemStack stack) {
-        if (stack.isEmpty() || !stack.isOf(snipingItem.get())) {
+        if (stack.isEmpty() || !stack.isOf(snipingItem.get())) return false;
+
+        if (priceMode.get() == PriceMode.FULL_STACK && stack.getCount() < snipingItem.get().getMaxCount()) {
+            if (logDetails.get()) info("Skipped - Not a full stack.");
             return false;
         }
 
-        Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
-        List<Text> tooltip = stack.getTooltip(tooltipContext, mc.player, TooltipType.BASIC);
+        List<Text> tooltip = stack.getTooltip(Item.TooltipContext.create(mc.world), mc.player, TooltipType.BASIC);
         double itemPrice = parseTooltipPrice(tooltip);
         double maxPriceValue = parsePrice(maxPrice.get());
 
-        if (maxPriceValue == -1.0) {
-            if (notifications.get()) {
-                ChatUtils.error("Invalid max price format!");
-            }
-            toggle();
-            return false;
-        }
-
-        if (itemPrice == -1.0) {
-            if (notifications.get()) {
-                ChatUtils.warning("Could not parse auction item price");
-            }
-            return false;
-        }
+        if (itemPrice == -1.0 || maxPriceValue == -1.0) return false;
 
         double effectivePrice = calculateEffectivePrice(itemPrice, stack.getCount(), snipingItem.get().getMaxCount());
-
         boolean isValid = effectivePrice <= maxPriceValue;
 
-        if (notifications.get()) {
-            info("Item: %s, Auction Price: %s, Effective Price: %s, Max Price: %s, Valid: %s",
-                stack.getItem().getName().getString(),
-                formatPrice(itemPrice),
-                formatPrice(effectivePrice),
-                formatPrice(maxPriceValue),
-                isValid ? "Yes" : "No"
+        if (logDetails.get()) {
+            info("Checked: %s ×%d | Auction Price: %s | Effective: %s | Max: %s | Valid: %s",
+                    stack.getItem().getName().getString(),
+                    stack.getCount(),
+                    formatPrice(itemPrice),
+                    formatPrice(effectivePrice),
+                    formatPrice(maxPriceValue),
+                    isValid ? "✔" : "✘"
             );
         }
 
@@ -231,30 +233,20 @@ public class AHSniper extends Module {
     }
 
     private double calculateEffectivePrice(double auctionPrice, int stackCount, int maxStackSize) {
-        double pricePerItem = auctionPrice / stackCount;
-
-        if (maxStackSize == 1) {
-            return pricePerItem;
-        } else if (maxStackSize == 16) {
-            return pricePerItem * 16;
-        } else {
-            return pricePerItem * 64;
-        }
+        return switch (priceMode.get()) {
+            case PER_ITEM -> auctionPrice / stackCount;
+            case FULL_STACK -> (auctionPrice / stackCount) * maxStackSize;
+            case TOTAL -> auctionPrice;
+        };
     }
 
     private double parseTooltipPrice(List<Text> tooltip) {
-        if (tooltip == null || tooltip.isEmpty()) {
-            return -1.0;
-        }
-
         for (Text line : tooltip) {
             String text = line.getString();
             if (text.matches("(?i).*price\\s*:\\s*\\$.*")) {
                 String cleanedText = text.replaceAll("[,$]", "");
-
                 Matcher matcher = Pattern.compile("([\\d]+(?:\\.[\\d]+)?)\\s*([KMB])?", Pattern.CASE_INSENSITIVE)
-                    .matcher(cleanedText);
-
+                        .matcher(cleanedText);
                 if (matcher.find()) {
                     String numberStr = matcher.group(1);
                     String suffix = matcher.group(2) != null ? matcher.group(2).toUpperCase() : "";
@@ -266,9 +258,7 @@ public class AHSniper extends Module {
     }
 
     private double parsePrice(String priceStr) {
-        if (priceStr == null || priceStr.isEmpty()) {
-            return -1.0;
-        }
+        if (priceStr == null || priceStr.isEmpty()) return -1.0;
 
         String cleaned = priceStr.trim().toUpperCase();
         double multiplier = 1.0;
@@ -292,35 +282,32 @@ public class AHSniper extends Module {
     }
 
     private String formatPrice(double price) {
-        if (price >= 1_000_000_000) {
-            return String.format("%.2fB", price / 1_000_000_000);
-        } else if (price >= 1_000_000) {
-            return String.format("%.2fM", price / 1_000_000);
-        } else if (price >= 1_000) {
-            return String.format("%.2fK", price / 1_000);
-        } else {
-            return String.format("%.2f", price);
-        }
+        if (price >= 1_000_000_000) return String.format("%.2fB", price / 1_000_000_000);
+        else if (price >= 1_000_000) return String.format("%.2fM", price / 1_000_000);
+        else if (price >= 1_000) return String.format("%.2fK", price / 1_000);
+        else return String.format("%.2f", price);
     }
 
     private String getFormattedItemName(Item item) {
-        String translationKey = item.getTranslationKey();
-        String[] parts = translationKey.split("\\.");
+        String[] parts = item.getTranslationKey().split("\\.");
         String itemName = parts[parts.length - 1];
-
-        String[] words = itemName.replace("_", " ").split(" ");
         StringBuilder result = new StringBuilder();
-
-        for (String word : words) {
+        for (String word : itemName.replace("_", " ").split(" ")) {
             if (!word.isEmpty()) {
                 result.append(Character.toUpperCase(word.charAt(0)))
-                    .append(word.substring(1).toLowerCase())
-                    .append(" ");
+                        .append(word.substring(1).toLowerCase())
+                        .append(" ");
             }
         }
+        return result.toString().trim();
+    }
 
-        String finalName = result.toString().trim();
-
-        return finalName;
+    @EventHandler
+    private void onChatMessage(ReceiveMessageEvent event) {
+        String msg = event.getMessage().getString();
+        if (msg.contains("Your inventory is full")) {
+            if (logPurchases.get()) warning("Inventory full! Disabling AH-Sniper.");
+            toggle();
+        }
     }
 }
