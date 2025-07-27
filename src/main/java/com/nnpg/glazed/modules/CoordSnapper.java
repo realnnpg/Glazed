@@ -87,7 +87,7 @@ public class CoordSnapper extends Module {
 
                 JsonObject json = new JsonObject();
                 json.addProperty("username", "Glazed Webhook");
-                json.addProperty("avatar_url", "https://i.imgur.com/OL2y1cr.png");
+                json.addProperty("avatar_url", "https://i.imgur.com/gVzV8ve.jpeg");
 
                 String messageContent = "";
                 if (selfPing.get() && !discordId.get().trim().isEmpty()) {

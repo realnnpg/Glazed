@@ -507,7 +507,7 @@ public class RTPBaseFinder extends Module {
             String jsonPayload = String.format("""
             {
               "username": "Glazed Webhook",
-              "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+              "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
               "content": "%s",
               "embeds": [
                 {
@@ -534,7 +534,7 @@ public class RTPBaseFinder extends Module {
             String jsonPayload = String.format("""
                 {
                   \"username\": \"Glazed Webhook\",
-                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
+                  \"avatar_url\": \"https://i.imgur.com/gVzV8ve.jpeg\",
                   \"embeds\": [
                     {
                       \"title\": \"⚡ Totem Pop at (%d, %d, %d)\",
@@ -560,7 +560,7 @@ public class RTPBaseFinder extends Module {
             String jsonPayload = String.format("""
                 {
                   \"username\": \"Glazed Webhook\",
-                  \"avatar_url\": \"https://i.imgur.com/OL2y1cr.png\",
+                  \"avatar_url\": \"https://i.imgur.com/gVzV8ve.jpeg\",
                   \"embeds\": [
                     {
                       \"title\": \"💀 Death at (%d, %d, %d)\",

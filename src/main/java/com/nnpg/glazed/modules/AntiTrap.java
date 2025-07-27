@@ -59,7 +59,6 @@ public class AntiTrap extends Module {
 
     @Override
     public void onActivate() {
-        mc.setScreen(new MyScreen(GuiThemes.get()));
 
 
         if (removeExisting.get()) {

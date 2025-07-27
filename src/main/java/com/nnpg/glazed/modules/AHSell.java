@@ -1,6 +1,7 @@
 package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
+import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.events.game.ReceiveMessageEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -126,7 +127,8 @@ public class AHSell extends Module {
             return;
         }
 
-        mc.player.getInventory().selectedSlot = currentSlot;
+        // Use VersionUtil to handle version differences
+        VersionUtil.setSelectedSlot(mc.player, currentSlot);
         ItemStack stack = mc.player.getInventory().getStack(currentSlot);
 
         if (enableFilter.get() && (stack.isEmpty() || !stack.isOf(filterItem.get()))) {

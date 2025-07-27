@@ -24,7 +24,6 @@ import net.minecraft.item.Items;
 import net.minecraft.screen.slot.SlotActionType;
 import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -37,17 +36,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SpawnerProtect extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgWhitelist = settings.createGroup("Whitelist");
-    private final SettingGroup sgwebhook = settings.createGroup("Webhook");
+    private final SettingGroup sgWebhook = settings.createGroup("Webhook");
 
-
-    private final Setting<Boolean> webhook = sgwebhook.add(new BoolSetting.Builder()
+    private final Setting<Boolean> webhook = sgWebhook.add(new BoolSetting.Builder()
         .name("webhook")
         .description("Enable webhook notifications")
         .defaultValue(false)
         .build()
     );
 
-    private final Setting<String> webhookUrl = sgwebhook.add(new StringSetting.Builder()
+    private final Setting<String> webhookUrl = sgWebhook.add(new StringSetting.Builder()
         .name("webhook-url")
         .description("Discord webhook URL for notifications")
         .defaultValue("")
@@ -55,8 +53,8 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
-    private final Setting<Boolean> selfPing = sgwebhook.add(new BoolSetting.Builder()
-        .name("Self Ping")
+    private final Setting<Boolean> selfPing = sgWebhook.add(new BoolSetting.Builder()
+        .name("self-ping")
         .description("Ping yourself in the webhook message")
         .defaultValue(false)
         .visible(webhook::get)
@@ -64,7 +62,7 @@ public class SpawnerProtect extends Module {
     );
 
     private final Setting<String> discordId = sgGeneral.add(new StringSetting.Builder()
-        .name("Discord ID")
+        .name("discord-id")
         .description("Your Discord user ID for pinging")
         .defaultValue("")
         .visible(() -> webhook.get() && selfPing.get())
@@ -90,12 +88,7 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
-    private final Setting<Boolean> disableAutoReconnect = sgGeneral.add(new BoolSetting.Builder()
-        .name("Disable AutoReconnect")
-        .description("Disables AutoReconnect")
-        .defaultValue(true)
-        .build()
-    );
+
 
     // Whitelist settings
     private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
@@ -112,8 +105,6 @@ public class SpawnerProtect extends Module {
         .visible(enableWhitelist::get)
         .build()
     );
-
-
 
     private enum State {
         IDLE,
@@ -145,6 +136,13 @@ public class SpawnerProtect extends Module {
 
     @Override
     public void onActivate() {
+        resetState();
+        configureLegitMining();
+        info("SpawnerProtect activated - monitoring for players...");
+        ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
+    }
+
+    private void resetState() {
         currentState = State.IDLE;
         detectedPlayer = "";
         detectionTime = 0;
@@ -154,33 +152,29 @@ public class SpawnerProtect extends Module {
         chestOpened = false;
         transferDelayCounter = 0;
         lastProcessedSlot = -1;
-
         sneaking = false;
         currentTarget = null;
         recheckDelay = 0;
         confirmDelay = 0;
         waiting = false;
+    }
 
+    private void configureLegitMining() {
         ChatUtils.sendPlayerMsg("#set legitMine true");
         ChatUtils.sendPlayerMsg("#set smoothLook true");
         ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
         ChatUtils.sendPlayerMsg("#freelook false");
         ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
         ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
-
-        info("SpawnerProtect activated - monitoring for players...");
-        ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
-
     }
 
-    private void toggleModule(Class<? extends Module> moduleClass, boolean disable) {
-        Module module = Modules.get().get(moduleClass);
-        if (module != null) {
-            if (disable && module.isActive()) module.toggle();
-            else if (!disable && module.isActive()) module.toggle();
+    private void disableAutoReconnectIfEnabled() {
+        Module autoReconnect = Modules.get().get(AutoReconnect.class);
+        if (autoReconnect != null && autoReconnect.isActive()) {
+            autoReconnect.toggle();
+            info("AutoReconnect disabled due to player detection");
         }
     }
-
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
@@ -211,7 +205,8 @@ public class SpawnerProtect extends Module {
                 break;
         }
 
-        toggleModule(AutoReconnect.class, disableAutoReconnect.get());
+        // Apply AutoReconnect setting only when needed
+        // (removed the continuous checking)
     }
 
     private void checkForPlayers() {
@@ -230,15 +225,13 @@ public class SpawnerProtect extends Module {
 
             info("SpawnerProtect: Player detected - " + detectedPlayer);
 
+            // Disable AutoReconnect when player is detected
+            disableAutoReconnectIfEnabled();
+
             currentState = State.GOING_TO_SPAWNERS;
             info("Player detected! Starting protection sequence...");
 
-            if (!sneaking) {
-                mc.player.setSneaking(true);
-                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
-                sneaking = true;
-            }
-
+            setSneaking(true);
             break;
         }
     }
@@ -248,21 +241,12 @@ public class SpawnerProtect extends Module {
             return false;
         }
 
-        for (String whitelistedName : whitelistPlayers.get()) {
-            if (whitelistedName.equalsIgnoreCase(playerName)) {
-                return true;
-            }
-        }
-
-        return false;
+        return whitelistPlayers.get().stream()
+            .anyMatch(whitelistedName -> whitelistedName.equalsIgnoreCase(playerName));
     }
 
     private void handleGoingToSpawners() {
-        if (!sneaking) {
-            mc.player.setSneaking(true);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
-            sneaking = true;
-        }
+        setSneaking(true);
 
         if (currentTarget == null) {
             currentTarget = findNearestSpawner();
@@ -275,47 +259,44 @@ public class SpawnerProtect extends Module {
             }
         } else {
             lookAtBlock(currentTarget);
-
-            mc.interactionManager.updateBlockBreakingProgress(currentTarget, Direction.UP);
-            KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
+            breakBlock(currentTarget);
 
             if (mc.world.getBlockState(currentTarget).isAir()) {
                 info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
                 currentTarget = null;
-                KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
-
+                stopBreaking();
                 transferDelayCounter = 5;
             }
         }
 
         if (waiting) {
-            recheckDelay++;
-            if (recheckDelay == delaySeconds.get() * 20) {
-                BlockPos foundSpawner = findNearestSpawner();
+            handleWaitingForSpawners();
+        }
+    }
 
-                if (foundSpawner != null) {
-                    waiting = false;
-                    currentTarget = foundSpawner;
-                    info("Found additional spawner at " + foundSpawner);
-                    return;
-                }
+    private void handleWaitingForSpawners() {
+        recheckDelay++;
+        if (recheckDelay == delaySeconds.get() * 20) {
+            BlockPos foundSpawner = findNearestSpawner();
+
+            if (foundSpawner != null) {
+                waiting = false;
+                currentTarget = foundSpawner;
+                info("Found additional spawner at " + foundSpawner);
+                return;
             }
+        }
 
-            if (recheckDelay > delaySeconds.get() * 20) {
-                confirmDelay++;
-                if (confirmDelay >= 5) {
-                    KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
-                    spawnersMinedSuccessfully = true;
-                    if (sneaking && mc.player.isSneaking()) {
-                        mc.player.setSneaking(false);
-                        mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
-                        sneaking = false;
-                    }
-                    currentState = State.GOING_TO_CHEST;
-                    info("All spawners mined successfully. Going to ender chest...");
-                    ChatUtils.sendPlayerMsg("#goto ender_chest");
-                    tickCounter = 0;
-                }
+        if (recheckDelay > delaySeconds.get() * 20) {
+            confirmDelay++;
+            if (confirmDelay >= 5) {
+                stopBreaking();
+                spawnersMinedSuccessfully = true;
+                setSneaking(false);
+                currentState = State.GOING_TO_CHEST;
+                info("All spawners mined successfully. Going to ender chest...");
+                ChatUtils.sendPlayerMsg("#goto ender_chest");
+                tickCounter = 0;
             }
         }
     }
@@ -339,7 +320,7 @@ public class SpawnerProtect extends Module {
         }
 
         if (nearestSpawner != null) {
-            info("Found spawner at " + nearestSpawner + " (distance: " + Math.sqrt(nearestDistance) + ")");
+            info("Found spawner at " + nearestSpawner + " (distance: " + String.format("%.2f", Math.sqrt(nearestDistance)) + ")");
         }
 
         return nearestSpawner;
@@ -348,7 +329,6 @@ public class SpawnerProtect extends Module {
     private void lookAtBlock(BlockPos pos) {
         Vec3d targetPos = Vec3d.ofCenter(pos);
         Vec3d playerPos = mc.player.getEyePos();
-
         Vec3d direction = targetPos.subtract(playerPos).normalize();
 
         double yaw = Math.toDegrees(Math.atan2(-direction.x, direction.z));
@@ -358,21 +338,33 @@ public class SpawnerProtect extends Module {
         mc.player.setPitch((float) pitch);
     }
 
-    private void handleGoingToChest() {
-        boolean nearEnderChest = false;
-        BlockPos playerPos = mc.player.getBlockPos();
-
-        for (int x = -3; x <= 3; x++) {
-            for (int y = -3; y <= 3; y++) {
-                for (int z = -3; z <= 3; z++) {
-                    BlockPos pos = playerPos.add(x, y, z);
-                    if (mc.world.getBlockState(pos).getBlock() == Blocks.ENDER_CHEST) {
-                        nearEnderChest = true;
-                        break;
-                    }
-                }
-            }
+    private void breakBlock(BlockPos pos) {
+        if (mc.interactionManager != null) {
+            mc.interactionManager.updateBlockBreakingProgress(pos, Direction.UP);
+            KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
         }
+    }
+
+    private void stopBreaking() {
+        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
+    }
+
+    private void setSneaking(boolean sneak) {
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
+
+        if (sneak && !sneaking) {
+            mc.player.setSneaking(true);
+            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
+            sneaking = true;
+        } else if (!sneak && sneaking) {
+            mc.player.setSneaking(false);
+            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
+            sneaking = false;
+        }
+    }
+
+    private void handleGoingToChest() {
+        boolean nearEnderChest = isNearEnderChest();
 
         if (nearEnderChest) {
             currentState = State.DEPOSITING_ITEMS;
@@ -384,6 +376,22 @@ public class SpawnerProtect extends Module {
             ChatUtils.error("Timed out trying to reach ender chest!");
             currentState = State.DISCONNECTING;
         }
+    }
+
+    private boolean isNearEnderChest() {
+        BlockPos playerPos = mc.player.getBlockPos();
+
+        for (int x = -3; x <= 3; x++) {
+            for (int y = -3; y <= 3; y++) {
+                for (int z = -3; z <= 3; z++) {
+                    BlockPos pos = playerPos.add(x, y, z);
+                    if (mc.world.getBlockState(pos).getBlock() == Blocks.ENDER_CHEST) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private void handleDepositingItems() {
@@ -445,13 +453,15 @@ public class SpawnerProtect extends Module {
 
             info("Transferring item from slot " + slotId + ": " + stack.getItem().toString());
 
-            mc.interactionManager.clickSlot(
-                handler.syncId,
-                slotId,
-                0,
-                SlotActionType.QUICK_MOVE,
-                mc.player
-            );
+            if (mc.interactionManager != null) {
+                mc.interactionManager.clickSlot(
+                    handler.syncId,
+                    slotId,
+                    0,
+                    SlotActionType.QUICK_MOVE,
+                    mc.player
+                );
+            }
 
             lastProcessedSlot = slotId;
             transferDelayCounter = 2;
@@ -466,8 +476,7 @@ public class SpawnerProtect extends Module {
 
     private void handleDisconnecting() {
         sendWebhookNotification();
-
-        info("SpawnerProtect: Player detected - "  + detectedPlayer);
+        info("SpawnerProtect: Player detected - " + detectedPlayer);
 
         if (mc.world != null) {
             mc.world.disconnect();
@@ -478,22 +487,58 @@ public class SpawnerProtect extends Module {
     }
 
     private void sendWebhookNotification() {
-        if (!webhook.get() || webhookUrl.get().isEmpty()) {
+        if (!webhook.get() || webhookUrl.get() == null || webhookUrl.get().trim().isEmpty()) {
             info("Webhook disabled or URL not configured.");
+            return;
+        }
+
+        String webhookUrlValue = webhookUrl.get().trim();
+        if (!isValidWebhookUrl(webhookUrlValue)) {
+            ChatUtils.error("Invalid webhook URL format!");
             return;
         }
 
         long discordTimestamp = detectionTime / 1000L;
 
         String messageContent = "";
-        if (selfPing.get() && !discordId.get().trim().isEmpty()) {
+        if (selfPing.get() && discordId.get() != null && !discordId.get().trim().isEmpty()) {
             messageContent = String.format("<@%s>", discordId.get().trim());
         }
 
-        String embedJson = String.format("""
+        String embedJson = createWebhookPayload(messageContent, discordTimestamp);
+
+        new Thread(() -> {
+            try {
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(webhookUrlValue))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(embedJson))
+                    .build();
+
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    info("Webhook notification sent successfully!");
+                } else {
+                    ChatUtils.error("Failed to send webhook notification. Status: " + response.statusCode());
+                }
+            } catch (Exception e) {
+                ChatUtils.error("Failed to send webhook notification: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private boolean isValidWebhookUrl(String url) {
+        return url.startsWith("https://discord.com/api/webhooks/") ||
+            url.startsWith("https://discordapp.com/api/webhooks/");
+    }
+
+    private String createWebhookPayload(String messageContent, long discordTimestamp) {
+        return String.format("""
             {
                 "username": "Glazed Webhook",
-                "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
                 "content": "%s",
                 "embeds": [{
                     "title": "SpawnerProtect Alert",
@@ -505,39 +550,28 @@ public class SpawnerProtect extends Module {
                     }
                 }]
             }""",
-            messageContent.replace("\"", "\\\""),
-            detectedPlayer,
+            escapeJson(messageContent),
+            escapeJson(detectedPlayer),
             discordTimestamp,
             spawnersMinedSuccessfully ? "✅ Success" : "❌ Failed",
             itemsDepositedSuccessfully ? "✅ Success" : "❌ Failed",
             Instant.now().toString()
         );
+    }
 
-        new Thread(() -> {
-            try {
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(webhookUrl.get()))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(embedJson))
-                    .build();
-
-                client.send(request, HttpResponse.BodyHandlers.ofString());
-                info("Webhook notification sent successfully!");
-            } catch (Exception e) {
-                ChatUtils.error("Failed to send webhook notification: " + e.getMessage());
-            }
-        }).start();
+    private String escapeJson(String input) {
+        if (input == null) return "";
+        return input.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t");
     }
 
     @Override
     public void onDeactivate() {
-        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
-        if (sneaking && mc.player != null && mc.player.isSneaking()) {
-            mc.player.setSneaking(false);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
-        }
-
+        stopBreaking();
+        setSneaking(false);
         ChatUtils.sendPlayerMsg("#stop");
     }
 }
