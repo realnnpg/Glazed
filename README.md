@@ -141,10 +141,14 @@ Huge thanks to the projects that make this addon possible:
 - [Baritone](https://github.com/cabaletta/baritone)
 - [FabricMC](https://fabricmc.net/)
 - [Claude AI](https://claude.ai/)
+- [szpuszi](https://github.com/szpuszi)
+- [S1ilvr](https://github.com/S1ilvr)
+- [dankor](https://github.com/dankor1337)
 - [Kez]
-- [szpuszi]
 - [Potato]
-
+- [kxusk]
+- [kq]
+- [some random] 
 ---
 
 ## ⚠️ Disclaimer

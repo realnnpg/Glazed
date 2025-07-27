@@ -509,7 +509,7 @@ public class TunnelBaseFinder extends Module {
                 {
                   "content": "%s",
                   "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                  "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
                   "embeds": [
                     {
                       "title": "🏰 Base Discovery Confirmed!",
@@ -541,7 +541,7 @@ public class TunnelBaseFinder extends Module {
                 {
                   "content": "%s",
                   "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                  "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
                   "embeds": [
                     {
                       "title": "⚡ Totem Pop at (%d, %d, %d)",
@@ -573,7 +573,7 @@ public class TunnelBaseFinder extends Module {
                 {
                   "content": "%s",
                   "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
+                  "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
                   "embeds": [
                     {
                       "title": "💀 Death at (%d, %d, %d)",

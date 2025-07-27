@@ -17,6 +17,8 @@ import meteordevelopment.meteorclient.MeteorClient;
 
 public class GlazedAddon extends MeteorAddon {
     public static final Category CATEGORY = new Category("Glazed");
+    public static final Category esp = new Category("Glazed-ESPs");
+
     public static int VERSION = 8;
 
     @Override
@@ -42,6 +44,17 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new AutoInvTotem());
         Modules.get().add(new CrystalMacro());
 		Modules.get().add(new AHSell());
+        Modules.get().add(new AnchorMacro());
+        Modules.get().add(new OneByOneHoles());
+        Modules.get().add(new KelpESP());
+        Modules.get().add(new DeepslateESP());
+        Modules.get().add(new DripstoneESP());
+        Modules.get().add(new RotatedDeepslateESP());
+        Modules.get().add(new CrateBuyer());
+        Modules.get().add(new WanderingESP());
+        Modules.get().add(new VillagerESP());
+        Modules.get().add(new AdvancedStashFinder());
+
 
         // Register this class for events
         MeteorClient.EVENT_BUS.subscribe(this);
@@ -60,6 +73,8 @@ public class GlazedAddon extends MeteorAddon {
     @Override
     public void onRegisterCategories() {
         Modules.registerCategory(CATEGORY);
+        Modules.registerCategory(esp);
+
         //mc.setScreen(new MyScreen(GuiThemes.get()));
     }
 
