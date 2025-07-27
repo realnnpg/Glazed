@@ -279,7 +279,7 @@ public class AnchorMacro extends Module {
             // Explode anchor if charged
             if (isAnchorCharged(pos)) {
                 int slot = explodeSlot.get() - 1;
-                if (mc.player.getInventory().selectedSlot != slot) {
+                if (VersionUtil.getSelectedSlot(mc.player) != slot) {
                     if (switchClock != switchDelay.get()) {
                         switchClock++;
                         return;
@@ -289,7 +289,7 @@ public class AnchorMacro extends Module {
                     switchClock = 0;
                     VersionUtil.setSelectedSlot(mc.player, slot);
                 }
-                if (mc.player.getInventory().selectedSlot == slot) {
+                if (VersionUtil.getSelectedSlot(mc.player) == slot) {
                     if (explodeClock != explodeDelay.get()) {
                         explodeClock++;
                         return;

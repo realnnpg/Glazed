@@ -1,6 +1,7 @@
 package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
+import com.nnpg.glazed.VersionUtil; // For 1.21.4 - change to VersionUtil2 for 1.21.5
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -151,9 +152,10 @@ public class VillagerESP extends Module {
 
                 // Draw tracers if enabled
                 if (showTracers.get()) {
-                    double x = entity.prevX + (entity.getX() - entity.prevX) * event.tickDelta;
-                    double y = entity.prevY + (entity.getY() - entity.prevY) * event.tickDelta;
-                    double z = entity.prevZ + (entity.getZ() - entity.prevZ) * event.tickDelta;
+                    // Use VersionUtil for cross-version compatibility
+                    double x = VersionUtil.getPrevX(entity) + (entity.getX() - VersionUtil.getPrevX(entity)) * event.tickDelta;
+                    double y = VersionUtil.getPrevY(entity) + (entity.getY() - VersionUtil.getPrevY(entity)) * event.tickDelta;
+                    double z = VersionUtil.getPrevZ(entity) + (entity.getZ() - VersionUtil.getPrevZ(entity)) * event.tickDelta;
 
                     // Target the center/body of the villager
                     double height = entity.getBoundingBox().maxY - entity.getBoundingBox().minY;
