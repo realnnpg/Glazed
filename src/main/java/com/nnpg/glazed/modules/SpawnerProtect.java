@@ -98,13 +98,13 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
-    private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
-        .name("whitelisted-players")
-        .description("List of player names to ignore")
-        .defaultValue(new ArrayList<>())
-        .visible(enableWhitelist::get)
-        .build()
-    );
+        private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
+            .name("whitelisted-players")
+            .description("List of player names to ignore")
+            .defaultValue(new ArrayList<>())
+            .visible(enableWhitelist::get)
+            .build()
+        );
 
     private enum State {
         IDLE,
@@ -538,7 +538,7 @@ public class SpawnerProtect extends Module {
         return String.format("""
             {
                 "username": "Glazed Webhook",
-                "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
+                "avatar_url": "https://i.imgur.com/OL2y1cr.png",
                 "content": "%s",
                 "embeds": [{
                     "title": "SpawnerProtect Alert",

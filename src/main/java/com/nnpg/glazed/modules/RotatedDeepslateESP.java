@@ -283,27 +283,22 @@ public class RotatedDeepslateESP extends Module {
         Direction.Axis axis = state.get(Properties.AXIS);
         if (axis == Direction.Axis.Y) return false; // Not rotated if on Y axis
 
-        // Check for regular deepslate blocks that are rotated (non-Y axis)
         if (includeRegularDeepslate.get() && state.isOf(Blocks.DEEPSLATE)) {
             return true;
         }
 
-        // Also check for polished deepslate
         if (includePolishedDeepslate.get() && state.isOf(Blocks.POLISHED_DEEPSLATE)) {
             return true;
         }
 
-        // Check for deepslate bricks
         if (includeDeepslateBricks.get() && state.isOf(Blocks.DEEPSLATE_BRICKS)) {
             return true;
         }
 
-        // Check for deepslate tiles
         if (includeDeepslateTiles.get() && state.isOf(Blocks.DEEPSLATE_TILES)) {
             return true;
         }
 
-        // Check for chiseled deepslate
         if (includeChiseledDeepslate.get() && state.isOf(Blocks.CHISELED_DEEPSLATE)) {
             return true;
         }
@@ -330,7 +325,8 @@ public class RotatedDeepslateESP extends Module {
     private void onRender(Render3DEvent event) {
         if (mc.player == null) return;
 
-        Vec3d playerPos = mc.player.getPos();
+        // Use interpolated position for smooth movement
+        Vec3d playerPos = mc.player.getLerpedPos(event.tickDelta);
         Color side = new Color(deepslateColor.get());
         Color outline = new Color(deepslateColor.get());
         Color tracerColorValue = new Color(tracerColor.get());
@@ -342,7 +338,27 @@ public class RotatedDeepslateESP extends Module {
             // Render tracer if enabled
             if (tracers.get()) {
                 Vec3d blockCenter = Vec3d.ofCenter(pos);
-                event.renderer.line(playerPos.x, playerPos.y, playerPos.z,
+
+                // Start tracer from slightly in front of camera to make it visible in first person
+                Vec3d startPos;
+                if (mc.options.getPerspective().isFirstPerson()) {
+                    // First person: start tracer slightly forward from camera
+                    Vec3d lookDirection = mc.player.getRotationVector();
+                    startPos = new Vec3d(
+                        playerPos.x + lookDirection.x * 0.5,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()) + lookDirection.y * 0.5,
+                        playerPos.z + lookDirection.z * 0.5
+                    );
+                } else {
+                    // Third person: use normal eye position
+                    startPos = new Vec3d(
+                        playerPos.x,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()),
+                        playerPos.z
+                    );
+                }
+
+                event.renderer.line(startPos.x, startPos.y, startPos.z,
                     blockCenter.x, blockCenter.y, blockCenter.z, tracerColorValue);
             }
         }

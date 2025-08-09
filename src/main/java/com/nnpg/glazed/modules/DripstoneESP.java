@@ -146,7 +146,6 @@ public class DripstoneESP extends Module {
     public void onActivate() {
         if (mc.world == null) return;
 
-        // Initialize thread pool
         if (useThreading.get()) {
             threadPool = Executors.newFixedThreadPool(threadPoolSize.get());
         }
@@ -155,14 +154,12 @@ public class DripstoneESP extends Module {
         longStalagmiteTops.clear();
 
         if (useThreading.get()) {
-            // Scan chunks asynchronously
             for (Chunk chunk : Utils.chunks()) {
                 if (chunk instanceof WorldChunk worldChunk) {
                     threadPool.submit(() -> scanChunk(worldChunk));
                 }
             }
         } else {
-            // Scan chunks synchronously
             for (Chunk chunk : Utils.chunks()) {
                 if (chunk instanceof WorldChunk worldChunk) scanChunk(worldChunk);
             }
@@ -171,7 +168,6 @@ public class DripstoneESP extends Module {
 
     @Override
     public void onDeactivate() {
-        // Shutdown thread pool
         if (threadPool != null && !threadPool.isShutdown()) {
             threadPool.shutdown();
             threadPool = null;
@@ -195,7 +191,6 @@ public class DripstoneESP extends Module {
         BlockPos pos = event.pos;
         BlockState state = event.newState;
 
-        // Create a task for block update scanning
         Runnable scanTask = () -> {
             if (state.isOf(Blocks.POINTED_DRIPSTONE)) {
                 // Scan the area around this position for stalactites and stalagmites
@@ -205,7 +200,6 @@ public class DripstoneESP extends Module {
                             BlockPos scanPos = pos.add(dx, dy, dz);
                             BlockState scanState = mc.world.getBlockState(scanPos);
 
-                            // Check for stalactites (hanging down)
                             if (isDripstoneTipDown(scanState)) {
                                 StalactiteInfo stalactiteInfo = getStalactiteInfo(scanPos);
                                 if (stalactiteInfo != null && stalactiteInfo.length >= stalactiteMinLength.get()) {
@@ -217,7 +211,6 @@ public class DripstoneESP extends Module {
                                 }
                             }
 
-                            // Check for stalagmites (pointing up)
                             if (isDripstoneTipUp(scanState)) {
                                 StalagmiteInfo stalagmiteInfo = getStalagmiteInfo(scanPos);
                                 if (stalagmiteInfo != null && stalagmiteInfo.length >= stalagmiteMinLength.get()) {
@@ -232,7 +225,6 @@ public class DripstoneESP extends Module {
                     }
                 }
             } else {
-                // If the block is not dripstone, remove any ESP markers that might be invalid
                 longStalagmiteTops.removeIf(topPos -> {
                     BlockState topState = mc.world.getBlockState(topPos);
                     return !topState.isOf(Blocks.POINTED_DRIPSTONE) || !isDripstoneTipUp(topState);
@@ -279,7 +271,6 @@ public class DripstoneESP extends Module {
             }
         }
 
-        // Remove bottoms that are no longer valid for this chunk
         longStalactiteBottoms.removeIf(pos -> {
             ChunkPos tipChunk = new ChunkPos(pos);
             return tipChunk.equals(cpos) && !chunkBottoms.contains(pos);
@@ -431,38 +422,67 @@ public class DripstoneESP extends Module {
     private void onRender(Render3DEvent event) {
         if (mc.player == null) return;
 
-        Vec3d playerPos = mc.player.getPos();
+        Vec3d playerPos = mc.player.getLerpedPos(event.tickDelta);
 
-        // Render stalactites
         Color stalactiteSide = new Color(stalactiteColor.get());
         Color stalactiteOutline = new Color(stalactiteColor.get());
         Color stalactiteTracer = new Color(stalactiteTracerColor.get());
 
         for (BlockPos pos : longStalactiteBottoms) {
-            // Render ESP box
             event.renderer.box(pos, stalactiteSide, stalactiteOutline, stalactiteShapeMode.get(), 0);
 
-            // Render tracer if enabled
             if (stalactiteTracers.get()) {
                 Vec3d blockCenter = Vec3d.ofCenter(pos);
-                event.renderer.line(playerPos.x, playerPos.y, playerPos.z,
+
+                Vec3d startPos;
+                if (mc.options.getPerspective().isFirstPerson()) {
+                    Vec3d lookDirection = mc.player.getRotationVector();
+                    startPos = new Vec3d(
+                        playerPos.x + lookDirection.x * 0.5,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()) + lookDirection.y * 0.5,
+                        playerPos.z + lookDirection.z * 0.5
+                    );
+                } else {
+                    // Third person: use normal eye position
+                    startPos = new Vec3d(
+                        playerPos.x,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()),
+                        playerPos.z
+                    );
+                }
+
+                event.renderer.line(startPos.x, startPos.y, startPos.z,
                     blockCenter.x, blockCenter.y, blockCenter.z, stalactiteTracer);
             }
         }
 
-        // Render stalagmites
         Color stalagmiteSide = new Color(stalagmiteColor.get());
         Color stalagmiteOutline = new Color(stalagmiteColor.get());
         Color stalagmiteTracer = new Color(stalagmiteTracerColor.get());
 
         for (BlockPos pos : longStalagmiteTops) {
-            // Render ESP box
             event.renderer.box(pos, stalagmiteSide, stalagmiteOutline, stalagmiteShapeMode.get(), 0);
 
-            // Render tracer if enabled
             if (stalagmiteTracers.get()) {
                 Vec3d blockCenter = Vec3d.ofCenter(pos);
-                event.renderer.line(playerPos.x, playerPos.y, playerPos.z,
+
+                Vec3d startPos;
+                if (mc.options.getPerspective().isFirstPerson()) {
+                    Vec3d lookDirection = mc.player.getRotationVector();
+                    startPos = new Vec3d(
+                        playerPos.x + lookDirection.x * 0.5,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()) + lookDirection.y * 0.5,
+                        playerPos.z + lookDirection.z * 0.5
+                    );
+                } else {
+                    startPos = new Vec3d(
+                        playerPos.x,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()),
+                        playerPos.z
+                    );
+                }
+
+                event.renderer.line(startPos.x, startPos.y, startPos.z,
                     blockCenter.x, blockCenter.y, blockCenter.z, stalagmiteTracer);
             }
         }

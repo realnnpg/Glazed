@@ -15,6 +15,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.WorldChunk;
 import net.minecraft.text.Text;
@@ -24,15 +25,30 @@ import java.util.Set;
 
 public class OneByOneHoles extends Module {
     private final SettingGroup sgGeneral = settings.createGroup("General");
+
     private final Setting<SettingColor> holeColor = sgGeneral.add(new ColorSetting.Builder()
         .name("hole-color")
         .description("Color for 1x1x1 holes")
         .defaultValue(new SettingColor(255, 0, 0, 100))
         .build());
+
     private final Setting<ShapeMode> shapeMode = sgGeneral.add(new EnumSetting.Builder<ShapeMode>()
         .name("shape-mode")
         .description("Render mode for 1x1x1 holes")
         .defaultValue(ShapeMode.Both)
+        .build());
+
+    private final Setting<Boolean> tracers = sgGeneral.add(new BoolSetting.Builder()
+        .name("tracers")
+        .description("Draw tracers to 1x1x1 holes")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<SettingColor> tracerColor = sgGeneral.add(new ColorSetting.Builder()
+        .name("tracer-color")
+        .description("1x1x1 hole tracer color")
+        .defaultValue(new SettingColor(255, 0, 0, 200))
+        .visible(tracers::get)
         .build());
 
     private final Set<BlockPos> oneByOneHoles = new HashSet<>();
@@ -129,10 +145,44 @@ public class OneByOneHoles extends Module {
 
     @EventHandler
     private void onRender(Render3DEvent event) {
+        if (mc.player == null) return;
+
+        // Use interpolated position for smooth movement
+        Vec3d playerPos = mc.player.getLerpedPos(event.tickDelta);
         Color side = new Color(holeColor.get());
         Color outline = new Color(holeColor.get());
+        Color tracerColorValue = new Color(tracerColor.get());
+
         for (BlockPos pos : oneByOneHoles) {
+            // Render ESP box
             event.renderer.box(pos, side, outline, shapeMode.get(), 0);
+
+            // Render tracer if enabled
+            if (tracers.get()) {
+                Vec3d blockCenter = Vec3d.ofCenter(pos);
+
+                // Start tracer from slightly in front of camera to make it visible in first person
+                Vec3d startPos;
+                if (mc.options.getPerspective().isFirstPerson()) {
+                    // First person: start tracer slightly forward from camera
+                    Vec3d lookDirection = mc.player.getRotationVector();
+                    startPos = new Vec3d(
+                        playerPos.x + lookDirection.x * 0.5,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()) + lookDirection.y * 0.5,
+                        playerPos.z + lookDirection.z * 0.5
+                    );
+                } else {
+                    // Third person: use normal eye position
+                    startPos = new Vec3d(
+                        playerPos.x,
+                        playerPos.y + mc.player.getEyeHeight(mc.player.getPose()),
+                        playerPos.z
+                    );
+                }
+
+                event.renderer.line(startPos.x, startPos.y, startPos.z,
+                    blockCenter.x, blockCenter.y, blockCenter.z, tracerColorValue);
+            }
         }
     }
 }

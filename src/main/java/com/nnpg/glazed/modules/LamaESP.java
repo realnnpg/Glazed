@@ -10,7 +10,7 @@ import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.EntityType;
-import net.minecraft.entity.passive.WanderingTraderEntity;
+import net.minecraft.entity.passive.LlamaEntity;
 import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 
@@ -24,7 +24,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-public class WanderingESP extends Module {
+public class LamaESP extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
     private final SettingGroup sgwebhook = settings.createGroup("Webhook");
@@ -33,7 +33,7 @@ public class WanderingESP extends Module {
     // Render settings
     private final Setting<Boolean> showTracers = sgRender.add(new BoolSetting.Builder()
         .name("Show Tracers")
-        .description("Draw tracer lines to wandering traders")
+        .description("Draw tracer lines to llamas")
         .defaultValue(true)
         .build()
     );
@@ -41,14 +41,14 @@ public class WanderingESP extends Module {
     private final Setting<SettingColor> tracerColor = sgRender.add(new ColorSetting.Builder()
         .name("Tracer Color")
         .description("Color of the tracer lines")
-        .defaultValue(new SettingColor(0, 255, 0, 127))
+        .defaultValue(new SettingColor(255, 165, 0, 127)) // Orange color for llamas
         .visible(showTracers::get)
         .build()
     );
 
     private final Setting<Boolean> enableWebhook = sgwebhook.add(new BoolSetting.Builder()
         .name("Webhook")
-        .description("Send webhook notifications when wandering traders are detected")
+        .description("Send webhook notifications when llamas are detected")
         .defaultValue(false)
         .build()
     );
@@ -79,54 +79,54 @@ public class WanderingESP extends Module {
 
     private final Setting<Boolean> enableDisconnect = sgGeneral.add(new BoolSetting.Builder()
         .name("Disconnect")
-        .description("Automatically disconnect when wandering traders are detected")
+        .description("Automatically disconnect when llamas are detected")
         .defaultValue(false)
         .build()
     );
 
     private final Setting<Mode> notificationMode = sgGeneral.add(new EnumSetting.Builder<Mode>()
         .name("notification-mode")
-        .description("How to notify when wandering traders are detected")
+        .description("How to notify when llamas are detected")
         .defaultValue(Mode.Both)
         .build()
     );
 
     private final Setting<Boolean> toggleOnFind = sgGeneral.add(new BoolSetting.Builder()
         .name("Toggle when found")
-        .description("Automatically toggles the module when a wandering trader is detected")
+        .description("Automatically toggles the module when a llama is detected")
         .defaultValue(false)
         .build()
     );
 
-    private final Set<Integer> detectedTraders = new HashSet<>();
+    private final Set<Integer> detectedLlamas = new HashSet<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build();
 
-    public WanderingESP() {
-        super(GlazedAddon.esp, "WanderingESP", "Detects wandering traders in the world");
+    public LamaESP() {
+        super(GlazedAddon.esp, "LamaESP", "Detects llamas in the world");
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (mc.player == null || mc.world == null) return;
 
-        Set<Integer> currentTraders = new HashSet<>();
+        Set<Integer> currentLlamas = new HashSet<>();
 
-        // Find all wandering traders in the world
+        // Find all llamas in the world
         for (net.minecraft.entity.Entity entity : mc.world.getEntities()) {
-            if (entity instanceof WanderingTraderEntity) {
-                WanderingTraderEntity trader = (WanderingTraderEntity) entity;
-                currentTraders.add(entity.getId());
+            if (entity instanceof LlamaEntity) {
+                LlamaEntity llama = (LlamaEntity) entity;
+                currentLlamas.add(entity.getId());
 
                 // Draw tracers if enabled
                 if (showTracers.get()) {
-                    double x = trader.prevX + (trader.getX() - trader.prevX) * event.tickDelta;
-                    double y = trader.prevY + (trader.getY() - trader.prevY) * event.tickDelta;
-                    double z = trader.prevZ + (trader.getZ() - trader.prevZ) * event.tickDelta;
+                    double x = llama.prevX + (llama.getX() - llama.prevX) * event.tickDelta;
+                    double y = llama.prevY + (llama.getY() - llama.prevY) * event.tickDelta;
+                    double z = llama.prevZ + (llama.getZ() - llama.prevZ) * event.tickDelta;
 
-                    // Target the center/body of the trader
-                    double height = trader.getBoundingBox().maxY - trader.getBoundingBox().minY;
+                    // Target the center/body of the llama
+                    double height = llama.getBoundingBox().maxY - llama.getBoundingBox().minY;
                     y += height / 2;
 
                     Color color = new Color(tracerColor.get());
@@ -135,36 +135,36 @@ public class WanderingESP extends Module {
             }
         }
 
-        // Check if we found new traders
-        if (!currentTraders.isEmpty() && !currentTraders.equals(detectedTraders)) {
-            Set<Integer> newTraders = new HashSet<>(currentTraders);
-            newTraders.removeAll(detectedTraders);
+        // Check if we found new llamas
+        if (!currentLlamas.isEmpty() && !currentLlamas.equals(detectedLlamas)) {
+            Set<Integer> newLlamas = new HashSet<>(currentLlamas);
+            newLlamas.removeAll(detectedLlamas);
 
-            if (!newTraders.isEmpty()) {
-                detectedTraders.addAll(newTraders);
-                handleTraderDetection(newTraders.size());
+            if (!newLlamas.isEmpty()) {
+                detectedLlamas.addAll(newLlamas);
+                handleLlamaDetection(newLlamas.size());
             }
-        } else if (currentTraders.isEmpty()) {
-            detectedTraders.clear();
+        } else if (currentLlamas.isEmpty()) {
+            detectedLlamas.clear();
         }
     }
 
-    private void handleTraderDetection(int traderCount) {
-        String message = traderCount == 1 ?
-            "Wandering trader detected!" :
-            String.format("%d wandering traders detected!", traderCount);
+    private void handleLlamaDetection(int llamaCount) {
+        String message = llamaCount == 1 ?
+            "Llama detected!" :
+            String.format("%d llamas detected!", llamaCount);
 
         switch (notificationMode.get()) {
             case Chat -> info("(highlight)%s", message);
-            case Toast -> mc.getToastManager().add(new MeteorToast(Items.EMERALD, title, message));
+            case Toast -> mc.getToastManager().add(new MeteorToast(Items.LEAD, title, message));
             case Both -> {
                 info("(highlight)%s", message);
-                mc.getToastManager().add(new MeteorToast(Items.EMERALD, title, message));
+                mc.getToastManager().add(new MeteorToast(Items.LEAD, title, message));
             }
         }
 
         if (enableWebhook.get()) {
-            sendWebhookNotification(traderCount);
+            sendWebhookNotification(llamaCount);
         }
 
         if (toggleOnFind.get()) {
@@ -176,7 +176,7 @@ public class WanderingESP extends Module {
         }
     }
 
-    private void sendWebhookNotification(int traderCount) {
+    private void sendWebhookNotification(int llamaCount) {
         String url = webhookUrl.get().trim();
         if (url.isEmpty()) {
             warning("Webhook URL not configured!");
@@ -193,8 +193,8 @@ public class WanderingESP extends Module {
                     messageContent = String.format("<@%s>", discordId.get().trim());
                 }
 
-                String traderText = traderCount == 1 ? "trader" : "traders";
-                String description = String.format("%d wandering %s detected!", traderCount, traderText);
+                String llamaText = llamaCount == 1 ? "llama" : "llamas";
+                String description = String.format("%d %s detected!", llamaCount, llamaText);
 
                 // Get current coordinates
                 String coordinates = "Unknown";
@@ -205,13 +205,13 @@ public class WanderingESP extends Module {
 
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
-                        "\"username\":\"WanderingESP\"," +
-                        "\"avatar_url\":\"https://i.imgur.com/OL2y1cr.png\"," +
+                        "\"username\":\"LamaESP\"," +
+                        "\"avatar_url\":\"https://minecraft.wiki/images/f/f4/Llama_BE2.png\"," +
                         "\"embeds\":[{" +
-                        "\"title\":\"🛒 Wandering Trader Alert\"," +
+                        "\"title\":\"🦙 Llama Alert\"," +
                         "\"description\":\"%s\"," +
-                        "\"color\":65280," +
-                        "\"thumbnail\":{\"url\":\"https://i.imgur.com/OL2y1cr.png\"}," +
+                        "\"color\":16753920," + // Orange color
+                        "\"thumbnail\":{\"url\":\"https://minecraft.wiki/images/f/f4/Llama_BE2.png\"}," +
                         "\"fields\":[" +
                         "{\"name\":\"Count\",\"value\":\"%d\",\"inline\":true}," +
                         "{\"name\":\"Server\",\"value\":\"%s\",\"inline\":true}," +
@@ -222,7 +222,7 @@ public class WanderingESP extends Module {
                         "}]}",
                     messageContent.replace("\"", "\\\""),
                     description.replace("\"", "\\\""),
-                    traderCount,
+                    llamaCount,
                     serverInfo.replace("\"", "\\\""),
                     coordinates.replace("\"", "\\\""),
                     System.currentTimeMillis() / 1000
@@ -259,17 +259,17 @@ public class WanderingESP extends Module {
 
     @Override
     public void onActivate() {
-        detectedTraders.clear();
+        detectedLlamas.clear();
     }
 
     @Override
     public void onDeactivate() {
-        detectedTraders.clear();
+        detectedLlamas.clear();
     }
 
     @Override
     public String getInfoString() {
-        return detectedTraders.isEmpty() ? null : String.valueOf(detectedTraders.size());
+        return detectedLlamas.isEmpty() ? null : String.valueOf(detectedLlamas.size());
     }
 
     public enum Mode {

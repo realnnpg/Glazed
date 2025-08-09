@@ -281,12 +281,12 @@ public class VillagerESP extends Module {
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
                         "\"username\":\"VillagerESP\"," +
-                        "\"avatar_url\":\"https://i.imgur.com/gVzV8ve.jpeg\"," +
+                        "\"avatar_url\":\"https://i.imgur.com/OL2y1cr.png\"," +
                         "\"embeds\":[{" +
                         "\"title\":\"🏘️ Villager Alert\"," +
                         "\"description\":\"%s\"," +
                         "\"color\":65280," +
-                        "\"thumbnail\":{\"url\":\"https://i.imgur.com/gVzV8ve.jpeg\"}," +
+                        "\"thumbnail\":{\"url\":\"https://i.imgur.com/OL2y1cr.png\"}," +
                         "\"fields\":[%s]," +
                         "\"footer\":{\"text\":\"Sent by Glazed\"}" +
                         "}]}",

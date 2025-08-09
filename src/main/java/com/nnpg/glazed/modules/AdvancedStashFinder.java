@@ -245,7 +245,7 @@ public class AdvancedStashFinder extends Module {
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
                         "\"username\":\"Advanced Stashfinder\"," +
-                        "\"avatar_url\":\"https://i.imgur.com/gVzV8ve.jpeg\"," +
+                        "\"avatar_url\":\"https://i.imgur.com/OL2y1cr.png\"," +
                         "\"embeds\":[{" +
                         "\"title\":\"📦 Advanced Stashfinder Alert\"," +
                         "\"description\":\"%s\"," +
