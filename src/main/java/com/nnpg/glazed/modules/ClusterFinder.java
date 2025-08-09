@@ -11,8 +11,8 @@ import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.Blocks;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
@@ -25,54 +25,80 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class DeepslateESP extends Module {
+public class ClusterFinder extends Module {
     private final SettingGroup sgGeneral = settings.createGroup("General");
 
-    private final Setting<SettingColor> deepslateColor = sgGeneral.add(new ColorSetting.Builder()
+    private final Setting<SettingColor> clusterColor = sgGeneral.add(new ColorSetting.Builder()
         .name("esp-color")
-        .description("Deepslate box color")
-        .defaultValue(new SettingColor(0, 200, 255, 100))
+        .description("Amethyst cluster box color")
+        .defaultValue(new SettingColor(147, 0, 211, 100)) // Purple color for amethyst
         .build());
 
-    private final Setting<ShapeMode> shapeMode = sgGeneral.add(new EnumSetting.Builder<ShapeMode>()
+    private final Setting<ShapeMode> clusterShapeMode = sgGeneral.add(new EnumSetting.Builder<ShapeMode>()
         .name("shape-mode")
-        .description("Deepslate box render mode")
+        .description("Amethyst cluster box render mode")
         .defaultValue(ShapeMode.Both)
         .build());
 
     private final Setting<Boolean> tracers = sgGeneral.add(new BoolSetting.Builder()
         .name("tracers")
-        .description("Draw tracers to deepslate blocks")
+        .description("Draw tracers to amethyst clusters")
         .defaultValue(false)
         .build());
 
     private final Setting<SettingColor> tracerColor = sgGeneral.add(new ColorSetting.Builder()
         .name("tracer-color")
-        .description("Deepslate tracer color")
-        .defaultValue(new SettingColor(0, 200, 255, 200))
+        .description("Amethyst cluster tracer color")
+        .defaultValue(new SettingColor(147, 0, 211, 200))
         .visible(tracers::get)
         .build());
 
-    private final Setting<Boolean> chatFeedback = sgGeneral.add(new BoolSetting.Builder()
+    private final Setting<Boolean> clusterChat = sgGeneral.add(new BoolSetting.Builder()
         .name("chat-feedback")
-        .description("Announce deepslate in chat")
+        .description("Announce amethyst clusters in chat")
         .defaultValue(true)
         .build());
 
-    private final SettingGroup sgFiltering = settings.createGroup("Filtering");
+    private final SettingGroup sgFiltering = settings.createGroup("Cluster Types");
 
-    private final Setting<Integer> minY = sgFiltering.add(new IntSetting.Builder()
+    private final Setting<Boolean> includeSmallBuds = sgFiltering.add(new BoolSetting.Builder()
+        .name("small-buds")
+        .description("Include small amethyst buds")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> includeMediumBuds = sgFiltering.add(new BoolSetting.Builder()
+        .name("medium-buds")
+        .description("Include medium amethyst buds")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> includeLargeBuds = sgFiltering.add(new BoolSetting.Builder()
+        .name("large-buds")
+        .description("Include large amethyst buds")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> includeClusters = sgFiltering.add(new BoolSetting.Builder()
+        .name("clusters")
+        .description("Include amethyst clusters")
+        .defaultValue(true)
+        .build());
+
+    private final SettingGroup sgRange = settings.createGroup("Range");
+
+    private final Setting<Integer> minY = sgRange.add(new IntSetting.Builder()
         .name("min-y")
-        .description("Minimum Y level to scan for deepslate")
-        .defaultValue(8)
+        .description("Minimum Y level to scan for amethyst clusters")
+        .defaultValue(-64)
         .min(-64)
         .max(128)
         .sliderRange(-64, 128)
         .build());
 
-    private final Setting<Integer> maxY = sgFiltering.add(new IntSetting.Builder()
+    private final Setting<Integer> maxY = sgRange.add(new IntSetting.Builder()
         .name("max-y")
-        .description("Maximum Y level to scan for deepslate")
+        .description("Maximum Y level to scan for amethyst clusters")
         .defaultValue(128)
         .min(-64)
         .max(320)
@@ -104,54 +130,59 @@ public class DeepslateESP extends Module {
         .visible(useThreading::get)
         .build());
 
-    private final Set<BlockPos> deepslatePositions = ConcurrentHashMap.newKeySet();
+    // Thread-safe collection
+    private final Set<BlockPos> clusterPositions = ConcurrentHashMap.newKeySet();
 
     // Threading
     private ExecutorService threadPool;
 
-    public DeepslateESP() {
-        super(GlazedAddon.esp, "DeepslateESP", "ESP for deepslate blocks with threading and tracer support.");
+    public ClusterFinder() {
+        super(GlazedAddon.esp, "ClusterFinder", "ESP for amethyst clusters and buds with threading and tracer support.");
     }
 
     @Override
     public void onActivate() {
         if (mc.world == null) return;
 
+        // Initialize thread pool
         if (useThreading.get()) {
             threadPool = Executors.newFixedThreadPool(threadPoolSize.get());
         }
 
-        deepslatePositions.clear();
+        clusterPositions.clear();
 
         if (useThreading.get()) {
+            // Scan chunks asynchronously
             for (Chunk chunk : Utils.chunks()) {
                 if (chunk instanceof WorldChunk worldChunk) {
-                    threadPool.submit(() -> scanChunk(worldChunk));
+                    threadPool.submit(() -> scanChunkForClusters(worldChunk));
                 }
             }
         } else {
+            // Scan chunks synchronously
             for (Chunk chunk : Utils.chunks()) {
-                if (chunk instanceof WorldChunk worldChunk) scanChunk(worldChunk);
+                if (chunk instanceof WorldChunk worldChunk) scanChunkForClusters(worldChunk);
             }
         }
     }
 
     @Override
     public void onDeactivate() {
+        // Shutdown thread pool
         if (threadPool != null && !threadPool.isShutdown()) {
             threadPool.shutdown();
             threadPool = null;
         }
 
-        deepslatePositions.clear();
+        clusterPositions.clear();
     }
 
     @EventHandler
     private void onChunkLoad(ChunkDataEvent event) {
         if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
-            threadPool.submit(() -> scanChunk(event.chunk()));
+            threadPool.submit(() -> scanChunkForClusters(event.chunk()));
         } else {
-            scanChunk(event.chunk());
+            scanChunkForClusters(event.chunk());
         }
     }
 
@@ -160,15 +191,17 @@ public class DeepslateESP extends Module {
         BlockPos pos = event.pos;
         BlockState state = event.newState;
 
+        // Create a task for block update processing
         Runnable updateTask = () -> {
-            boolean isDeepslate = isDeepslateInRange(state, pos.getY());
-            if (isDeepslate) {
-                boolean wasAdded = deepslatePositions.add(pos);
-                if (wasAdded && chatFeedback.get() && (!useThreading.get() || !limitChatSpam.get())) {
-                    info("§5[§dDeepslateESP§5] §bDeepslateESP§5: §bDeepslate at " + pos.toShortString());
+            boolean isCluster = isAmethystCluster(state, pos.getY());
+            if (isCluster) {
+                boolean wasAdded = clusterPositions.add(pos);
+                if (wasAdded && clusterChat.get() && (!useThreading.get() || !limitChatSpam.get())) {
+                    String blockType = getClusterTypeName(state);
+                    info("§5[§dCluster Finder§5] §dAmethyst§5: §d" + blockType + " at " + pos.toShortString());
                 }
             } else {
-                deepslatePositions.remove(pos);
+                clusterPositions.remove(pos);
             }
         };
 
@@ -179,76 +212,118 @@ public class DeepslateESP extends Module {
         }
     }
 
-    private void scanChunk(WorldChunk chunk) {
+    private void scanChunkForClusters(WorldChunk chunk) {
         ChunkPos cpos = chunk.getPos();
         int xStart = cpos.getStartX();
         int zStart = cpos.getStartZ();
         int yMin = Math.max(chunk.getBottomY(), minY.get());
         int yMax = Math.min(chunk.getBottomY() + chunk.getHeight(), maxY.get());
 
-        Set<BlockPos> chunkDeepslate = new HashSet<>();
+        Set<BlockPos> chunkClusters = new HashSet<>();
         int foundCount = 0;
 
         for (int x = xStart; x < xStart + 16; x++) {
             for (int z = zStart; z < zStart + 16; z++) {
                 for (int y = yMin; y < yMax; y++) {
                     BlockPos pos = new BlockPos(x, y, z);
-                    if (isDeepslateInRange(chunk.getBlockState(pos), y)) {
-                        chunkDeepslate.add(pos);
+                    BlockState state = chunk.getBlockState(pos);
+                    if (isAmethystCluster(state, y)) {
+                        chunkClusters.add(pos);
                         foundCount++;
                     }
                 }
             }
         }
 
-        deepslatePositions.removeIf(pos -> {
+        // Remove old cluster positions from this chunk
+        clusterPositions.removeIf(pos -> {
             ChunkPos blockChunk = new ChunkPos(pos);
-            return blockChunk.equals(cpos) && !chunkDeepslate.contains(pos);
+            return blockChunk.equals(cpos) && !chunkClusters.contains(pos);
         });
 
+        // Add new cluster positions
         int newBlocks = 0;
-        for (BlockPos pos : chunkDeepslate) {
-            if (deepslatePositions.add(pos)) {
+        for (BlockPos pos : chunkClusters) {
+            if (clusterPositions.add(pos)) {
                 newBlocks++;
             }
         }
 
-        if (chatFeedback.get() && foundCount > 0) {
+        // Provide chunk-level feedback to reduce spam
+        if (clusterChat.get() && foundCount > 0) {
             if (useThreading.get() && limitChatSpam.get()) {
                 if (newBlocks > 0) {
-                    info("§5[§dDeepslateESP§5] §bChunk " + cpos.x + "," + cpos.z + "§5: §b" + newBlocks + " new deepslate blocks found");
+                    info("§5[§dCluster Finder§5] §dChunk " + cpos.x + "," + cpos.z + "§5: §d" + newBlocks + " new amethyst clusters found");
                 }
             } else {
-                for (BlockPos pos : chunkDeepslate) {
-                    if (!deepslatePositions.contains(pos)) {
-                        info("§5[§dDeepslateESP§5] §bDeepslateESP§5: §bDeepslate at " + pos.toShortString());
+                for (BlockPos pos : chunkClusters) {
+                    if (!clusterPositions.contains(pos)) {
+                        BlockState state = chunk.getBlockState(pos);
+                        String blockType = getClusterTypeName(state);
+                        info("§5[§dCluster Finder§5] §dAmethyst§5: §d" + blockType + " at " + pos.toShortString());
                     }
                 }
             }
         }
     }
 
-    private boolean isDeepslateInRange(BlockState state, int y) {
-        return y >= minY.get() && y <= maxY.get() && state.getBlock() == Blocks.DEEPSLATE;
+    private boolean isAmethystCluster(BlockState state, int y) {
+        if (y < minY.get() || y > maxY.get()) return false;
+
+        if (includeSmallBuds.get() && state.isOf(Blocks.SMALL_AMETHYST_BUD)) {
+            return true;
+        }
+
+        if (includeMediumBuds.get() && state.isOf(Blocks.MEDIUM_AMETHYST_BUD)) {
+            return true;
+        }
+
+        if (includeLargeBuds.get() && state.isOf(Blocks.LARGE_AMETHYST_BUD)) {
+            return true;
+        }
+
+        if (includeClusters.get() && state.isOf(Blocks.AMETHYST_CLUSTER)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private String getClusterTypeName(BlockState state) {
+        if (state.isOf(Blocks.SMALL_AMETHYST_BUD)) {
+            return "Small Amethyst Bud";
+        } else if (state.isOf(Blocks.MEDIUM_AMETHYST_BUD)) {
+            return "Medium Amethyst Bud";
+        } else if (state.isOf(Blocks.LARGE_AMETHYST_BUD)) {
+            return "Large Amethyst Bud";
+        } else if (state.isOf(Blocks.AMETHYST_CLUSTER)) {
+            return "Amethyst Cluster";
+        }
+        return "Amethyst Block";
     }
 
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (mc.player == null) return;
 
+        // Use interpolated position for smooth movement
         Vec3d playerPos = mc.player.getLerpedPos(event.tickDelta);
-        Color side = new Color(deepslateColor.get());
-        Color outline = new Color(deepslateColor.get());
+        Color side = new Color(clusterColor.get());
+        Color outline = new Color(clusterColor.get());
         Color tracerColorValue = new Color(tracerColor.get());
 
-        for (BlockPos pos : deepslatePositions) {
-            event.renderer.box(pos, side, outline, shapeMode.get(), 0);
+        for (BlockPos pos : clusterPositions) {
+            // Render ESP box
+            event.renderer.box(pos, side, outline, clusterShapeMode.get(), 0);
 
+            // Render tracer if enabled
             if (tracers.get()) {
                 Vec3d blockCenter = Vec3d.ofCenter(pos);
 
+                // Start tracer from slightly in front of camera to make it visible in first person
                 Vec3d startPos;
                 if (mc.options.getPerspective().isFirstPerson()) {
+                    // First person: start tracer slightly forward from camera
                     Vec3d lookDirection = mc.player.getRotationVector();
                     startPos = new Vec3d(
                         playerPos.x + lookDirection.x * 0.5,
@@ -256,6 +331,7 @@ public class DeepslateESP extends Module {
                         playerPos.z + lookDirection.z * 0.5
                     );
                 } else {
+                    // Third person: use normal eye position
                     startPos = new Vec3d(
                         playerPos.x,
                         playerPos.y + mc.player.getEyeHeight(mc.player.getPose()),

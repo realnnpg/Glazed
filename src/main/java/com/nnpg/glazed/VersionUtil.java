@@ -4,31 +4,29 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.item.ItemStack;
 
-
 public class VersionUtil {
 
     public static ItemStack getArmorStack(ClientPlayerEntity player, int slot) {
-        return player.getInventory().getArmorStack(slot);
+        return player.getInventory().getStack(38); // Chest slot is 38 in 1.21.5
     }
 
     public static int getSelectedSlot(ClientPlayerEntity player) {
-        return player.getInventory().selectedSlot;
+        return player.getInventory().getSelectedSlot();
     }
 
     public static void setSelectedSlot(ClientPlayerEntity player, int slot) {
-        player.getInventory().selectedSlot = slot;
+        player.getInventory().setSelectedSlot(slot);
     }
 
-    // Entity position methods for 1.21.4
     public static double getPrevX(net.minecraft.entity.Entity entity) {
-        return entity.prevX;
+        return entity.lastRenderX;
     }
 
     public static double getPrevY(net.minecraft.entity.Entity entity) {
-        return entity.prevY;
+        return entity.lastRenderY;
     }
 
     public static double getPrevZ(net.minecraft.entity.Entity entity) {
-        return entity.prevZ;
+        return entity.lastRenderZ;
     }
 }

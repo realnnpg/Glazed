@@ -15,6 +15,13 @@ import java.time.Instant;
 public class CoordSnapper extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
+    private final Setting<Boolean> chatfeedback = sgGeneral.add(new BoolSetting.Builder()
+        .name("Chat Feedback")
+        .description("Show notification in chat")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Boolean> webhook = sgGeneral.add(new BoolSetting.Builder()
         .name("webhook")
         .description("Enable webhook notifications")
@@ -63,7 +70,9 @@ public class CoordSnapper extends Module {
             int x = pos.getX(), y = pos.getY(), z = pos.getZ();
             String coords = String.format("%d %d %d", x, y, z);
             mc.keyboard.setClipboard(coords);
-            info("Copied coordinates: " + coords);
+            if (chatfeedback.get()) {
+                info("Copied coordinates: " + coords);
+            }
 
             if (webhook.get() && !webhookUrl.get().isEmpty()) {
                 sendWebhook(x, y, z);
@@ -87,7 +96,7 @@ public class CoordSnapper extends Module {
 
                 JsonObject json = new JsonObject();
                 json.addProperty("username", "Glazed Webhook");
-                json.addProperty("avatar_url", "https://i.imgur.com/gVzV8ve.jpeg");
+                json.addProperty("avatar_url", "https://i.imgur.com/OL2y1cr.png");
 
                 String messageContent = "";
                 if (selfPing.get() && !discordId.get().trim().isEmpty()) {

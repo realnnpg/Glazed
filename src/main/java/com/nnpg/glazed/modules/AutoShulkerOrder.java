@@ -136,8 +136,8 @@ public class AutoShulkerOrder extends Module {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isShulkerBox(stack)) {
-                            // BULK BUY - click multiple times rapidly
-                            int clickCount = speedMode.get() ? 64 : 27; // Max stack or normal
+                            // NORMAL BUY - always use normal speed for buying to avoid issues
+                            int clickCount = 27; // Always use normal buying speed
                             for (int i = 0; i < clickCount; i++) {
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             }
