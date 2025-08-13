@@ -11,13 +11,12 @@ import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.Block;
-import net.minecraft.block.KelpBlock;
-import net.minecraft.block.KelpPlantBlock;
+import net.minecraft.block.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.WorldChunk;
+import net.minecraft.state.property.IntProperty;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -84,32 +83,30 @@ public class KelpESP extends Module {
         int yMax = yMin + chunk.getHeight();
 
         int kelpColumns = 0;
-        int kelpTopsAt62 = 0;
 
         for (int x = xStart; x < xStart + 16; x++) {
             for (int z = zStart; z < zStart + 16; z++) {
-                int bottom = -1;
-                int top = -1;
 
                 for (int y = yMin; y < yMax; y++) {
-                    Block block = chunk.getBlockState(new BlockPos(x, y, z)).getBlock();
-                    if (block instanceof KelpBlock || block instanceof KelpPlantBlock) {
-                        if (bottom < 0) bottom = y;
-                        top = y;
-                    }
-                }
+                    BlockState state = chunk.getBlockState(new BlockPos(x, y, z));
 
-                if (bottom >= 0 && top - bottom + 1 >= 8) {
-                    kelpColumns++;
-                    if (top == 62) kelpTopsAt62++;
+                    if (state.getBlock() instanceof KelpBlock /*|| state.getBlock() instanceof KelpPlantBlock*/) {
+                       int age = state.get(KelpBlock.AGE);
+                        if (age == 25) {
+                            kelpColumns++;
+                        }
+                    }
+                    {
+                    }
+
                 }
             }
-        }
 
-        if (kelpColumns >= 10 && ((double) kelpTopsAt62 / kelpColumns) >= 0.6) {
-            flaggedKelpChunks.add(cpos);
-            if (kelpChat.get()) {
-                info("§5[§dkelpEsp§5] §akelpEsp§5: §aChunk " + cpos + " flagged: " + kelpTopsAt62 + "/" + kelpColumns + " kelp tops at Y=62");
+            if (kelpColumns >= 5) {
+                flaggedKelpChunks.add(cpos);
+                if (kelpChat.get()) {
+                    info("§5[§dkelpEsp§5] §akelpEsp§5: §aChunk " + cpos + " flagged: ", kelpColumns + " Kelp Columns are full aged");
+                }
             }
         }
     }
