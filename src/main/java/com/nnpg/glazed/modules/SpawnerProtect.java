@@ -493,10 +493,7 @@ public class SpawnerProtect extends Module {
         }
 
         String webhookUrlValue = webhookUrl.get().trim();
-        if (!isValidWebhookUrl(webhookUrlValue)) {
-            ChatUtils.error("Invalid webhook URL format!");
-            return;
-        }
+
 
         long discordTimestamp = detectionTime / 1000L;
 
@@ -529,10 +526,6 @@ public class SpawnerProtect extends Module {
         }).start();
     }
 
-    private boolean isValidWebhookUrl(String url) {
-        return url.startsWith("https://discord.com/api/webhooks/") ||
-            url.startsWith("https://discordapp.com/api/webhooks/");
-    }
 
     private String createWebhookPayload(String messageContent, long discordTimestamp) {
         return String.format("""
