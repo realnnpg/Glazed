@@ -53,7 +53,7 @@ public class AntiTrap extends Module {
     );
 
     public AntiTrap() {
-        super(GlazedAddon.CATEGORY, "AntiTrap", "Allows you to escape from armor stands and chest minecarts.");
+        super(GlazedAddon.pvp, "AntiTrap", "Allows you to escape from armor stands and chest minecarts.");
     }
 
 

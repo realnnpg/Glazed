@@ -18,8 +18,10 @@ import meteordevelopment.meteorclient.MeteorClient;
 public class GlazedAddon extends MeteorAddon {
     public static final Category CATEGORY = new Category("Glazed");
     public static final Category esp = new Category("Glazed-ESPs");
+    public static final Category pvp = new Category("Glazed-PVP");
 
-    public static int VERSION = 9;
+
+    public static int VERSION = 10;
 
     @Override
     public void onInitialize() {
@@ -32,17 +34,17 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new ElytraSwap()); //done
         Modules.get().add(new PlayerDetection()); //done
         Modules.get().add(new AHSniper()); //done
-        Modules.get().add(new RTPer()); //not working idk why wrong math ig
+        Modules.get().add(new RTPer()); //done
         Modules.get().add(new TunnelBaseFinder()); //done
         Modules.get().add(new ShulkerDropper()); //done
         Modules.get().add(new AutoSell()); //done
         Modules.get().add(new SpawnerDropper()); //done
         Modules.get().add(new AutoShulkerOrder()); // done
-        Modules.get().add(new AutoOrder()); //working on it
+        Modules.get().add(new AutoOrder()); //done
         Modules.get().add(new HideScoreboard());
         Modules.get().add(new AutoInvTotem());
         Modules.get().add(new CrystalMacro());
-		Modules.get().add(new AHSell());
+        Modules.get().add(new AHSell());
         Modules.get().add(new AnchorMacro());
         Modules.get().add(new OneByOneHoles());
         Modules.get().add(new KelpESP());
@@ -53,6 +55,28 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new WanderingESP());
         Modules.get().add(new VillagerESP());
         Modules.get().add(new AdvancedStashFinder());
+        Modules.get().add(new TpaMacro());
+        Modules.get().add(new TabDetector());
+        Modules.get().add(new AutoSex());
+        Modules.get().add(new OrderSniper());
+        Modules.get().add(new LamaESP());
+        Modules.get().add(new FastBreak());
+        Modules.get().add(new PillagerESP());
+        Modules.get().add(new HoleTunnelStairsESP());
+        Modules.get().add(new CoveredHole());
+        Modules.get().add(new ClusterFinder());
+        Modules.get().add(new AutoShulkerShellOrder());
+        Modules.get().add(new EmergencySeller());
+        Modules.get().add(new AutoTreeFarmer());
+        Modules.get().add(new RTPEndBaseFinder());
+        Modules.get().add(new ShopBuyer());
+        Modules.get().add(new UndetectedTunneler());
+        Modules.get().add(new OrderDropper());
+        Modules.get().add(new ElytraAutoFly());
+
+
+
+
 
 
         // Register this class for events
@@ -73,6 +97,8 @@ public class GlazedAddon extends MeteorAddon {
     public void onRegisterCategories() {
         Modules.registerCategory(CATEGORY);
         Modules.registerCategory(esp);
+        Modules.registerCategory(pvp);
+
 
         //mc.setScreen(new MyScreen(GuiThemes.get()));
     }

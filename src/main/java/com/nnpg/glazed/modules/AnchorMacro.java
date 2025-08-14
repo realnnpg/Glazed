@@ -137,7 +137,7 @@ public class AnchorMacro extends Module {
     private final Random random = new Random();
 
     public AnchorMacro() {
-        super(GlazedAddon.CATEGORY, "AnchorMacro", "Automatically blows up respawn anchors for you");
+        super(GlazedAddon.pvp, "AnchorMacro", "Automatically blows up respawn anchors for you");
     }
 
     @Override

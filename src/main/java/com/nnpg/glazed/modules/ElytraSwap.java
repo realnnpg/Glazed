@@ -16,7 +16,6 @@ import net.minecraft.screen.slot.SlotActionType;
 public class ElytraSwap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // Setting for preferred item when neither is equipped
     private final Setting<PreferredItem> preferredItem = sgGeneral.add(new EnumSetting.Builder<PreferredItem>()
         .name("preferred-item")
         .description("Which item to equip when neither elytra nor chestplate is worn.")
@@ -24,7 +23,6 @@ public class ElytraSwap extends Module {
         .build()
     );
 
-    // Setting for swap delay
     private final Setting<Integer> swapDelay = sgGeneral.add(new IntSetting.Builder()
         .name("swap-delay")
         .description("Delay in ticks before performing the swap (20 ticks = 1 second).")
@@ -39,7 +37,7 @@ public class ElytraSwap extends Module {
     private int delayTimer = 0;
 
     public ElytraSwap() {
-        super(GlazedAddon.CATEGORY, "ElytraSwap", "Swap elytra with chestplate.");
+        super(GlazedAddon.pvp, "ElytraSwap", "Swap elytra with chestplate.");
     }
 
     @Override
@@ -54,7 +52,6 @@ public class ElytraSwap extends Module {
             return;
         }
 
-        // Perform swap and deactivate
         performSwap();
         toggle();
     }
@@ -66,12 +63,10 @@ public class ElytraSwap extends Module {
         //versionutils
         ItemStack chestSlot = VersionUtil.getArmorStack(player, 2); // Chest armor slot
 
-        // Check what's currently equipped
         boolean hasElytra = chestSlot.getItem() == Items.ELYTRA;
         boolean hasChestplate = isChestplate(chestSlot.getItem());
 
         if (hasElytra) {
-            // Swap elytra with chestplate from inventory
             Item bestChestplate = findBestChestplate();
             if (bestChestplate != null) {
                 swapWithInventoryItem(bestChestplate);
@@ -80,7 +75,6 @@ public class ElytraSwap extends Module {
                 return;
             }
         } else if (hasChestplate) {
-            // Swap chestplate with elytra from inventory
             if (findItemInInventory(Items.ELYTRA) != -1) {
                 swapWithInventoryItem(Items.ELYTRA);
             } else {
@@ -88,7 +82,6 @@ public class ElytraSwap extends Module {
                 return;
             }
         } else {
-            // Nothing equipped, equip preferred item
             if (preferredItem.get() == PreferredItem.Elytra) {
                 if (findItemInInventory(Items.ELYTRA) != -1) {
                     equipFromInventory(Items.ELYTRA);
@@ -113,7 +106,6 @@ public class ElytraSwap extends Module {
 
         int slot = findItemInInventory(item);
         if (slot != -1) {
-            // Perform the swap
             mc.interactionManager.clickSlot(0, slot, 0, SlotActionType.PICKUP, mc.player);
             mc.interactionManager.clickSlot(0, 6, 0, SlotActionType.PICKUP, mc.player); // Chest slot is 6
             mc.interactionManager.clickSlot(0, slot, 0, SlotActionType.PICKUP, mc.player);
@@ -152,14 +144,12 @@ public class ElytraSwap extends Module {
     private int findItemInInventory(Item item) {
         if (mc.player == null) return -1;
 
-        // Check hotbar (slots 36-44 in container, 0-8 in player inventory)
         for (int i = 0; i < 9; i++) {
             if (mc.player.getInventory().getStack(i).getItem() == item) {
                 return i + 36; // Convert to container slot
             }
         }
 
-        // Check main inventory (slots 9-35 in container, 9-35 in player inventory)
         for (int i = 9; i < 36; i++) {
             if (mc.player.getInventory().getStack(i).getItem() == item) {
                 return i; // Already container slot

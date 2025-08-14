@@ -67,7 +67,7 @@ public class CrystalMacro extends Module {
     private Vec3d lastPlacementPos = null;
 
     public CrystalMacro() {
-        super(GlazedAddon.CATEGORY, "Crystal Macro", "Automatically breaks crystals after placement when holding right-click.");
+        super(GlazedAddon.pvp, "Crystal Macro", "Automatically breaks crystals after placement when holding right-click.");
     }
 
     @Override

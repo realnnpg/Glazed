@@ -21,27 +21,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.HashSet;
 
 public class AutoShulkerOrder extends Module {
     private final MinecraftClient mc = MinecraftClient.getInstance();
 
-    private enum Stage {NONE, SHOP, SHOP_END, SHOP_SHULKER, SHOP_CONFIRM, SHOP_CHECK_FULL, SHOP_EXIT, WAIT, ORDERS, ORDERS_SELECT, ORDERS_EXIT, ORDERS_CONFIRM, ORDERS_FINAL_EXIT, CYCLE_PAUSE}
+    private enum Stage {NONE, SHOP, SHOP_END, SHOP_SHULKER, SHOP_CONFIRM, SHOP_CHECK_FULL, SHOP_EXIT, WAIT, ORDERS, ORDERS_SELECT, ORDERS_EXIT, ORDERS_CONFIRM, ORDERS_FINAL_EXIT, CYCLE_PAUSE, TARGET_ORDERS}
 
     private Stage stage = Stage.NONE;
     private long stageStart = 0;
-    private static final long WAIT_TIME_MS = 50; // Reduced from 500ms to 50ms
+    private static final long WAIT_TIME_MS = 50;
     private int shulkerMoveIndex = 0;
     private long lastShulkerMoveTime = 0;
     private int exitCount = 0;
     private int finalExitCount = 0;
     private long finalExitStart = 0;
-
-    // Batch processing for faster shulker buying
     private int bulkBuyCount = 0;
-    private static final int MAX_BULK_BUY = 5; // Buy multiple shulkers per click
+    private static final int MAX_BULK_BUY = 5;
+
+    // Player targeting variables
+    private String targetPlayer = "";
+    private boolean isTargetingActive = false;
 
     // Settings
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgTargeting = settings.createGroup("Player Targeting");
 
     private final Setting<String> minPrice = sgGeneral.add(new StringSetting.Builder()
         .name("min-price")
@@ -64,14 +70,38 @@ public class AutoShulkerOrder extends Module {
         .build()
     );
 
+    // New targeting settings
+    private final Setting<Boolean> enableTargeting = sgTargeting.add(new BoolSetting.Builder()
+        .name("enable-targeting")
+        .description("Enable targeting a specific player (ignores minimum price).")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<String> targetPlayerName = sgTargeting.add(new StringSetting.Builder()
+        .name("target-player")
+        .description("Specific player name to target for orders.")
+        .defaultValue("")
+        .visible(() -> enableTargeting.get())
+        .build()
+    );
+
+    private final Setting<Boolean> targetOnlyMode = sgTargeting.add(new BoolSetting.Builder()
+        .name("target-only-mode")
+        .description("Only look for orders from the targeted player, ignore all others.")
+        .defaultValue(false)
+        .visible(() -> enableTargeting.get())
+        .build()
+    );
+
     public AutoShulkerOrder() {
-        super(GlazedAddon.CATEGORY, "AutoShulkerOrder", "Automatically buys shulkers and sells them in orders for profit (FAST MODE)");
+        super(GlazedAddon.CATEGORY, "AutoShulkerOrder", "Automatically buys shulkers and sells them in orders for profit with player targeting");
     }
 
     @Override
     public void onActivate() {
         double parsedPrice = parsePrice(minPrice.get());
-        if (parsedPrice == -1.0) {
+        if (parsedPrice == -1.0 && !enableTargeting.get()) {
             if (notifications.get()) {
                 ChatUtils.error("Invalid minimum price format!");
             }
@@ -79,7 +109,10 @@ public class AutoShulkerOrder extends Module {
             return;
         }
 
-        stage = Stage.SHOP;
+        // Setup target player
+        updateTargetPlayer();
+
+        stage = Stage.SHOP; // Always start with shop to buy shulkers first
         stageStart = System.currentTimeMillis();
         shulkerMoveIndex = 0;
         lastShulkerMoveTime = 0;
@@ -88,7 +121,9 @@ public class AutoShulkerOrder extends Module {
         bulkBuyCount = 0;
 
         if (notifications.get()) {
-            info("🚀 FAST AutoShulkerOrder activated! Minimum: %s", minPrice.get());
+            String modeInfo = isTargetingActive ?
+                String.format(" | Targeting: %s", targetPlayer) : "";
+            info("🚀 FAST AutoShulkerOrder activated! Minimum: %s%s", minPrice.get(), modeInfo);
         }
     }
 
@@ -97,12 +132,39 @@ public class AutoShulkerOrder extends Module {
         stage = Stage.NONE;
     }
 
+    private void updateTargetPlayer() {
+        targetPlayer = "";
+        isTargetingActive = false;
+
+        if (enableTargeting.get() && !targetPlayerName.get().trim().isEmpty()) {
+            targetPlayer = targetPlayerName.get().trim();
+            isTargetingActive = true;
+
+            if (notifications.get()) {
+                info("🎯 Targeting enabled for player: %s", targetPlayer);
+            }
+        } else {
+            if (notifications.get() && enableTargeting.get()) {
+                info("⚠️ Targeting disabled - no player name provided");
+            }
+        }
+    }
+
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (mc.player == null || mc.world == null) return;
         long now = System.currentTimeMillis();
 
         switch (stage) {
+            case TARGET_ORDERS -> {
+                ChatUtils.sendPlayerMsg("/orders " + targetPlayer);
+                stage = Stage.ORDERS;
+                stageStart = now;
+
+                if (notifications.get()) {
+                    info("🔍 Checking orders for: %s", targetPlayer);
+                }
+            }
             case SHOP -> {
                 ChatUtils.sendPlayerMsg("/shop");
                 stage = Stage.SHOP_END;
@@ -136,8 +198,8 @@ public class AutoShulkerOrder extends Module {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isShulkerBox(stack)) {
-                            // BULK BUY - click multiple times rapidly
-                            int clickCount = speedMode.get() ? 64 : 27; // Max stack or normal
+                            // CONTROLLED BUYING - slower to prevent overshooting
+                            int clickCount = speedMode.get() ? 10 : 5; // Reduced from 64/27 to 10/5
                             for (int i = 0; i < clickCount; i++) {
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             }
@@ -152,7 +214,7 @@ public class AutoShulkerOrder extends Module {
                         stageStart = now;
                         return;
                     }
-                    if (now - stageStart > (speedMode.get() ? 300 : 1000)) {
+                    if (now - stageStart > (speedMode.get() ? 500 : 1500)) { // Slightly longer wait
                         mc.player.closeHandledScreen();
                         stage = Stage.SHOP;
                         stageStart = now;
@@ -166,8 +228,8 @@ public class AutoShulkerOrder extends Module {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isGreenGlass(stack)) {
-                            // RAPID CONFIRM - multiple clicks
-                            for (int i = 0; i < (speedMode.get() ? 10 : 5); i++) {
+                            // CONTROLLED CONFIRM - fewer clicks to prevent over-confirming
+                            for (int i = 0; i < (speedMode.get() ? 3 : 2); i++) { // Reduced from 10/5 to 3/2
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             }
                             foundGreen = true;
@@ -179,20 +241,26 @@ public class AutoShulkerOrder extends Module {
                         stageStart = now;
                         return;
                     }
-                    if (now - stageStart > (speedMode.get() ? 100 : 500)) {
+                    if (now - stageStart > (speedMode.get() ? 200 : 800)) { // Slightly longer wait
                         stage = Stage.SHOP_SHULKER;
                         stageStart = now;
                     }
                 }
             }
             case SHOP_CHECK_FULL -> {
-                if (isInventoryFull()) {
-                    mc.player.closeHandledScreen();
-                    stage = Stage.SHOP_EXIT;
-                    stageStart = now;
-                } else {
-                    stage = Stage.SHOP_SHULKER;
-                    stageStart = now;
+                // Add a small delay before checking inventory to let transactions process
+                if (now - stageStart > (speedMode.get() ? 100 : 200)) {
+                    if (isInventoryFull()) {
+                        mc.player.closeHandledScreen();
+                        stage = Stage.SHOP_EXIT;
+                        stageStart = now;
+                    } else {
+                        // Small pause before buying more to prevent rapid-fire purchases
+                        if (now - stageStart > (speedMode.get() ? 200 : 400)) {
+                            stage = Stage.SHOP_SHULKER;
+                            stageStart = now;
+                        }
+                    }
                 }
             }
             case SHOP_EXIT -> {
@@ -207,38 +275,81 @@ public class AutoShulkerOrder extends Module {
                 }
             }
             case WAIT -> {
-                long waitTime = speedMode.get() ? 25 : WAIT_TIME_MS; // Ultra fast wait
+                long waitTime = speedMode.get() ? 25 : WAIT_TIME_MS;
                 if (now - stageStart >= waitTime) {
-                    ChatUtils.sendPlayerMsg("/orders shulker");
-                    stage = Stage.ORDERS;
+                    // Only use target orders if targeting is enabled AND we have a valid target
+                    if (isTargetingActive && !targetPlayer.isEmpty()) {
+                        stage = Stage.TARGET_ORDERS;
+                    } else {
+                        ChatUtils.sendPlayerMsg("/orders shulker");
+                        stage = Stage.ORDERS;
+                    }
                     stageStart = now;
                 }
             }
             case ORDERS -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
+                    boolean foundOrder = false;
+
+                    // Add delay in speed mode to ensure GUI is fully loaded
+                    if (speedMode.get() && now - stageStart < 200) {
+                        return; // Wait 200ms for GUI to stabilize in speed mode
+                    }
+
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isShulkerBox(stack) && isPurple(stack)) {
-                            double orderPrice = getOrderPrice(stack);
-                            double minPriceValue = parsePrice(minPrice.get());
+                            boolean shouldTakeOrder = false;
+                            String orderPlayer = getOrderPlayerName(stack);
 
-                            if (orderPrice >= minPriceValue) {
+                            // Check if this is a targeted order
+                            boolean isTargetedOrder = isTargetingActive &&
+                                orderPlayer != null &&
+                                orderPlayer.equalsIgnoreCase(targetPlayer);
+
+                            if (isTargetedOrder) {
+                                shouldTakeOrder = true;
                                 if (notifications.get()) {
-                                    info("✅ Found order: %s", formatPrice(orderPrice));
+                                    double orderPrice = getOrderPrice(stack);
+                                    info("🎯 Found TARGET order from %s: %s", orderPlayer,
+                                        orderPrice > 0 ? formatPrice(orderPrice) : "Unknown price");
                                 }
+                            } else if (!targetOnlyMode.get()) {
+                                // Regular price check for non-targeted orders
+                                double orderPrice = getOrderPrice(stack);
+                                double minPriceValue = parsePrice(minPrice.get());
+
+                                if (orderPrice >= minPriceValue) {
+                                    shouldTakeOrder = true;
+                                    if (notifications.get()) {
+                                        info("✅ Found order: %s", formatPrice(orderPrice));
+                                    }
+                                }
+                            }
+
+                            if (shouldTakeOrder) {
+                                // Click on the order to select it
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
+
+                                // Wait a moment before moving to selection phase
                                 stage = Stage.ORDERS_SELECT;
-                                stageStart = now;
+                                stageStart = now + (speedMode.get() ? 100 : 50); // Small delay to let selection register
                                 shulkerMoveIndex = 0;
                                 lastShulkerMoveTime = 0;
+                                foundOrder = true;
+
+                                if (notifications.get()) {
+                                    info("🔄 Selected order, preparing to transfer items...");
+                                }
                                 return;
                             }
                         }
                     }
-                    if (now - stageStart > (speedMode.get() ? 2000 : 5000)) {
+
+                    if (!foundOrder && now - stageStart > (speedMode.get() ? 3000 : 5000)) { // Longer wait in speed mode
                         mc.player.closeHandledScreen();
-                        stage = Stage.SHOP;
+                        stage = Stage.SHOP; // Always go back to shop after checking orders
                         stageStart = now;
                     }
                 }
@@ -255,10 +366,8 @@ public class AutoShulkerOrder extends Module {
                         return;
                     }
 
-                    // ULTRA FAST TRANSFER - minimal delay
-                    long moveDelay = speedMode.get() ? 10 : 100; // 10ms vs 100ms
+                    long moveDelay = speedMode.get() ? 10 : 100;
                     if (now - lastShulkerMoveTime >= moveDelay) {
-                        // BATCH TRANSFER - move multiple items per tick
                         int batchSize = speedMode.get() ? 3 : 1;
 
                         for (int batch = 0; batch < batchSize && shulkerMoveIndex < 36; batch++) {
@@ -301,7 +410,6 @@ public class AutoShulkerOrder extends Module {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isGreenGlass(stack)) {
-                            // RAPID CONFIRM
                             for (int i = 0; i < (speedMode.get() ? 15 : 5); i++) {
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             }
@@ -309,18 +417,22 @@ public class AutoShulkerOrder extends Module {
                             stageStart = now;
                             finalExitCount = 0;
                             finalExitStart = now;
+
+                            if (notifications.get()) {
+                                info("✅ Order completed! Going back to shop to buy more shulkers...");
+                            }
                             return;
                         }
                     }
                     if (now - stageStart > (speedMode.get() ? 2000 : 5000)) {
                         mc.player.closeHandledScreen();
-                        stage = Stage.SHOP;
+                        stage = Stage.SHOP; // Go directly to shop if confirmation fails
                         stageStart = now;
                     }
                 }
             }
             case ORDERS_FINAL_EXIT -> {
-                long exitDelay = speedMode.get() ? 50 : 200; // Much faster exits
+                long exitDelay = speedMode.get() ? 50 : 200;
 
                 if (finalExitCount == 0) {
                     if (System.currentTimeMillis() - finalExitStart >= exitDelay) {
@@ -341,8 +453,10 @@ public class AutoShulkerOrder extends Module {
                 }
             }
             case CYCLE_PAUSE -> {
-                long cycleWait = speedMode.get() ? 25 : WAIT_TIME_MS; // Ultra fast cycling
+                long cycleWait = speedMode.get() ? 10 : 25; // Very fast cycle restart
                 if (now - stageStart >= cycleWait) {
+                    // Always go back to shop to buy more shulkers
+                    updateTargetPlayer(); // Refresh target player
                     stage = Stage.SHOP;
                     stageStart = now;
                 }
@@ -352,7 +466,46 @@ public class AutoShulkerOrder extends Module {
         }
     }
 
-    // Price parsing methods (unchanged for stability)
+    // New method to extract player name from order tooltip
+    private String getOrderPlayerName(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return null;
+        }
+
+        Item.TooltipContext tooltipContext = Item.TooltipContext.create(mc.world);
+        List<Text> tooltip = stack.getTooltip(tooltipContext, mc.player, TooltipType.BASIC);
+
+        for (Text line : tooltip) {
+            String text = line.getString();
+
+            // Look for patterns like "Player: PlayerName" or "From: PlayerName" or "By: PlayerName"
+            Pattern[] namePatterns = {
+                Pattern.compile("(?i)player\\s*:\\s*([a-zA-Z0-9_]+)"),
+                Pattern.compile("(?i)from\\s*:\\s*([a-zA-Z0-9_]+)"),
+                Pattern.compile("(?i)by\\s*:\\s*([a-zA-Z0-9_]+)"),
+                Pattern.compile("(?i)seller\\s*:\\s*([a-zA-Z0-9_]+)"),
+                Pattern.compile("(?i)owner\\s*:\\s*([a-zA-Z0-9_]+)"),
+                // Generic pattern for username-like strings
+                Pattern.compile("\\b([a-zA-Z0-9_]{3,16})\\b")
+            };
+
+            for (Pattern pattern : namePatterns) {
+                Matcher matcher = pattern.matcher(text);
+                if (matcher.find()) {
+                    String playerName = matcher.group(1);
+                    // Basic validation for Minecraft usernames
+                    if (playerName.length() >= 3 && playerName.length() <= 16 &&
+                        playerName.matches("[a-zA-Z0-9_]+")) {
+                        return playerName;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Price parsing methods (unchanged)
     private double getOrderPrice(ItemStack stack) {
         if (stack.isEmpty()) {
             return -1.0;
@@ -472,5 +625,12 @@ public class AutoShulkerOrder extends Module {
             if (stack.isEmpty()) return false;
         }
         return true;
+    }
+
+    // Utility method to add info messages
+    public void info(String message, Object... args) {
+        if (notifications.get()) {
+            ChatUtils.info(String.format(message, args));
+        }
     }
 }

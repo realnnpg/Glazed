@@ -2,10 +2,9 @@ package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.orbit.EventHandler;
@@ -25,10 +24,24 @@ import java.util.concurrent.CompletableFuture;
 public class PlayerDetection extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // Hidden permanent whitelist - not visible to users
+    // hidden cause some freeecamera mods are retarded
     private static final Set<String> PERMANENT_WHITELIST = new HashSet<>(Arrays.asList(
         "FreeCamera"
     ));
+
+    private final Setting<List<String>> userWhitelist = sgGeneral.add(new StringListSetting.Builder()
+        .name("User Whitelist")
+        .description("List of player names to ignore")
+        .defaultValue(new ArrayList<>())
+        .build()
+    );
+
+    private final Setting<List<Module>> modulesToToggle = sgGeneral.add(new ModuleListSetting.Builder()
+        .name("Modules To Toggle")
+        .description("Select modules to toggle when a non-whitelisted player is detected")
+        .defaultValue(new ArrayList<>())
+        .build()
+    );
 
     private final Setting<Boolean> enableWebhook = sgGeneral.add(new BoolSetting.Builder()
         .name("Webhook")
@@ -77,7 +90,7 @@ public class PlayerDetection extends Module {
 
     private final Setting<Boolean> toggleonplayer = sgGeneral.add(new BoolSetting.Builder()
         .name("Toggle when a player is detected")
-        .description("Automatically toggles the module when a player is detected")
+        .description("Automatically toggles THIS module when a player is detected")
         .defaultValue(true)
         .build()
     );
@@ -86,7 +99,6 @@ public class PlayerDetection extends Module {
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build();
-
 
     public PlayerDetection() {
         super(GlazedAddon.CATEGORY, "PlayerDetection", "Detects when players are in the world");
@@ -99,14 +111,16 @@ public class PlayerDetection extends Module {
         Set<String> currentPlayers = new HashSet<>();
         String currentPlayerName = mc.player.getGameProfile().getName();
 
+        Set<String> fullWhitelist = new HashSet<>(PERMANENT_WHITELIST);
+        fullWhitelist.addAll(userWhitelist.get());
+
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
 
             String playerName = player.getGameProfile().getName();
             if (playerName.equals(currentPlayerName)) continue;
 
-            // Check if player is in permanent whitelist - skip if whitelisted
-            if (PERMANENT_WHITELIST.contains(playerName)) {
+            if (fullWhitelist.contains(playerName)) {
                 continue;
             }
 
@@ -137,20 +151,22 @@ public class PlayerDetection extends Module {
 
         ChatUtils.sendPlayerMsg("#stop");
 
+        for (Module m : modulesToToggle.get()) {
+            m.toggle();
+            info("Toggled module: (highlight)%s", m.title);
+        }
 
         if (enableWebhook.get()) {
             sendWebhookNotification(players);
         }
 
-        if(toggleonplayer.get()) {
+        if (toggleonplayer.get()) {
             toggle();
         }
-
 
         if (enableDisconnect.get()) {
             disconnectFromServer(playerList);
         }
-
     }
 
     private void sendWebhookNotification(Set<String> players) {

@@ -45,7 +45,7 @@ public class AutoInvTotem extends Module {
     private boolean hadTotemInOffhand = false;
 
     public AutoInvTotem() {
-        super(GlazedAddon.CATEGORY, "Auto Inv Totem", "Automatically moves totems to offhand when inventory is opened after totem pop.");
+        super(GlazedAddon.pvp, "Auto Inv Totem", "Automatically moves totems to offhand when inventory is opened after totem pop.");
     }
 
     @Override
