@@ -3,7 +3,7 @@ package com.nnpg.glazed;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.item.ItemStack;
-
+import net.minecraft.util.collection.DefaultedList;
 
 public class VersionUtil {
 
@@ -19,7 +19,6 @@ public class VersionUtil {
         player.getInventory().selectedSlot = slot;
     }
 
-    // Entity position methods for 1.21.4
     public static double getPrevX(net.minecraft.entity.Entity entity) {
         return entity.prevX;
     }
@@ -30,5 +29,9 @@ public class VersionUtil {
 
     public static double getPrevZ(net.minecraft.entity.Entity entity) {
         return entity.prevZ;
+    }
+
+    public static DefaultedList<ItemStack> getMainInventory(ClientPlayerEntity player) {
+        return player.getInventory().main;
     }
 }

@@ -44,7 +44,6 @@ public class RTPer extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgWebhook = settings.createGroup("Webhook");
 
-    // General Settings
     private final Setting<Integer> targetX = sgGeneral.add(new IntSetting.Builder()
         .name("target-x")
         .description("Target X coordinate.")
@@ -61,7 +60,7 @@ public class RTPer extends Module {
 
     private final Setting<String> distance = sgGeneral.add(new StringSetting.Builder()
         .name("distance")
-        .description("How close to get to the coordinates (supports k for thousands, e.g., 10k = 10000).")
+        .description("Distance to get within (supports k/m, e.g., 10k = 10000, 1.5m = 1500000).")
         .defaultValue("1000")
         .build()
     );
@@ -110,6 +109,8 @@ public class RTPer extends Module {
     private boolean isRtping = false;
     private int rtpAttempts = 0;
     private BlockPos lastRtpPos = null;
+    private double lastReportedDistance = -1;
+    private int targetDistanceBlocks = 1000;
 
     public RTPer() {
         super(GlazedAddon.CATEGORY, "RTPer", "RTP to specific coordinates.");
@@ -121,16 +122,26 @@ public class RTPer extends Module {
         isRtping = false;
         rtpAttempts = 0;
         lastRtpPos = null;
+        lastReportedDistance = -1;
+
+        targetDistanceBlocks = parseDistance();
 
         if (mc.player == null) return;
 
-        info("Starting RTPer to coordinates: %d, %d", targetX.get(), targetZ.get());
-        info("Target distance: %d blocks", parseDistance());
+        double currentDist = getCurrentDistance();
+        info("RTPer started - target: (%d, %d)", targetX.get(), targetZ.get());
+        info("Distance: %s -> %d blocks", distance.get(), targetDistanceBlocks);
+        info("Current: %.1f blocks away", currentDist);
+
+        if (currentDist <= targetDistanceBlocks) {
+            info("Already close enough!");
+            toggle();
+        }
     }
 
     @Override
     public void onDeactivate() {
-        info("RTPer stopped after %d attempts", rtpAttempts);
+        info("Stopped after %d attempts", rtpAttempts);
         isRtping = false;
     }
 
@@ -138,20 +149,20 @@ public class RTPer extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        tickTimer++;
+        double currentDistance = getCurrentDistance();
 
-        if (isNearTarget()) {
-            info("Reached target coordinates! Distance: %.0f blocks", getCurrentDistance());
+        if (isNearTarget(currentDistance)) {
+            info("Done! %.1f blocks away (target: %d)", currentDistance, targetDistanceBlocks);
 
             if (webhookEnabled.get()) {
                 sendWebhook("Target Reached!",
-                    String.format("Reached coordinates %d, %d\\nFinal distance: %.0f blocks\\nTotal RTP attempts: %d",
-                        targetX.get(), targetZ.get(), getCurrentDistance(), rtpAttempts),
+                    String.format("Got to %d, %d\\nDistance: %.1f/%d blocks\\nAttempts: %d",
+                        targetX.get(), targetZ.get(), currentDistance, targetDistanceBlocks, rtpAttempts),
                     0x00FF00);
             }
 
             if (disconnectOnReach.get()) {
-                info("Disconnecting as requested...");
+                info("Disconnecting...");
                 if (mc.world != null) {
                     mc.world.disconnect();
                 }
@@ -161,6 +172,13 @@ public class RTPer extends Module {
             return;
         }
 
+        if (tickTimer % 100 == 0 && Math.abs(currentDistance - lastReportedDistance) > 100) {
+            info("Distance: %.1f blocks", currentDistance);
+            lastReportedDistance = currentDistance;
+        }
+
+        tickTimer++;
+
         if (tickTimer >= rtpDelay.get() * 20 && !isRtping) {
             performRTP();
             tickTimer = 0;
@@ -169,15 +187,26 @@ public class RTPer extends Module {
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
-        if (event.packet instanceof PlayerPositionLookS2CPacket) {
+        if (event.packet instanceof PlayerPositionLookS2CPacket && mc.player != null) {
             isRtping = false;
             BlockPos currentPos = mc.player.getBlockPos();
 
             if (lastRtpPos == null || !currentPos.equals(lastRtpPos)) {
+                rtpAttempts++;
                 lastRtpPos = currentPos;
                 double distance = getCurrentDistance();
-                info("RTP #%d completed. Current position: %d, %d, %d (Distance: %.0f blocks)",
+                info("RTP %d done - pos: (%d, %d, %d) dist: %.1f",
                     rtpAttempts, currentPos.getX(), currentPos.getY(), currentPos.getZ(), distance);
+
+                if (lastReportedDistance > 0) {
+                    double diff = lastReportedDistance - distance;
+                    if (diff > 0) {
+                        info("Better by %.1f blocks", diff);
+                    } else if (diff < -1000) {
+                        info("Worse by %.1f blocks", Math.abs(diff));
+                    }
+                }
+                lastReportedDistance = distance;
             }
         }
     }
@@ -185,25 +214,29 @@ public class RTPer extends Module {
     private void performRTP() {
         if (mc.player == null) return;
 
-        rtpAttempts++;
         isRtping = true;
 
         ChatUtils.sendPlayerMsg("/rtp " + rtpRegion.get().getCommandPart());
 
-        info("Performing RTP #%d (Region: %s)...", rtpAttempts, rtpRegion.get().getCommandPart());
+        double currentDistance = getCurrentDistance();
+        info("Attempting RTP (%s) - current: %.1f blocks",
+            rtpRegion.get().getCommandPart(), currentDistance);
     }
 
     private boolean isNearTarget() {
-        if (mc.player == null) return false;
-        return getCurrentDistance() <= parseDistance();
+        return isNearTarget(getCurrentDistance());
+    }
+
+    private boolean isNearTarget(double currentDistance) {
+        return currentDistance <= targetDistanceBlocks;
     }
 
     private double getCurrentDistance() {
         if (mc.player == null) return Double.MAX_VALUE;
 
-        BlockPos playerPos = mc.player.getBlockPos();
-        double dx = playerPos.getX() - targetX.get();
-        double dz = playerPos.getZ() - targetZ.get();
+        BlockPos pos = mc.player.getBlockPos();
+        double dx = pos.getX() - targetX.get();
+        double dz = pos.getZ() - targetZ.get();
 
         return Math.sqrt(dx * dx + dz * dz);
     }
@@ -212,32 +245,32 @@ public class RTPer extends Module {
         String dist = distance.get().toLowerCase().trim();
 
         if (dist.isEmpty()) {
-            error("Distance is empty. Using default 1000.");
+            error("Empty distance, using 1000");
             return 1000;
         }
 
         try {
             if (dist.endsWith("k")) {
-                String numberPart = dist.substring(0, dist.length() - 1).trim();
-                if (numberPart.isEmpty()) {
-                    error("Invalid distance format: '%s'. Using default 1000.", dist);
+                String num = dist.substring(0, dist.length() - 1).trim();
+                if (num.isEmpty()) {
+                    error("Bad format: '%s', using 1000", dist);
                     return 1000;
                 }
-                double value = Double.parseDouble(numberPart);
-                return (int) (value * 1000);
+                double val = Double.parseDouble(num);
+                return (int) (val * 1000);
             } else if (dist.endsWith("m")) {
-                String numberPart = dist.substring(0, dist.length() - 1).trim();
-                if (numberPart.isEmpty()) {
-                    error("Invalid distance format: '%s'. Using default 1000.", dist);
+                String num = dist.substring(0, dist.length() - 1).trim();
+                if (num.isEmpty()) {
+                    error("Bad format: '%s', using 1000", dist);
                     return 1000;
                 }
-                double value = Double.parseDouble(numberPart);
-                return (int) (value * 1000000);
+                double val = Double.parseDouble(num);
+                return (int) (val * 1000000);
             } else {
                 return Integer.parseInt(dist);
             }
         } catch (NumberFormatException e) {
-            error("Invalid distance format: '%s'. Error: %s. Using default 1000.", dist, e.getMessage());
+            error("Can't parse '%s': %s, using 1000", dist, e.getMessage());
             return 1000;
         }
     }
@@ -249,7 +282,7 @@ public class RTPer extends Module {
             try {
                 String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-                String jsonPayload = String.format("""
+                String json = String.format("""
                     {
                         "username": "Glazed Webhook",
                         "avatar_url": "https://i.imgur.com/OL2y1cr.png",
@@ -270,21 +303,21 @@ public class RTPer extends Module {
                     }""", description.replace("\\n", "\\n"), color, timestamp, title);
 
                 HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl.get()))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
 
-                if (response.statusCode() == 204) {
-                    info("Webhook sent successfully");
+                if (res.statusCode() == 204) {
+                    info("Webhook sent");
                 } else {
-                    error("Webhook failed with status: %d", response.statusCode());
+                    error("Webhook failed: %d", res.statusCode());
                 }
             } catch (IOException | InterruptedException e) {
-                error("Failed to send webhook: %s", e.getMessage());
+                error("Webhook error: %s", e.getMessage());
             }
         }).start();
     }

@@ -12,7 +12,7 @@ import com.nnpg.glazed.GlazedAddon;
 public class PearlThrow extends Module {
 
     public PearlThrow() {
-        super(GlazedAddon.CATEGORY, "PearlThrow", "When turned on throws an ender pearl(Suggestion: Use a keybind).");
+        super(GlazedAddon.pvp, "PearlThrow", "When turned on throws an ender pearl(Suggestion: Use a keybind).");
         MeteorClient.EVENT_BUS.subscribe(this);
     }
 

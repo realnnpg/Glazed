@@ -359,7 +359,6 @@ public class TunnelBaseFinder extends Module {
             return;
         }
 
-        toggleModule(AutoTotem.class, enableAutoTotem.get());
         toggleModule(AutoTool.class, enableAutoTool.get());
         toggleModule(AutoReplenish.class, enableAutoReplenish.get());
         toggleModule(StorageESP.class, enableStorageESP.get());
@@ -509,7 +508,7 @@ public class TunnelBaseFinder extends Module {
                 {
                   "content": "%s",
                   "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
+                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
                   "embeds": [
                     {
                       "title": "🏰 Base Discovery Confirmed!",
@@ -541,7 +540,7 @@ public class TunnelBaseFinder extends Module {
                 {
                   "content": "%s",
                   "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
+                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
                   "embeds": [
                     {
                       "title": "⚡ Totem Pop at (%d, %d, %d)",
@@ -573,7 +572,7 @@ public class TunnelBaseFinder extends Module {
                 {
                   "content": "%s",
                   "username": "Glazed Webhook",
-                  "avatar_url": "https://i.imgur.com/gVzV8ve.jpeg",
+                  "avatar_url": "https://i.imgur.com/OL2y1cr.png",
                   "embeds": [
                     {
                       "title": "💀 Death at (%d, %d, %d)",

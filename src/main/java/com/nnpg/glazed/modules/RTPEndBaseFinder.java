@@ -1,11 +1,8 @@
 package com.nnpg.glazed.modules;
 
-import com.google.common.reflect.TypeToken;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.nnpg.glazed.GlazedAddon;
-import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.world.ChunkDataEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.WindowScreen;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
@@ -15,34 +12,33 @@ import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WMinus;
 import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.Utils;
+import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.entity.*;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-public class AdvancedStashFinder extends Module {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-
+public class RTPEndBaseFinder extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgWebhook = settings.createGroup("Webhook");
 
+    //SETTINGS
     private final Setting<List<BlockEntityType<?>>> storageBlocks = sgGeneral.add(new StorageBlockListSetting.Builder()
         .name("storage-blocks")
         .description("Select the storage blocks to search for.")
@@ -60,18 +56,33 @@ public class AdvancedStashFinder extends Module {
         .build()
     );
 
-    private final Setting<Integer> minimumDistance = sgGeneral.add(new IntSetting.Builder()
-        .name("minimum-distance")
-        .description("The minimum distance you must be from spawn to record a certain chunk.")
-        .defaultValue(0)
-        .min(0)
-        .sliderMax(10000)
-        .build()
-    );
-
     private final Setting<Boolean> criticalSpawner = sgGeneral.add(new BoolSetting.Builder()
         .name("critical-spawner")
         .description("Mark chunk as stash even if only a single spawner is found.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Integer> rtpInterval = sgGeneral.add(new IntSetting.Builder()
+        .name("rtp-interval")
+        .description("Interval between RTP commands in seconds.")
+        .defaultValue(10)
+        .min(5)
+        .sliderMin(5)
+        .sliderMax(60)
+        .build()
+    );
+
+    private final Setting<Boolean> disconnectOnBaseFind = sgGeneral.add(new BoolSetting.Builder()
+        .name("disconnect-on-base-find")
+        .description("Automatically disconnect when a base is found.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> lookDown = sgGeneral.add(new BoolSetting.Builder()
+        .name("look-down")
+        .description("Automatically look down to avoid enderman aggro.")
         .defaultValue(true)
         .build()
     );
@@ -90,6 +101,7 @@ public class AdvancedStashFinder extends Module {
         .visible(sendNotifications::get)
         .build()
     );
+
 
     private final Setting<Boolean> enableWebhook = sgWebhook.add(new BoolSetting.Builder()
         .name("webhook")
@@ -122,27 +134,73 @@ public class AdvancedStashFinder extends Module {
         .build()
     );
 
-    public List<Chunk> chunks = new ArrayList<>();
+
+    public List<EndStashChunk> foundStashes = new ArrayList<>();
+    private final Set<ChunkPos> processedChunks = new HashSet<>();
+    private long lastRtpTime = 0;
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build();
 
-    public AdvancedStashFinder() {
-        super(GlazedAddon.CATEGORY, "AdvancedStashFinder", "Advanced stash finder with webhook support.");
+
+    private Float originalPitch = null;
+
+    public RTPEndBaseFinder() {
+        super(GlazedAddon.CATEGORY, "RTPEndBaseFinder", "Continuously RTPs to the End and searches for stashes.");
     }
 
     @Override
     public void onActivate() {
-        load();
+        foundStashes.clear();
+        processedChunks.clear();
+        lastRtpTime = 0;
+
+
+        if (lookDown.get() && mc.player != null) {
+            originalPitch = mc.player.getPitch();
+        }
+
+        info("Started RTP End Base Finder");
+    }
+
+    @Override
+    public void onDeactivate() {
+        processedChunks.clear();
+
+
+        if (originalPitch != null && mc.player != null) {
+            mc.player.setPitch(originalPitch);
+            originalPitch = null;
+        }
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (mc.player == null || mc.world == null) return;
+
+
+        if (lookDown.get()) {
+            mc.player.setPitch(90.0f); // 90 degrees down
+        }
+
+        long currentTime = System.currentTimeMillis();
+
+        if (currentTime - lastRtpTime >= rtpInterval.get() * 1000L) {
+            ChatUtils.sendPlayerMsg("/rtp end");
+            lastRtpTime = currentTime;
+        }
     }
 
     @EventHandler
     private void onChunkData(ChunkDataEvent event) {
-        double chunkXAbs = Math.abs(event.chunk().getPos().x * 16);
-        double chunkZAbs = Math.abs(event.chunk().getPos().z * 16);
-        if (Math.sqrt(chunkXAbs * chunkXAbs + chunkZAbs * chunkZAbs) < minimumDistance.get()) return;
+        if (mc.player == null) return;
 
-        Chunk chunk = new Chunk(event.chunk().getPos());
+        ChunkPos chunkPos = event.chunk().getPos();
+
+        //SKIP PROCESSED CHUNKS
+        if (processedChunks.contains(chunkPos)) return;
+
+        EndStashChunk chunk = new EndStashChunk(chunkPos);
 
         for (BlockEntity blockEntity : event.chunk().getBlockEntities().values()) {
             BlockEntityType<?> type = blockEntity.getType();
@@ -171,46 +229,72 @@ public class AdvancedStashFinder extends Module {
             isStash = true;
             isCriticalSpawner = true;
             detectionReason = "Spawner(s) detected (Critical mode)";
-        }
-            else if (chunk.getTotal() >= minimumStorageCount.get()) {
+        } else if (chunk.getTotal() >= minimumStorageCount.get()) {
             isStash = true;
             detectionReason = "Storage threshold reached (" + chunk.getTotal() + " blocks)";
         }
 
         if (isStash) {
-            Chunk prevChunk = null;
-            int i = chunks.indexOf(chunk);
+            processedChunks.add(chunkPos);
 
-            if (i < 0) chunks.add(chunk);
-            else prevChunk = chunks.set(i, chunk);
+            EndStashChunk prevChunk = null;
+            int existingIndex = foundStashes.indexOf(chunk);
 
-            saveJson();
-            saveCsv();
+            if (existingIndex < 0) {
+                foundStashes.add(chunk);
+            } else {
+                prevChunk = foundStashes.set(existingIndex, chunk);
+            }
+
 
             if (sendNotifications.get() && (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk))) {
-                String stashType = isCriticalSpawner ? "spawner base" : "stash";
+                String stashType = isCriticalSpawner ? "End spawner base" : "End stash";
 
                 switch (notificationMode.get()) {
-                    case Chat -> info("Found %s at (highlight)%s(default), (highlight)%s(default). %s", stashType, chunk.x, chunk.z, detectionReason);
+                    case Chat -> info("Found %s at (highlight)%s(default), (highlight)%s(default). %s",
+                        stashType, chunk.x, chunk.z, detectionReason);
                     case Toast -> {
-                        MeteorToast toast = new MeteorToast(Items.CHEST, title, "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
+                        MeteorToast toast = new MeteorToast(Items.ENDER_CHEST, title,
+                            "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
                         mc.getToastManager().add(toast);
                     }
                     case Both -> {
-                        info("Found %s at (highlight)%s(default), (highlight)%s(default). %s", stashType, chunk.x, chunk.z, detectionReason);
-                        MeteorToast toast = new MeteorToast(Items.CHEST, title, "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
+                        info("Found %s at (highlight)%s(default), (highlight)%s(default). %s",
+                            stashType, chunk.x, chunk.z, detectionReason);
+                        MeteorToast toast = new MeteorToast(Items.ENDER_CHEST, title,
+                            "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
                         mc.getToastManager().add(toast);
                     }
                 }
             }
 
+
             if (enableWebhook.get() && (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk))) {
                 sendWebhookNotification(chunk, isCriticalSpawner, detectionReason);
+            }
+
+            // Disconnect
+            if (disconnectOnBaseFind.get()) {
+                String stashTypeForDisconnect = isCriticalSpawner ? "End spawner base" : "End stash";
+                disconnectPlayer(stashTypeForDisconnect, chunk);
             }
         }
     }
 
-    private void sendWebhookNotification(Chunk chunk, boolean isCriticalSpawner, String detectionReason) {
+    private void disconnectPlayer(String stashType, EndStashChunk chunk) {
+        info("Disconnecting due to " + stashType + " found at " + chunk.x + ", " + chunk.z);
+
+        Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+            if (mc.player != null) {
+                mc.player.networkHandler.onDisconnect(
+                    new DisconnectS2CPacket(Text.literal("END STASH FOUND AT " + chunk.x + ", " + chunk.z + "!"))
+                );
+                toggle();
+            }
+        }, 1, TimeUnit.SECONDS);
+    }
+
+    private void sendWebhookNotification(EndStashChunk chunk, boolean isCriticalSpawner, String detectionReason) {
         String url = webhookUrl.get().trim();
         if (url.isEmpty()) {
             warning("Webhook URL not configured!");
@@ -227,8 +311,8 @@ public class AdvancedStashFinder extends Module {
                     messageContent = String.format("<@%s>", discordId.get().trim());
                 }
 
-                String stashType = isCriticalSpawner ? "Spawner Base" : "Stash";
-                String description = String.format("%s found at coordinates %d, %d!", stashType, chunk.x, chunk.z);
+                String stashType = isCriticalSpawner ? "End Spawner Base" : "End Stash";
+                String description = String.format("%s found at End coordinates %d, %d!", stashType, chunk.x, chunk.z);
 
                 StringBuilder itemsFound = new StringBuilder();
                 int totalItems = 0;
@@ -241,28 +325,28 @@ public class AdvancedStashFinder extends Module {
                 if (chunk.furnaces > 0) { itemsFound.append("Furnaces: ").append(chunk.furnaces).append("\\n"); totalItems += chunk.furnaces; }
                 if (chunk.dispensersDroppers > 0) { itemsFound.append("Dispensers/Droppers: ").append(chunk.dispensersDroppers).append("\\n"); totalItems += chunk.dispensersDroppers; }
                 if (chunk.hoppers > 0) { itemsFound.append("Hoppers: ").append(chunk.hoppers).append("\\n"); totalItems += chunk.hoppers; }
-
+//EMBED
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
-                        "\"username\":\"Advanced Stashfinder\"," +
+                        "\"username\":\"RTP End-Stashfinder\"," +
                         "\"avatar_url\":\"https://i.imgur.com/OL2y1cr.png\"," +
                         "\"embeds\":[{" +
-                        "\"title\":\"📦 Advanced Stashfinder Alert\"," +
+                        "\"title\":\"🌌 End Stashfinder Alert\"," +
                         "\"description\":\"%s\"," +
                         "\"color\":%d," +
                         "\"fields\":[" +
                         "{\"name\":\"Detection Reason\",\"value\":\"%s\",\"inline\":false}," +
                         "{\"name\":\"Total Items Found\",\"value\":\"%d\",\"inline\":false}," +
                         "{\"name\":\"Items Breakdown\",\"value\":\"%s\",\"inline\":false}," +
-                        "{\"name\":\"Coordinates\",\"value\":\"%d, %d\",\"inline\":true}," +
+                        "{\"name\":\"End Coordinates\",\"value\":\"%d, %d\",\"inline\":true}," +
                         "{\"name\":\"Server\",\"value\":\"%s\",\"inline\":true}," +
                         "{\"name\":\"Time\",\"value\":\"<t:%d:R>\",\"inline\":true}" +
                         "]," +
-                        "\"footer\":{\"text\":\"Advanced Stashfinder\"}" +
+                        "\"footer\":{\"text\":\"RTP End-Stashfinder\"}" +
                         "}]}",
                     messageContent.replace("\"", "\\\""),
                     description.replace("\"", "\\\""),
-                    isCriticalSpawner ? 16711680 : 3066993, // Red for spawner bases, blue for regular stashes
+                    isCriticalSpawner ? 9830144 : 8388736, // Dark purple for spawners, dark green for stashes
                     detectionReason.replace("\"", "\\\""),
                     totalItems,
                     itemsFound.toString().replace("\"", "\\\""),
@@ -295,47 +379,46 @@ public class AdvancedStashFinder extends Module {
 
     @Override
     public WWidget getWidget(GuiTheme theme) {
-        // Sort
-        chunks.sort(Comparator.comparingInt(value -> -value.getTotal()));
+
+        foundStashes.sort(Comparator.comparingInt(value -> -value.getTotal()));
 
         WVerticalList list = theme.verticalList();
 
-        // Clear
+
         WButton clear = list.add(theme.button("Clear")).widget();
 
         WTable table = new WTable();
-        if (!chunks.isEmpty()) list.add(table);
+        if (!foundStashes.isEmpty()) list.add(table);
 
         clear.action = () -> {
-            chunks.clear();
+            foundStashes.clear();
+            processedChunks.clear();
             table.clear();
         };
 
-        // Chunks
+
         fillTable(theme, table);
 
         return list;
     }
 
     private void fillTable(GuiTheme theme, WTable table) {
-        for (Chunk chunk : chunks) {
-            table.add(theme.label("Pos: " + chunk.x + ", " + chunk.z));
+        for (EndStashChunk chunk : foundStashes) {
+            table.add(theme.label("End Pos: " + chunk.x + ", " + chunk.z));
             table.add(theme.label("Total: " + chunk.getTotal()));
 
-            WButton open = table.add(theme.button("Open")).widget();
-            open.action = () -> mc.setScreen(new ChunkScreen(theme, chunk));
+            WButton open = table.add(theme.button("Details")).widget();
+            open.action = () -> mc.setScreen(new EndStashScreen(theme, chunk));
 
             WButton gotoBtn = table.add(theme.button("Goto")).widget();
             gotoBtn.action = () -> PathManagers.get().moveTo(new BlockPos(chunk.x, 0, chunk.z), true);
 
             WMinus delete = table.add(theme.minus()).widget();
             delete.action = () -> {
-                if (chunks.remove(chunk)) {
+                if (foundStashes.remove(chunk)) {
+                    processedChunks.remove(chunk.chunkPos);
                     table.clear();
                     fillTable(theme, table);
-
-                    saveJson();
-                    saveCsv();
                 }
             };
 
@@ -343,96 +426,9 @@ public class AdvancedStashFinder extends Module {
         }
     }
 
-    private void load() {
-        boolean loaded = false;
-
-        // Try to load json
-        File file = getJsonFile();
-        if (file.exists()) {
-            try {
-                FileReader reader = new FileReader(file);
-                chunks = GSON.fromJson(reader, new TypeToken<List<Chunk>>() {}.getType());
-                reader.close();
-
-                for (Chunk chunk : chunks) chunk.calculatePos();
-
-                loaded = true;
-            } catch (Exception ignored) {
-                if (chunks == null) chunks = new ArrayList<>();
-            }
-        }
-
-        // Try to load csv
-        file = getCsvFile();
-        if (!loaded && file.exists()) {
-            try {
-                BufferedReader reader = new BufferedReader(new FileReader(file));
-                reader.readLine();
-
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String[] values = line.split(",");
-                    Chunk chunk = new Chunk(new ChunkPos(Integer.parseInt(values[0]), Integer.parseInt(values[1])));
-
-                    chunk.chests = Integer.parseInt(values[2]);
-                    chunk.barrels = Integer.parseInt(values[3]);
-                    chunk.shulkers = Integer.parseInt(values[4]);
-                    chunk.enderChests = Integer.parseInt(values[5]);
-                    chunk.furnaces = Integer.parseInt(values[6]);
-                    chunk.dispensersDroppers = Integer.parseInt(values[7]);
-                    chunk.hoppers = Integer.parseInt(values[8]);
-                    if (values.length > 9) {
-                        chunk.spawners = Integer.parseInt(values[9]);
-                    }
-
-                    chunks.add(chunk);
-                }
-
-                reader.close();
-            } catch (Exception ignored) {
-                if (chunks == null) chunks = new ArrayList<>();
-            }
-        }
-    }
-
-    private void saveCsv() {
-        try {
-            File file = getCsvFile();
-            file.getParentFile().mkdirs();
-            Writer writer = new FileWriter(file);
-
-            writer.write("X,Z,Chests,Barrels,Shulkers,EnderChests,Furnaces,DispensersDroppers,Hoppers,Spawners\n");
-            for (Chunk chunk : chunks) chunk.write(writer);
-
-            writer.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void saveJson() {
-        try {
-            File file = getJsonFile();
-            file.getParentFile().mkdirs();
-            Writer writer = new FileWriter(file);
-            GSON.toJson(chunks, writer);
-            writer.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private File getJsonFile() {
-        return new File(new File(new File(MeteorClient.FOLDER, "stashes"), Utils.getFileWorldName()), "advanced-stashes.json");
-    }
-
-    private File getCsvFile() {
-        return new File(new File(new File(MeteorClient.FOLDER, "stashes"), Utils.getFileWorldName()), "advanced-stashes.csv");
-    }
-
     @Override
     public String getInfoString() {
-        return String.valueOf(chunks.size());
+        return String.valueOf(foundStashes.size());
     }
 
     public enum Mode {
@@ -441,16 +437,13 @@ public class AdvancedStashFinder extends Module {
         Both
     }
 
-    public static class Chunk {
-        private static final StringBuilder sb = new StringBuilder();
-
+    public static class EndStashChunk {
         public ChunkPos chunkPos;
         public transient int x, z;
         public int chests, barrels, shulkers, enderChests, furnaces, dispensersDroppers, hoppers, spawners;
 
-        public Chunk(ChunkPos chunkPos) {
+        public EndStashChunk(ChunkPos chunkPos) {
             this.chunkPos = chunkPos;
-
             calculatePos();
         }
 
@@ -463,23 +456,19 @@ public class AdvancedStashFinder extends Module {
             return chests + barrels + shulkers + enderChests + furnaces + dispensersDroppers + hoppers + spawners;
         }
 
-        public void write(Writer writer) throws IOException {
-            sb.setLength(0);
-            sb.append(x).append(',').append(z).append(',');
-            sb.append(chests).append(',').append(barrels).append(',').append(shulkers).append(',').append(enderChests).append(',').append(furnaces).append(',').append(dispensersDroppers).append(',').append(hoppers).append(',').append(spawners).append('\n');
-            writer.write(sb.toString());
-        }
-
-        public boolean countsEqual(Chunk c) {
+        public boolean countsEqual(EndStashChunk c) {
             if (c == null) return false;
-            return chests != c.chests || barrels != c.barrels || shulkers != c.shulkers || enderChests != c.enderChests || furnaces != c.furnaces || dispensersDroppers != c.dispensersDroppers || hoppers != c.hoppers || spawners != c.spawners;
+            return chests == c.chests && barrels == c.barrels && shulkers == c.shulkers &&
+                enderChests == c.enderChests && furnaces == c.furnaces &&
+                dispensersDroppers == c.dispensersDroppers && hoppers == c.hoppers &&
+                spawners == c.spawners;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Chunk chunk = (Chunk) o;
+            EndStashChunk chunk = (EndStashChunk) o;
             return Objects.equals(chunkPos, chunk.chunkPos);
         }
 
@@ -489,12 +478,11 @@ public class AdvancedStashFinder extends Module {
         }
     }
 
-    private static class ChunkScreen extends WindowScreen {
-        private final Chunk chunk;
+    private static class EndStashScreen extends WindowScreen {
+        private final EndStashChunk chunk;
 
-        public ChunkScreen(GuiTheme theme, Chunk chunk) {
-            super(theme, "Chunk at " + chunk.x + ", " + chunk.z);
-
+        public EndStashScreen(GuiTheme theme, EndStashChunk chunk) {
+            super(theme, "End Stash at " + chunk.x + ", " + chunk.z);
             this.chunk = chunk;
         }
 
@@ -502,7 +490,7 @@ public class AdvancedStashFinder extends Module {
         public void initWidgets() {
             WTable t = add(theme.table()).expandX().widget();
 
-            // Total
+
             t.add(theme.label("Total:"));
             t.add(theme.label(chunk.getTotal() + ""));
             t.row();
@@ -510,7 +498,7 @@ public class AdvancedStashFinder extends Module {
             t.add(theme.horizontalSeparator()).expandX();
             t.row();
 
-            // Separate
+// CHECKS
             t.add(theme.label("Chests:"));
             t.add(theme.label(chunk.chests + ""));
             t.row();
@@ -535,7 +523,7 @@ public class AdvancedStashFinder extends Module {
             t.add(theme.label(chunk.furnaces + ""));
             t.row();
 
-            t.add(theme.label("Dispensers and droppers:"));
+            t.add(theme.label("Dispensers/Droppers:"));
             t.add(theme.label(chunk.dispensersDroppers + ""));
             t.row();
 
