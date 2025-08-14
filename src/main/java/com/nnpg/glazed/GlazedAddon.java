@@ -21,7 +21,7 @@ public class GlazedAddon extends MeteorAddon {
     public static final Category pvp = new Category("Glazed-PVP");
 
 
-    public static int VERSION = 10;
+    public static int VERSION = 11;
 
     @Override
     public void onInitialize() {
