@@ -73,6 +73,7 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new UndetectedTunneler());
         Modules.get().add(new OrderDropper());
         Modules.get().add(new ElytraAutoFly());
+        Modules.get().add(new BetterItemESP());
 
 
 
