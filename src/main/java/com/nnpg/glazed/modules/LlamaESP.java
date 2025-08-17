@@ -25,7 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-public class LamaESP extends Module {
+public class LlamaESP extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
     private final SettingGroup sgwebhook = settings.createGroup("Webhook");
@@ -104,8 +104,8 @@ public class LamaESP extends Module {
         .connectTimeout(Duration.ofSeconds(10))
         .build();
 
-    public LamaESP() {
-        super(GlazedAddon.esp, "LamaESP", "Detects llamas in the world");
+    public LlamaESP() {
+        super(GlazedAddon.esp, "LlamaESP", "Detects llamas in the world");
     }
 
     @EventHandler
@@ -206,7 +206,7 @@ public class LamaESP extends Module {
 
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
-                        "\"username\":\"LamaESP\"," +
+                        "\"username\":\"LlamaESP\"," +
                         "\"avatar_url\":\"https://minecraft.wiki/images/f/f4/Llama_BE2.png\"," +
                         "\"embeds\":[{" +
                         "\"title\":\"🦙 Llama Alert\"," +
