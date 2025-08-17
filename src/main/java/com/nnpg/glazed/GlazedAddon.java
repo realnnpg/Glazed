@@ -59,7 +59,7 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new TabDetector());
         Modules.get().add(new AutoSex());
         Modules.get().add(new OrderSniper());
-        Modules.get().add(new LamaESP());
+        Modules.get().add(new LlamaESP());
         Modules.get().add(new FastBreak());
         Modules.get().add(new PillagerESP());
         Modules.get().add(new HoleTunnelStairsESP());
