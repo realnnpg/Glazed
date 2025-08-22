@@ -3,40 +3,43 @@ package com.nnpg.glazed.modules;
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.render.StorageESP;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.util.math.Direction;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
+import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.screen.slot.SlotActionType;
 import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 
-import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class SpawnerProtect extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgWhitelist = settings.createGroup("Whitelist");
     private final SettingGroup sgWebhook = settings.createGroup("Webhook");
+    private final SettingGroup sgMining = settings.createGroup("Mining");
 
     private final Setting<Boolean> webhook = sgWebhook.add(new BoolSetting.Builder()
         .name("webhook")
@@ -88,9 +91,65 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Integer> minDigTicks = sgMining.add(new IntSetting.Builder()
+        .name("min-dig-ticks")
+        .description("Minimum ticks to simulate mining a spawner (humanized)")
+        .defaultValue(22)
+        .min(1)
+        .max(400)
+        .build()
+    );
 
+    private final Setting<Integer> maxDigTicks = sgMining.add(new IntSetting.Builder()
+        .name("max-dig-ticks")
+        .description("Maximum ticks to simulate mining a spawner (humanized)")
+        .defaultValue(36)
+        .min(1)
+        .max(800)
+        .build()
+    );
 
-    // Whitelist settings
+    private final Setting<Integer> swingInterval = sgMining.add(new IntSetting.Builder()
+        .name("swing-interval-ticks")
+        .description("How many ticks between sending swing packets while mining")
+        .defaultValue(4)
+        .min(1)
+        .max(40)
+        .build()
+    );
+
+    private final Setting<Integer> miningTimeoutTicks = sgMining.add(new IntSetting.Builder()
+        .name("mining-timeout-ticks")
+        .description("Absolute timeout (ticks) after which digging will be aborted")
+        .defaultValue(220)
+        .min(20)
+        .max(4000)
+        .build()
+    );
+
+    private final Setting<Integer> resendStartInterval = sgMining.add(new IntSetting.Builder()
+        .name("resend-start-interval")
+        .description("How often (ticks) to re-send START_DESTROY_BLOCK while digging")
+        .defaultValue(8)
+        .min(1)
+        .max(40)
+        .build()
+    );
+
+    private final Setting<Boolean> requireSilkTouch = sgMining.add(new BoolSetting.Builder()
+        .name("require-silk-touch")
+        .description("If true, will only use a pick with Silk Touch; otherwise will slow mining if none found")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Boolean> debug = sgMining.add(new BoolSetting.Builder()
+        .name("debug")
+        .description("Log packet actions for debugging")
+        .defaultValue(false)
+        .build()
+    );
+
     private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
         .name("enable-whitelist")
         .description("Enable player whitelist (whitelisted players won't trigger protection)")
@@ -98,13 +157,13 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
-        private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
-            .name("whitelisted-players")
-            .description("List of player names to ignore")
-            .defaultValue(new ArrayList<>())
-            .visible(enableWhitelist::get)
-            .build()
-        );
+    private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
+        .name("whitelisted-players")
+        .description("List of player names to ignore")
+        .defaultValue(new ArrayList<>())
+        .visible(enableWhitelist::get)
+        .build()
+    );
 
     private enum State {
         IDLE,
@@ -129,6 +188,14 @@ public class SpawnerProtect extends Module {
     private int recheckDelay = 0;
     private int confirmDelay = 0;
     private boolean waiting = false;
+
+    private boolean isDigging = false;
+    private BlockPos diggingPos = null;
+    private Direction diggingFace = Direction.UP;
+    private int diggingTicks = 0;
+    private int requiredDigTicks = 0;
+    private int lastStartResendTick = 0;
+    private final Random random = new Random();
 
     public SpawnerProtect() {
         super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
@@ -157,6 +224,13 @@ public class SpawnerProtect extends Module {
         recheckDelay = 0;
         confirmDelay = 0;
         waiting = false;
+
+        isDigging = false;
+        diggingPos = null;
+        diggingFace = Direction.UP;
+        diggingTicks = 0;
+        requiredDigTicks = 0;
+        lastStartResendTick = 0;
     }
 
     private void configureLegitMining() {
@@ -204,9 +278,6 @@ public class SpawnerProtect extends Module {
                 handleDisconnecting();
                 break;
         }
-
-        // Apply AutoReconnect setting only when needed
-        // (removed the continuous checking)
     }
 
     private void checkForPlayers() {
@@ -225,7 +296,6 @@ public class SpawnerProtect extends Module {
 
             info("SpawnerProtect: Player detected - " + detectedPlayer);
 
-            // Disable AutoReconnect when player is detected
             disableAutoReconnectIfEnabled();
 
             currentState = State.GOING_TO_SPAWNERS;
@@ -259,19 +329,22 @@ public class SpawnerProtect extends Module {
             }
         } else {
             lookAtBlock(currentTarget);
-            breakBlock(currentTarget);
+
+            if (!isDigging || !currentTarget.equals(diggingPos)) {
+                startDigging(currentTarget);
+            } else {
+                continueDigging();
+            }
 
             if (mc.world.getBlockState(currentTarget).isAir()) {
                 info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
+                finishDigging();
                 currentTarget = null;
-                stopBreaking();
                 transferDelayCounter = 5;
             }
         }
 
-        if (waiting) {
-            handleWaitingForSpawners();
-        }
+        if (waiting) handleWaitingForSpawners();
     }
 
     private void handleWaitingForSpawners() {
@@ -290,7 +363,7 @@ public class SpawnerProtect extends Module {
         if (recheckDelay > delaySeconds.get() * 20) {
             confirmDelay++;
             if (confirmDelay >= 5) {
-                stopBreaking();
+                abortDigging();
                 spawnersMinedSuccessfully = true;
                 setSneaking(false);
                 currentState = State.GOING_TO_CHEST;
@@ -338,15 +411,183 @@ public class SpawnerProtect extends Module {
         mc.player.setPitch((float) pitch);
     }
 
-    private void breakBlock(BlockPos pos) {
-        if (mc.interactionManager != null) {
-            mc.interactionManager.updateBlockBreakingProgress(pos, Direction.UP);
-            KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
+    private Direction computeHitFace(BlockPos pos) {
+        Vec3d blockCenter = Vec3d.ofCenter(pos);
+        Vec3d eye = mc.player.getEyePos();
+        Vec3d d = blockCenter.subtract(eye);
+        double ax = Math.abs(d.x);
+        double ay = Math.abs(d.y);
+        double az = Math.abs(d.z);
+
+        if (ax > ay && ax > az) {
+            return d.x > 0 ? Direction.WEST : Direction.EAST;
+        } else if (ay > ax && ay > az) {
+            return d.y > 0 ? Direction.DOWN : Direction.UP;
+        } else {
+            return d.z > 0 ? Direction.NORTH : Direction.SOUTH;
         }
     }
 
+    private void startDigging(BlockPos pos) {
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
+
+        int pickSlot = findPreferredPickSlot(requireSilkTouch.get());
+        if (pickSlot >= 0) mc.player.getInventory().selectedSlot = pickSlot;
+        else if (requireSilkTouch.get()) {
+
+            ChatUtils.error("SpawnerProtect: silk-touch pick required but not found; aborting mining.");
+            abortDigging();
+            currentTarget = null;
+            waiting = true;
+            return;
+        }
+
+        diggingFace = computeHitFace(pos);
+
+        mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, pos, diggingFace
+        ));
+        if (debug.get()) info("Sent START_DESTROY_BLOCK to " + pos + " face=" + diggingFace);
+
+        try { mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND)); } catch (Throwable ignored) {}
+        mc.player.swingHand(Hand.MAIN_HAND);
+
+        diggingPos = pos;
+        diggingTicks = 0;
+
+        boolean hasValidPick = pickSlot >= 0;
+        boolean silkPresent = false;
+        if (hasValidPick) {
+            ItemStack s = mc.player.getInventory().getStack(pickSlot);
+            silkPresent = hasSilkTouch(s);
+        }
+        int base = random.nextInt(Math.max(1, maxDigTicks.get() - minDigTicks.get() + 1)) + minDigTicks.get();
+        if (!hasValidPick) base = Math.max(base, minDigTicks.get() + 8); 
+        if (!silkPresent && requireSilkTouch.get() == false) base = (int) Math.ceil(base * 1.4); 
+        requiredDigTicks = base;
+
+        isDigging = true;
+        lastStartResendTick = tickCounter;
+
+        if (debug.get()) info("startDigging: pos=" + pos + " requiredTicks=" + requiredDigTicks + " pickSlot=" + pickSlot + " silk=" + silkPresent);
+    }
+
+    private void continueDigging() {
+        if (!isDigging || diggingPos == null || mc.getNetworkHandler() == null || mc.player == null) return;
+
+        diggingTicks++;
+
+        if ((tickCounter - lastStartResendTick) >= resendStartInterval.get()) {
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, diggingPos, diggingFace
+            ));
+            lastStartResendTick = tickCounter;
+            if (debug.get()) info("Resent START_DESTROY_BLOCK for " + diggingPos);
+        }
+
+        if (diggingTicks % 2 == 0) {
+            if (mc.interactionManager != null) mc.interactionManager.updateBlockBreakingProgress(diggingPos, diggingFace);
+        }
+
+        if (diggingTicks % Math.max(1, swingInterval.get()) == 0) {
+            try { mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND)); } catch (Throwable ignored) {}
+            mc.player.swingHand(Hand.MAIN_HAND);
+            if (debug.get()) info("Sent swing packet tick " + diggingTicks);
+        }
+
+        if (mc.world.getBlockState(diggingPos).isAir()) {
+            if (debug.get()) info("World reports block air at " + diggingPos + " after " + diggingTicks + " ticks");
+            finishDigging();
+            return;
+        }
+
+        if (diggingTicks >= requiredDigTicks) {
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, diggingPos, diggingFace
+            ));
+            if (debug.get()) info("Sent STOP_DESTROY_BLOCK at " + diggingPos + " after expected ticks");
+
+        }
+
+        if (diggingTicks > miningTimeoutTicks.get()) {
+
+            try {
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, diggingPos, diggingFace
+                ));
+            } catch (Throwable ignored) {}
+            abortDigging();
+            if (debug.get()) info("Mining aborted due to timeout at " + diggingPos);
+        }
+    }
+
+    private void finishDigging() {
+        if (mc.player == null || mc.getNetworkHandler() == null) {
+            isDigging = false;
+            diggingPos = null;
+            diggingTicks = 0;
+            requiredDigTicks = 0;
+            return;
+        }
+
+        if (diggingPos != null) {
+            try {
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, diggingPos, diggingFace
+                ));
+            } catch (Throwable ignored) {}
+            try { mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND)); } catch (Throwable ignored) {}
+        }
+
+        isDigging = false;
+        diggingPos = null;
+        diggingFace = Direction.UP;
+        diggingTicks = 0;
+        requiredDigTicks = 0;
+    }
+
+    private void abortDigging() {
+        if (isDigging && diggingPos != null && mc.getNetworkHandler() != null) {
+            try {
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, diggingPos, diggingFace
+                ));
+            } catch (Throwable ignored) {}
+        }
+        isDigging = false;
+        diggingPos = null;
+        diggingFace = Direction.UP;
+        diggingTicks = 0;
+        requiredDigTicks = 0;
+    }
+
+    private int findPreferredPickSlot(boolean silkRequired) {
+        if (mc.player == null) return -1;
+        for (int slot = 0; slot < 9; slot++) {
+            ItemStack s = mc.player.getInventory().getStack(slot);
+            if (s == null || s.isEmpty()) continue;
+            if (s.getItem() == Items.NETHERITE_PICKAXE
+                || s.getItem() == Items.DIAMOND_PICKAXE
+                || s.getItem() == Items.IRON_PICKAXE
+                || s.getItem() == Items.GOLDEN_PICKAXE
+                || s.getItem() == Items.STONE_PICKAXE
+                || s.getItem() == Items.WOODEN_PICKAXE) {
+
+                if (silkRequired) {
+                    if (hasSilkTouch(s)) return slot;
+                    else continue;
+                } else {
+                    return slot;
+                }
+            }
+        }
+        return -1;
+    }
+
     private void stopBreaking() {
-        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
+        try { KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false); } catch (Throwable ignored) {}
+        abortDigging();
     }
 
     private void setSneaking(boolean sneak) {
@@ -525,8 +766,6 @@ public class SpawnerProtect extends Module {
         }).start();
     }
 
-
-
     private String createWebhookPayload(String messageContent, long discordTimestamp) {
         return String.format("""
             {
@@ -559,6 +798,74 @@ public class SpawnerProtect extends Module {
             .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t");
+    }
+
+    private NbtCompound getItemNbt(ItemStack stack) {
+        if (stack == null) return null;
+
+        String[] names = new String[]{"getNbt", "getTag", "getOrCreateNbt", "getOrCreateTag"};
+        for (String name : names) {
+            try {
+                Method m = stack.getClass().getMethod(name);
+                Object res = m.invoke(stack);
+                if (res instanceof NbtCompound) return (NbtCompound) res;
+            } catch (NoSuchMethodException ignored) {
+            } catch (Throwable ignored) {
+            }
+        }
+
+        try {
+            java.lang.reflect.Field f = stack.getClass().getDeclaredField("tag");
+            f.setAccessible(true);
+            Object v = f.get(stack);
+            if (v instanceof NbtCompound) return (NbtCompound) v;
+        } catch (Throwable ignored) {
+        }
+
+        return null;
+    }
+
+    private boolean hasSilkTouch(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+
+        try {
+            NbtCompound nbt = getItemNbt(stack);
+            if (nbt == null) return false;
+
+            NbtList enchList = nbt.getList("Enchantments", NbtElement.COMPOUND_TYPE);
+
+            if ((enchList == null || enchList.isEmpty()) && nbt.contains("tag", NbtElement.COMPOUND_TYPE)) {
+                NbtCompound tag = nbt.getCompound("tag");
+                enchList = tag.getList("Enchantments", NbtElement.COMPOUND_TYPE);
+            }
+
+            if (enchList == null || enchList.isEmpty()) {
+
+                if (nbt.contains("StoredEnchantments", NbtElement.LIST_TYPE)) {
+                    enchList = nbt.getList("StoredEnchantments", NbtElement.COMPOUND_TYPE);
+                } else if (nbt.contains("tag", NbtElement.COMPOUND_TYPE)) {
+                    NbtCompound tag = nbt.getCompound("tag");
+                    if (tag.contains("StoredEnchantments", NbtElement.LIST_TYPE)) {
+                        enchList = tag.getList("StoredEnchantments", NbtElement.COMPOUND_TYPE);
+                    }
+                }
+            }
+
+            if (enchList == null || enchList.isEmpty()) return false;
+
+            for (int i = 0; i < enchList.size(); i++) {
+                NbtCompound e = enchList.getCompound(i);
+                String id = e.getString("id"); 
+                if (id != null && id.endsWith("silk_touch")) return true;
+
+                if (e.contains("id", NbtElement.STRING_TYPE)) {
+                    String s = e.getString("id");
+                    if (s != null && s.endsWith("silk_touch")) return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return false;
     }
 
     @Override
