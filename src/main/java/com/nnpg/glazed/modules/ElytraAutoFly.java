@@ -49,7 +49,7 @@ public class ElytraAutoFly extends Module {
     private final Setting<String> webhookUrl = sgGeneral.add(new StringSetting.Builder()
         .name("webhook-url")
         .description("Discord webhook URL.")
-        .defaultValue("https://discord.com/api/webhooks/...")
+        .defaultValue(" ")
         .build());
 
     private final MinecraftClient mc = MinecraftClient.getInstance();

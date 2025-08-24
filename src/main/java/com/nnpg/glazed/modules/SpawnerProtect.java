@@ -18,10 +18,12 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.Hand;
 import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 
 import java.io.IOException;
@@ -88,9 +90,47 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Integer> miningTimeout = sgGeneral.add(new IntSetting.Builder()
+        .name("mining-timeout")
+        .description("Max time in seconds to mine a single spawner before restarting")
+        .defaultValue(3)
+        .min(1)
+        .max(30)
+        .sliderMax(30)
+        .build()
+    );
 
+    private final Setting<Integer> miningRestartDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("mining-restart-delay")
+        .description("Delay in seconds before restarting mining after timeout")
+        .defaultValue(2)
+        .min(1)
+        .max(10)
+        .sliderMax(10)
+        .build()
+    );
 
-    // Whitelist settings
+    private final Setting<Integer> emergencyDistance = sgGeneral.add(new IntSetting.Builder()
+        .name("emergency-distance")
+        .description("Distance in blocks where player triggers immediate disconnect")
+        .defaultValue(7)
+        .min(1)
+        .max(20)
+        .sliderMax(20)
+        .build()
+    );
+
+    // New setting for position tolerance
+    private final Setting<Double> positionTolerance = sgGeneral.add(new DoubleSetting.Builder()
+        .name("position-tolerance")
+        .description("Distance tolerance from start position to still consider player at original location")
+        .defaultValue(5.0)
+        .min(1.0)
+        .max(20.0)
+        .sliderMax(20.0)
+        .build()
+    );
+
     private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
         .name("enable-whitelist")
         .description("Enable player whitelist (whitelisted players won't trigger protection)")
@@ -98,20 +138,22 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
-        private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
-            .name("whitelisted-players")
-            .description("List of player names to ignore")
-            .defaultValue(new ArrayList<>())
-            .visible(enableWhitelist::get)
-            .build()
-        );
+    private final Setting<List<String>> whitelistPlayers = sgWhitelist.add(new StringListSetting.Builder()
+        .name("whitelisted-players")
+        .description("List of player names to ignore")
+        .defaultValue(new ArrayList<>())
+        .visible(enableWhitelist::get)
+        .build()
+    );
 
     private enum State {
         IDLE,
         GOING_TO_SPAWNERS,
         GOING_TO_CHEST,
+        OPENING_CHEST,
         DEPOSITING_ITEMS,
-        DISCONNECTING
+        DISCONNECTING,
+        POSITION_DISPLACED  // New state for when player is not at start position
     }
 
     private State currentState = State.IDLE;
@@ -130,6 +172,23 @@ public class SpawnerProtect extends Module {
     private int confirmDelay = 0;
     private boolean waiting = false;
 
+    // Mining timeout
+    private int miningStartTime = 0;
+    private boolean isMining = false;
+    private boolean miningTimeoutTriggered = false;
+    private int miningRestartTimer = 0;
+
+    // Ender chest
+    private BlockPos targetChest = null;
+    private int chestOpenAttempts = 0;
+    private boolean emergencyDisconnect = false;
+    private String emergencyReason = "";
+
+    // Position tracking variables
+    private Vec3d startPosition = null;
+    private boolean positionTracked = false;
+    private int positionCheckTimer = 0;
+
     public SpawnerProtect() {
         super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
     }
@@ -138,7 +197,16 @@ public class SpawnerProtect extends Module {
     public void onActivate() {
         resetState();
         configureLegitMining();
-        info("SpawnerProtect activated - monitoring for players...");
+
+        // Record the starting position when module activates
+        if (mc.player != null) {
+            startPosition = mc.player.getPos();
+            positionTracked = true;
+            info("SpawnerProtect activated - Start position recorded: " +
+                String.format("%.1f, %.1f, %.1f", startPosition.x, startPosition.y, startPosition.z));
+            info("Monitoring for players...");
+        }
+
         ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
     }
 
@@ -157,15 +225,21 @@ public class SpawnerProtect extends Module {
         recheckDelay = 0;
         confirmDelay = 0;
         waiting = false;
+        miningStartTime = 0;
+        isMining = false;
+        miningTimeoutTriggered = false;
+        miningRestartTimer = 0;
+        targetChest = null;
+        chestOpenAttempts = 0;
+        emergencyDisconnect = false;
+        emergencyReason = "";
+
+        // Don't reset position tracking variables here
+        positionCheckTimer = 0;
     }
 
     private void configureLegitMining() {
-        ChatUtils.sendPlayerMsg("#set legitMine true");
-        ChatUtils.sendPlayerMsg("#set smoothLook true");
-        ChatUtils.sendPlayerMsg("#set antiCheatCompatibility true");
-        ChatUtils.sendPlayerMsg("#freelook false");
-        ChatUtils.sendPlayerMsg("#legitMineIncludeDiagonals true");
-        ChatUtils.sendPlayerMsg("#smoothLookTicks 10");
+        info("Manual mining mode activated");
     }
 
     private void disableAutoReconnectIfEnabled() {
@@ -176,11 +250,46 @@ public class SpawnerProtect extends Module {
         }
     }
 
+    // New method to check if player is at start position
+    private boolean isPlayerAtStartPosition() {
+        if (!positionTracked || startPosition == null || mc.player == null) {
+            return true; // If we don't have start position, assume we're at start
+        }
+
+        Vec3d currentPos = mc.player.getPos();
+        double distance = currentPos.distanceTo(startPosition);
+
+        return distance <= positionTolerance.get();
+    }
+
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
         tickCounter++;
+        positionCheckTimer++;
+
+        // Check position every 20 ticks (1 second)
+        if (positionCheckTimer >= 20) {
+            positionCheckTimer = 0;
+
+            if (!isPlayerAtStartPosition() && currentState == State.IDLE) {
+                currentState = State.POSITION_DISPLACED;
+                info("Player moved from start position - protection temporarily disabled");
+            } else if (isPlayerAtStartPosition() && currentState == State.POSITION_DISPLACED) {
+                currentState = State.IDLE;
+                info("Player returned to start position - protection re-enabled");
+            }
+        }
+
+        // Handle position displaced state
+        if (currentState == State.POSITION_DISPLACED) {
+            return; // Do nothing while displaced from start position
+        }
+
+        if (checkEmergencyDisconnect()) {
+            return;
+        }
 
         if (transferDelayCounter > 0) {
             transferDelayCounter--;
@@ -197,19 +306,68 @@ public class SpawnerProtect extends Module {
             case GOING_TO_CHEST:
                 handleGoingToChest();
                 break;
+            case OPENING_CHEST:
+                handleOpeningChest();
+                break;
             case DEPOSITING_ITEMS:
                 handleDepositingItems();
                 break;
             case DISCONNECTING:
                 handleDisconnecting();
                 break;
+            case POSITION_DISPLACED:
+                // This case is handled above, but included for completeness
+                break;
+        }
+    }
+
+    private boolean checkEmergencyDisconnect() {
+        // Don't check for emergency disconnect if we're not at start position
+        if (!isPlayerAtStartPosition()) {
+            return false;
         }
 
-        // Apply AutoReconnect setting only when needed
-        // (removed the continuous checking)
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player == mc.player) continue;
+            if (!(player instanceof AbstractClientPlayerEntity)) continue;
+
+            String playerName = player.getGameProfile().getName();
+
+            if (enableWhitelist.get() && isPlayerWhitelisted(playerName)) {
+                continue;
+            }
+
+            double distance = mc.player.distanceTo(player);
+            if (distance <= emergencyDistance.get()) {
+                info("EMERGENCY: Player " + playerName + " came too close (" + String.format("%.1f", distance) + " blocks)!");
+
+                emergencyDisconnect = true;
+                emergencyReason = "User " + playerName + " came too close";
+
+                //me
+                toggle(); //maybe?
+                if (mc.world != null) {
+                    mc.world.disconnect();
+                }
+
+                detectedPlayer = playerName;
+                detectionTime = System.currentTimeMillis();
+
+                disableAutoReconnectIfEnabled();
+
+                currentState = State.DISCONNECTING;
+                return true;
+            }
+        }
+        return false;
     }
 
     private void checkForPlayers() {
+        // Only check for players if we're at the start position
+        if (!isPlayerAtStartPosition()) {
+            return;
+        }
+
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
             if (!(player instanceof AbstractClientPlayerEntity)) continue;
@@ -225,7 +383,6 @@ public class SpawnerProtect extends Module {
 
             info("SpawnerProtect: Player detected - " + detectedPlayer);
 
-            // Disable AutoReconnect when player is detected
             disableAutoReconnectIfEnabled();
 
             currentState = State.GOING_TO_SPAWNERS;
@@ -248,6 +405,17 @@ public class SpawnerProtect extends Module {
     private void handleGoingToSpawners() {
         setSneaking(true);
 
+        if (miningTimeoutTriggered) {
+            miningRestartTimer++;
+            if (miningRestartTimer >= miningRestartDelay.get() * 20) {
+                miningTimeoutTriggered = false;
+                miningRestartTimer = 0;
+                info("Restarting mining after timeout delay...");
+            } else {
+                return;
+            }
+        }
+
         if (currentTarget == null) {
             currentTarget = findNearestSpawner();
 
@@ -256,8 +424,22 @@ public class SpawnerProtect extends Module {
                 recheckDelay = 0;
                 confirmDelay = 0;
                 info("No more spawners found, waiting to confirm...");
+            } else if (currentTarget != null) {
+                miningStartTime = tickCounter;
+                isMining = true;
+                info("Starting to mine spawner at " + currentTarget);
             }
         } else {
+            if (isMining && (tickCounter - miningStartTime) > (miningTimeout.get() * 20)) {
+                info("Mining timeout reached! Made by Glazed. Will restart mining in " + miningRestartDelay.get() + " seconds...");
+                stopBreaking();
+                miningTimeoutTriggered = true;
+                miningRestartTimer = 0;
+                isMining = false;
+                miningStartTime = 0;
+                return;
+            }
+
             lookAtBlock(currentTarget);
             breakBlock(currentTarget);
 
@@ -265,6 +447,7 @@ public class SpawnerProtect extends Module {
                 info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
                 currentTarget = null;
                 stopBreaking();
+                isMining = false;
                 transferDelayCounter = 5;
             }
         }
@@ -275,6 +458,7 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleWaitingForSpawners() {
+        //Glazed copyright
         recheckDelay++;
         if (recheckDelay == delaySeconds.get() * 20) {
             BlockPos foundSpawner = findNearestSpawner();
@@ -282,6 +466,8 @@ public class SpawnerProtect extends Module {
             if (foundSpawner != null) {
                 waiting = false;
                 currentTarget = foundSpawner;
+                miningStartTime = tickCounter;
+                isMining = true;
                 info("Found additional spawner at " + foundSpawner);
                 return;
             }
@@ -293,9 +479,9 @@ public class SpawnerProtect extends Module {
                 stopBreaking();
                 spawnersMinedSuccessfully = true;
                 setSneaking(false);
+                isMining = false;
                 currentState = State.GOING_TO_CHEST;
-                info("All spawners mined successfully. Going to ender chest...");
-                ChatUtils.sendPlayerMsg("#goto ender_chest");
+                info("All spawners mined successfully. Looking for ender chest...");
                 tickCounter = 0;
             }
         }
@@ -364,12 +550,22 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleGoingToChest() {
-        boolean nearEnderChest = isNearEnderChest();
+        if (targetChest == null) {
+            targetChest = findNearestEnderChest();
+            if (targetChest == null) {
+                info("No ender chest found nearby!");
+                currentState = State.DISCONNECTING;
+                return;
+            }
+            info("Found ender chest at " + targetChest);
+        }
 
-        if (nearEnderChest) {
-            currentState = State.DEPOSITING_ITEMS;
-            tickCounter = 0;
-            info("Reached ender chest area. Opening and depositing items...");
+        moveTowardsBlock(targetChest);
+
+        if (mc.player.getBlockPos().getSquaredDistance(targetChest) <= 9) {
+            currentState = State.OPENING_CHEST;
+            chestOpenAttempts = 0;
+            info("Reached ender chest. Attempting to open...");
         }
 
         if (tickCounter > 600) {
@@ -378,31 +574,89 @@ public class SpawnerProtect extends Module {
         }
     }
 
-    private boolean isNearEnderChest() {
+    private BlockPos findNearestEnderChest() {
         BlockPos playerPos = mc.player.getBlockPos();
+        BlockPos nearestChest = null;
+        double nearestDistance = Double.MAX_VALUE;
 
-        for (int x = -3; x <= 3; x++) {
-            for (int y = -3; y <= 3; y++) {
-                for (int z = -3; z <= 3; z++) {
-                    BlockPos pos = playerPos.add(x, y, z);
-                    if (mc.world.getBlockState(pos).getBlock() == Blocks.ENDER_CHEST) {
-                        return true;
-                    }
+        for (BlockPos pos : BlockPos.iterate(
+            playerPos.add(-16, -8, -16),
+            playerPos.add(16, 8, 16))) {
+
+            if (mc.world.getBlockState(pos).getBlock() == Blocks.ENDER_CHEST) {
+                double distance = pos.getSquaredDistance(mc.player.getPos());
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestChest = pos.toImmutable();
                 }
             }
         }
-        return false;
+
+        return nearestChest;
+    }
+
+    private void moveTowardsBlock(BlockPos target) {
+        Vec3d playerPos = mc.player.getPos();
+        Vec3d targetPos = Vec3d.ofCenter(target);
+        Vec3d direction = targetPos.subtract(playerPos).normalize();
+        //Glazed copyright
+        double yaw = Math.toDegrees(Math.atan2(-direction.x, direction.z));
+        mc.player.setYaw((float) yaw);
+
+        KeyBinding.setKeyPressed(mc.options.forwardKey.getDefaultKey(), true);
+    }
+
+    private void handleOpeningChest() {
+        if (targetChest == null) {
+            currentState = State.GOING_TO_CHEST;
+            return;
+        }
+
+        KeyBinding.setKeyPressed(mc.options.forwardKey.getDefaultKey(), false);
+        // jumps to open ec. idk why it doesnt work if it doesnt jump
+        KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), true);
+
+        if (chestOpenAttempts < 20) {
+            lookAtBlock(targetChest);
+        }
+
+        if (chestOpenAttempts % 5 == 0) { //0.25 seconds
+            if (mc.interactionManager != null && mc.player != null) {
+                mc.interactionManager.interactBlock(
+                    mc.player,
+                    Hand.MAIN_HAND,
+                    new BlockHitResult(
+                        Vec3d.ofCenter(targetChest),
+                        Direction.UP,
+                        targetChest,
+                        false
+                    )
+                );
+                info("Right-clicking ender chest... (attempt " + (chestOpenAttempts / 5 + 1) + ")");
+            }
+        }
+
+        chestOpenAttempts++;
+
+        if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler) {
+            KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), false);
+            currentState = State.DEPOSITING_ITEMS;
+            chestOpened = true;
+            lastProcessedSlot = -1;
+            tickCounter = 0;
+            info("Ender chest opened successfully! Made by GLZD ");
+        }
+
+        if (chestOpenAttempts > 200) {
+            KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), false);
+            ChatUtils.error("Failed to open ender chest after multiple attempts!");
+            currentState = State.DISCONNECTING;
+        }
     }
 
     private void handleDepositingItems() {
         if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler) {
             GenericContainerScreenHandler handler = (GenericContainerScreenHandler) mc.player.currentScreenHandler;
-
-            if (!chestOpened) {
-                chestOpened = true;
-                lastProcessedSlot = -1;
-                info("Ender chest opened, starting item transfer...");
-            }
 
             if (!hasItemsToDeposit()) {
                 itemsDepositedSuccessfully = true;
@@ -416,9 +670,9 @@ public class SpawnerProtect extends Module {
             transferItemsToChest(handler);
 
         } else {
-            if (tickCounter % 20 == 0) {
-                ChatUtils.sendPlayerMsg("#goto ender_chest");
-            }
+            currentState = State.OPENING_CHEST;
+            chestOpened = false;
+            chestOpenAttempts = 0;
         }
 
         if (tickCounter > 900) {
@@ -475,8 +729,16 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleDisconnecting() {
+        KeyBinding.setKeyPressed(mc.options.forwardKey.getDefaultKey(), false);
+        KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), false);
+
         sendWebhookNotification();
-        info("SpawnerProtect: Player detected - " + detectedPlayer);
+
+        if (emergencyDisconnect) {
+            info("SpawnerProtect: " + emergencyReason + ". Successfully disconnected.");
+        } else {
+            info("SpawnerProtect: " + detectedPlayer + " detected. Successfully disconnected.");
+        }
 
         if (mc.world != null) {
             mc.world.disconnect();
@@ -502,7 +764,7 @@ public class SpawnerProtect extends Module {
         }
 
         String embedJson = createWebhookPayload(messageContent, discordTimestamp);
-
+        //Glazed copyright
         new Thread(() -> {
             try {
                 HttpClient client = HttpClient.newHttpClient();
@@ -525,18 +787,31 @@ public class SpawnerProtect extends Module {
         }).start();
     }
 
-
-
     private String createWebhookPayload(String messageContent, long discordTimestamp) {
+        String title = emergencyDisconnect ? "SpawnerProtect Emergency Alert" : "SpawnerProtect Alert";
+        String description;
+
+        if (emergencyDisconnect) {
+            description = String.format("**Player Detected:** %s\\n**Detection Time:** <t:%d:R>\\n**Reason:** %s\\n**Disconnected:** Yes",
+                escapeJson(detectedPlayer), discordTimestamp, escapeJson(emergencyReason));
+        } else {
+            description = String.format("**Player Detected:** %s\\n**Detection Time:** <t:%d:R>\\n**Spawners Mined:** %s\\n**Items Deposited:** %s\\n**Disconnected:** Yes",
+                escapeJson(detectedPlayer), discordTimestamp,
+                spawnersMinedSuccessfully ? "✅ Success" : "❌ Failed",
+                itemsDepositedSuccessfully ? "✅ Success" : "❌ Failed");
+        }
+
+        int color = emergencyDisconnect ? 16711680 : 16766720;
+
         return String.format("""
             {
                 "username": "Glazed Webhook",
                 "avatar_url": "https://i.imgur.com/OL2y1cr.png",
                 "content": "%s",
                 "embeds": [{
-                    "title": "SpawnerProtect Alert",
-                    "description": "**Player Detected:** %s\\n**Detection Time:** <t:%d:R>\\n**Spawners Mined:** %s\\n**Items Deposited:** %s\\n**Disconnected:** Yes",
-                    "color": 16766720,
+                    "title": "%s",
+                    "description": "%s",
+                    "color": %d,
                     "timestamp": "%s",
                     "footer": {
                         "text": "Sent by Glazed"
@@ -544,10 +819,9 @@ public class SpawnerProtect extends Module {
                 }]
             }""",
             escapeJson(messageContent),
-            escapeJson(detectedPlayer),
-            discordTimestamp,
-            spawnersMinedSuccessfully ? "✅ Success" : "❌ Failed",
-            itemsDepositedSuccessfully ? "✅ Success" : "❌ Failed",
+            title,
+            description,
+            color,
             Instant.now().toString()
         );
     }
@@ -565,6 +839,7 @@ public class SpawnerProtect extends Module {
     public void onDeactivate() {
         stopBreaking();
         setSneaking(false);
-        ChatUtils.sendPlayerMsg("#stop");
+        KeyBinding.setKeyPressed(mc.options.forwardKey.getDefaultKey(), false);
+        KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), false);
     }
 }

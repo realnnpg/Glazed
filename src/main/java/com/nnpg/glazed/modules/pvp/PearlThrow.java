@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.systems.modules.Module;

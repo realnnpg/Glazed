@@ -1,14 +1,13 @@
 package com.nnpg.glazed;
 
 import com.nnpg.glazed.modules.*;
+import com.nnpg.glazed.modules.esp.*;
+import com.nnpg.glazed.modules.pvp.*;
+import com.nnpg.glazed.modules.treefarmer.*;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
-import meteordevelopment.meteorclient.gui.GuiThemes;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import com.nnpg.glazed.modules.SpawnerProtect;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.orbit.EventHandler;
-
-import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
@@ -19,9 +18,11 @@ public class GlazedAddon extends MeteorAddon {
     public static final Category CATEGORY = new Category("Glazed");
     public static final Category esp = new Category("Glazed-ESPs");
     public static final Category pvp = new Category("Glazed-PVP");
+    public static final Category treefarmer = new Category("TreeFarmer");
 
 
-    public static int VERSION = 11;
+
+    public static int VERSION = 12;
 
     @Override
     public void onInitialize() {
@@ -60,19 +61,27 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new AutoSex());
         Modules.get().add(new OrderSniper());
         Modules.get().add(new LamaESP());
-        Modules.get().add(new FastBreak());
         Modules.get().add(new PillagerESP());
         Modules.get().add(new HoleTunnelStairsESP());
         Modules.get().add(new CoveredHole());
         Modules.get().add(new ClusterFinder());
         Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new EmergencySeller());
-        Modules.get().add(new AutoTreeFarmer());
+        Modules.get().add(new AutoTreeFarmer()); //treefarmer
         Modules.get().add(new RTPEndBaseFinder());
         Modules.get().add(new ShopBuyer());
         Modules.get().add(new UndetectedTunneler());
         Modules.get().add(new OrderDropper());
         Modules.get().add(new ElytraAutoFly());
+        Modules.get().add(new CollectibleESP());
+        Modules.get().add(new SpawnerNotifier());
+        Modules.get().add(new VineESP());
+        Modules.get().add(new ChunkFinder());
+        Modules.get().add(new BlockNotifier());
+        Modules.get().add(new LegitAnchorMacro());
+        Modules.get().add(new TreeFarmer()); //treefarmer
+        Modules.get().add(new AutoTreeFarmer2()); //treefarmer
+
 
 
 
@@ -98,6 +107,8 @@ public class GlazedAddon extends MeteorAddon {
         Modules.registerCategory(CATEGORY);
         Modules.registerCategory(esp);
         Modules.registerCategory(pvp);
+        Modules.registerCategory(treefarmer);
+
 
 
         //mc.setScreen(new MyScreen(GuiThemes.get()));

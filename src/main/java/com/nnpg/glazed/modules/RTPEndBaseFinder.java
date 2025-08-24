@@ -1,6 +1,7 @@
 package com.nnpg.glazed.modules;
 
 import com.nnpg.glazed.GlazedAddon;
+import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.events.world.ChunkDataEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.gui.GuiTheme;
@@ -16,6 +17,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.*;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket;
@@ -38,7 +40,6 @@ public class RTPEndBaseFinder extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgWebhook = settings.createGroup("Webhook");
 
-    //SETTINGS
     private final Setting<List<BlockEntityType<?>>> storageBlocks = sgGeneral.add(new StorageBlockListSetting.Builder()
         .name("storage-blocks")
         .description("Select the storage blocks to search for.")
@@ -48,7 +49,7 @@ public class RTPEndBaseFinder extends Module {
 
     private final Setting<Integer> minimumStorageCount = sgGeneral.add(new IntSetting.Builder()
         .name("minimum-storage-count")
-        .description("The minimum amount of storage blocks in a chunk to record the chunk.")
+        .description("The minimum amount of storage blocks in a chunk to record the chunk (spawners ignore this limit).")
         .defaultValue(4)
         .min(1)
         .sliderMin(1)
@@ -103,6 +104,7 @@ public class RTPEndBaseFinder extends Module {
     );
 
 
+
     private final Setting<Boolean> enableWebhook = sgWebhook.add(new BoolSetting.Builder()
         .name("webhook")
         .description("Send webhook notifications when stashes are found")
@@ -134,14 +136,12 @@ public class RTPEndBaseFinder extends Module {
         .build()
     );
 
-
     public List<EndStashChunk> foundStashes = new ArrayList<>();
     private final Set<ChunkPos> processedChunks = new HashSet<>();
     private long lastRtpTime = 0;
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build();
-
 
     private Float originalPitch = null;
 
@@ -155,7 +155,6 @@ public class RTPEndBaseFinder extends Module {
         processedChunks.clear();
         lastRtpTime = 0;
 
-
         if (lookDown.get() && mc.player != null) {
             originalPitch = mc.player.getPitch();
         }
@@ -167,24 +166,28 @@ public class RTPEndBaseFinder extends Module {
     public void onDeactivate() {
         processedChunks.clear();
 
-
         if (originalPitch != null && mc.player != null) {
             mc.player.setPitch(originalPitch);
             originalPitch = null;
         }
     }
 
+
+
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
-
+        if (mc.player == null || mc.world == null) {
+            if (isActive()) {
+                toggle();
+            }
+            return;
+        }
 
         if (lookDown.get()) {
-            mc.player.setPitch(90.0f); // 90 degrees down
+            mc.player.setPitch(90.0f);
         }
 
         long currentTime = System.currentTimeMillis();
-
         if (currentTime - lastRtpTime >= rtpInterval.get() * 1000L) {
             ChatUtils.sendPlayerMsg("/rtp end");
             lastRtpTime = currentTime;
@@ -196,28 +199,41 @@ public class RTPEndBaseFinder extends Module {
         if (mc.player == null) return;
 
         ChunkPos chunkPos = event.chunk().getPos();
-
-        //SKIP PROCESSED CHUNKS
         if (processedChunks.contains(chunkPos)) return;
 
         EndStashChunk chunk = new EndStashChunk(chunkPos);
+        boolean hasSpawner = false;
+
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = 0; y < 80; y++) {
+                    if (mc.world.getBlockState(new BlockPos(chunkPos.getStartX() + x, y, chunkPos.getStartZ() + z)).getBlock() == Blocks.SPAWNER) {
+                        chunk.spawners++;
+                        hasSpawner = true;
+                    }
+                }
+            }
+        }
 
         for (BlockEntity blockEntity : event.chunk().getBlockEntities().values()) {
             BlockEntityType<?> type = blockEntity.getType();
 
-            if (blockEntity instanceof MobSpawnerBlockEntity) {
-                chunk.spawners++;
-                continue;
-            }
-
             if (storageBlocks.get().contains(type)) {
-                if (blockEntity instanceof ChestBlockEntity) chunk.chests++;
-                else if (blockEntity instanceof BarrelBlockEntity) chunk.barrels++;
-                else if (blockEntity instanceof ShulkerBoxBlockEntity) chunk.shulkers++;
-                else if (blockEntity instanceof EnderChestBlockEntity) chunk.enderChests++;
-                else if (blockEntity instanceof AbstractFurnaceBlockEntity) chunk.furnaces++;
-                else if (blockEntity instanceof DispenserBlockEntity) chunk.dispensersDroppers++;
-                else if (blockEntity instanceof HopperBlockEntity) chunk.hoppers++;
+                if (blockEntity instanceof ChestBlockEntity) {
+                    chunk.chests++;
+                } else if (blockEntity instanceof BarrelBlockEntity) {
+                    chunk.barrels++;
+                } else if (blockEntity instanceof ShulkerBoxBlockEntity) {
+                    chunk.shulkers++;
+                } else if (blockEntity instanceof EnderChestBlockEntity) {
+                    chunk.enderChests++;
+                } else if (blockEntity instanceof AbstractFurnaceBlockEntity) {
+                    chunk.furnaces++;
+                } else if (blockEntity instanceof DispenserBlockEntity) {
+                    chunk.dispensersDroppers++;
+                } else if (blockEntity instanceof HopperBlockEntity) {
+                    chunk.hoppers++;
+                }
             }
         }
 
@@ -225,13 +241,13 @@ public class RTPEndBaseFinder extends Module {
         boolean isCriticalSpawner = false;
         String detectionReason = "";
 
-        if (criticalSpawner.get() && chunk.spawners > 0) {
+        if (criticalSpawner.get() && hasSpawner) {
             isStash = true;
             isCriticalSpawner = true;
             detectionReason = "Spawner(s) detected (Critical mode)";
-        } else if (chunk.getTotal() >= minimumStorageCount.get()) {
+        } else if (chunk.getTotalNonSpawner() >= minimumStorageCount.get()) {
             isStash = true;
-            detectionReason = "Storage threshold reached (" + chunk.getTotal() + " blocks)";
+            detectionReason = "Storage threshold reached (" + chunk.getTotalNonSpawner() + " blocks)";
         }
 
         if (isStash) {
@@ -245,7 +261,6 @@ public class RTPEndBaseFinder extends Module {
             } else {
                 prevChunk = foundStashes.set(existingIndex, chunk);
             }
-
 
             if (sendNotifications.get() && (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk))) {
                 String stashType = isCriticalSpawner ? "End spawner base" : "End stash";
@@ -268,12 +283,10 @@ public class RTPEndBaseFinder extends Module {
                 }
             }
 
-
             if (enableWebhook.get() && (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk))) {
                 sendWebhookNotification(chunk, isCriticalSpawner, detectionReason);
             }
 
-            // Disconnect
             if (disconnectOnBaseFind.get()) {
                 String stashTypeForDisconnect = isCriticalSpawner ? "End spawner base" : "End stash";
                 disconnectPlayer(stashTypeForDisconnect, chunk);
@@ -284,12 +297,13 @@ public class RTPEndBaseFinder extends Module {
     private void disconnectPlayer(String stashType, EndStashChunk chunk) {
         info("Disconnecting due to " + stashType + " found at " + chunk.x + ", " + chunk.z);
 
+        toggle();
+
         Executors.newSingleThreadScheduledExecutor().schedule(() -> {
             if (mc.player != null) {
                 mc.player.networkHandler.onDisconnect(
                     new DisconnectS2CPacket(Text.literal("END STASH FOUND AT " + chunk.x + ", " + chunk.z + "!"))
                 );
-                toggle();
             }
         }, 1, TimeUnit.SECONDS);
     }
@@ -317,15 +331,40 @@ public class RTPEndBaseFinder extends Module {
                 StringBuilder itemsFound = new StringBuilder();
                 int totalItems = 0;
 
-                if (chunk.spawners > 0) { itemsFound.append("Spawners: ").append(chunk.spawners).append("\\n"); totalItems += chunk.spawners; }
-                if (chunk.chests > 0) { itemsFound.append("Chests: ").append(chunk.chests).append("\\n"); totalItems += chunk.chests; }
-                if (chunk.barrels > 0) { itemsFound.append("Barrels: ").append(chunk.barrels).append("\\n"); totalItems += chunk.barrels; }
-                if (chunk.shulkers > 0) { itemsFound.append("Shulker Boxes: ").append(chunk.shulkers).append("\\n"); totalItems += chunk.shulkers; }
-                if (chunk.enderChests > 0) { itemsFound.append("Ender Chests: ").append(chunk.enderChests).append("\\n"); totalItems += chunk.enderChests; }
-                if (chunk.furnaces > 0) { itemsFound.append("Furnaces: ").append(chunk.furnaces).append("\\n"); totalItems += chunk.furnaces; }
-                if (chunk.dispensersDroppers > 0) { itemsFound.append("Dispensers/Droppers: ").append(chunk.dispensersDroppers).append("\\n"); totalItems += chunk.dispensersDroppers; }
-                if (chunk.hoppers > 0) { itemsFound.append("Hoppers: ").append(chunk.hoppers).append("\\n"); totalItems += chunk.hoppers; }
-//EMBED
+                if (chunk.chests > 0) {
+                    itemsFound.append("Chests: ").append(chunk.chests).append("\\n");
+                    totalItems += chunk.chests;
+                }
+                if (chunk.barrels > 0) {
+                    itemsFound.append("Barrels: ").append(chunk.barrels).append("\\n");
+                    totalItems += chunk.barrels;
+                }
+                if (chunk.shulkers > 0) {
+                    itemsFound.append("Shulker Boxes: ").append(chunk.shulkers).append("\\n");
+                    totalItems += chunk.shulkers;
+                }
+                if (chunk.enderChests > 0) {
+                    itemsFound.append("Ender Chests: ").append(chunk.enderChests).append("\\n");
+                    totalItems += chunk.enderChests;
+                }
+                if (chunk.furnaces > 0) {
+                    itemsFound.append("Furnaces: ").append(chunk.furnaces).append("\\n");
+                    totalItems += chunk.furnaces;
+                }
+                if (chunk.dispensersDroppers > 0) {
+                    itemsFound.append("Dispensers/Droppers: ").append(chunk.dispensersDroppers).append("\\n");
+                    totalItems += chunk.dispensersDroppers;
+                }
+                if (chunk.hoppers > 0) {
+                    itemsFound.append("Hoppers: ").append(chunk.hoppers).append("\\n");
+                    totalItems += chunk.hoppers;
+                }
+
+                if (isCriticalSpawner) {
+                    itemsFound.append("Spawners: Present\\n");
+                }
+
+
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
                         "\"username\":\"RTP End-Stashfinder\"," +
@@ -346,7 +385,7 @@ public class RTPEndBaseFinder extends Module {
                         "}]}",
                     messageContent.replace("\"", "\\\""),
                     description.replace("\"", "\\\""),
-                    isCriticalSpawner ? 9830144 : 8388736, // Dark purple for spawners, dark green for stashes
+                    isCriticalSpawner ? 9830144 : 8388736,
                     detectionReason.replace("\"", "\\\""),
                     totalItems,
                     itemsFound.toString().replace("\"", "\\\""),
@@ -362,8 +401,7 @@ public class RTPEndBaseFinder extends Module {
                     .timeout(Duration.ofSeconds(30))
                     .build();
 
-                HttpResponse<String> response = httpClient.send(request,
-                    HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
                     info("Webhook notification sent successfully");
@@ -377,54 +415,6 @@ public class RTPEndBaseFinder extends Module {
         });
     }
 
-    @Override
-    public WWidget getWidget(GuiTheme theme) {
-
-        foundStashes.sort(Comparator.comparingInt(value -> -value.getTotal()));
-
-        WVerticalList list = theme.verticalList();
-
-
-        WButton clear = list.add(theme.button("Clear")).widget();
-
-        WTable table = new WTable();
-        if (!foundStashes.isEmpty()) list.add(table);
-
-        clear.action = () -> {
-            foundStashes.clear();
-            processedChunks.clear();
-            table.clear();
-        };
-
-
-        fillTable(theme, table);
-
-        return list;
-    }
-
-    private void fillTable(GuiTheme theme, WTable table) {
-        for (EndStashChunk chunk : foundStashes) {
-            table.add(theme.label("End Pos: " + chunk.x + ", " + chunk.z));
-            table.add(theme.label("Total: " + chunk.getTotal()));
-
-            WButton open = table.add(theme.button("Details")).widget();
-            open.action = () -> mc.setScreen(new EndStashScreen(theme, chunk));
-
-            WButton gotoBtn = table.add(theme.button("Goto")).widget();
-            gotoBtn.action = () -> PathManagers.get().moveTo(new BlockPos(chunk.x, 0, chunk.z), true);
-
-            WMinus delete = table.add(theme.minus()).widget();
-            delete.action = () -> {
-                if (foundStashes.remove(chunk)) {
-                    processedChunks.remove(chunk.chunkPos);
-                    table.clear();
-                    fillTable(theme, table);
-                }
-            };
-
-            table.row();
-        }
-    }
 
     @Override
     public String getInfoString() {
@@ -454,6 +444,10 @@ public class RTPEndBaseFinder extends Module {
 
         public int getTotal() {
             return chests + barrels + shulkers + enderChests + furnaces + dispensersDroppers + hoppers + spawners;
+        }
+
+        public int getTotalNonSpawner() {
+            return chests + barrels + shulkers + enderChests + furnaces + dispensersDroppers + hoppers;
         }
 
         public boolean countsEqual(EndStashChunk c) {
@@ -490,7 +484,6 @@ public class RTPEndBaseFinder extends Module {
         public void initWidgets() {
             WTable t = add(theme.table()).expandX().widget();
 
-
             t.add(theme.label("Total:"));
             t.add(theme.label(chunk.getTotal() + ""));
             t.row();
@@ -498,7 +491,6 @@ public class RTPEndBaseFinder extends Module {
             t.add(theme.horizontalSeparator()).expandX();
             t.row();
 
-// CHECKS
             t.add(theme.label("Chests:"));
             t.add(theme.label(chunk.chests + ""));
             t.row();

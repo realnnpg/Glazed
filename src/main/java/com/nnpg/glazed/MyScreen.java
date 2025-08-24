@@ -30,9 +30,7 @@ public class MyScreen extends WindowScreen {
         fetchLatestVersion();
     }
 
-    // Static method to check version on server join - completely silent
     public static void checkVersionOnServerJoin() {
-        // Only check once per session
         if (hasCheckedThisSession) return;
         hasCheckedThisSession = true;
 
@@ -42,21 +40,18 @@ public class MyScreen extends WindowScreen {
                 if (versionString != null && !versionString.isEmpty()) {
                     int latestVersion = Integer.parseInt(versionString.trim());
 
-                    // Only show screen if update is needed (outdated version)
+
                     if (latestVersion > GlazedAddon.VERSION) {
                         net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
                             net.minecraft.client.MinecraftClient.getInstance().setScreen(new MyScreen(meteordevelopment.meteorclient.gui.GuiThemes.get()));
                         });
                     }
-                    // If latest version is being used, do nothing (completely silent)
                 }
             } catch (Exception e) {
-                // Silently fail if version check fails
             }
         });
     }
 
-    // Reset the check flag when disconnecting from server
     public static void resetSessionCheck() {
         hasCheckedThisSession = false;
     }
@@ -134,12 +129,11 @@ public class MyScreen extends WindowScreen {
     }
 
     private void addWrappedMessage(String message) {
-        // Split long messages into multiple lines to prevent horizontal overflow
         String[] words = message.split(" ");
         StringBuilder currentLine = new StringBuilder();
 
         for (String word : words) {
-            if (currentLine.length() + word.length() + 1 > 60) { // Adjust this number based on your preferred line length
+            if (currentLine.length() + word.length() + 1 > 60) {
                 if (currentLine.length() > 0) {
                     addMessage(currentLine.toString());
                     currentLine = new StringBuilder();
