@@ -1,7 +1,7 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.esp;
 
 import com.nnpg.glazed.GlazedAddon;
-import com.nnpg.glazed.VersionUtil; // For 1.21.4 - change to VersionUtil2 for 1.21.5
+import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -10,9 +10,7 @@ import meteordevelopment.meteorclient.utils.render.RenderUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.entity.mob.ZombieVillagerEntity;
+import net.minecraft.entity.passive.WanderingTraderEntity;
 import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 
@@ -26,46 +24,31 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-public class VillagerESP extends Module {
+public class WanderingESP extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
     private final SettingGroup sgwebhook = settings.createGroup("Webhook");
 
-    // General settings
-    private final Setting<DetectionMode> detectionMode = sgGeneral.add(new EnumSetting.Builder<DetectionMode>()
-        .name("Detection Mode")
-        .description("What type of villagers to detect")
-        .defaultValue(DetectionMode.Both)
-        .build()
-    );
 
     // Render settings
     private final Setting<Boolean> showTracers = sgRender.add(new BoolSetting.Builder()
         .name("Show Tracers")
-        .description("Draw tracer lines to villagers")
+        .description("Draw tracer lines to wandering traders")
         .defaultValue(true)
         .build()
     );
 
-    private final Setting<SettingColor> villagerTracerColor = sgRender.add(new ColorSetting.Builder()
-        .name("Villager Tracer Color")
-        .description("Color of the tracer lines for regular villagers")
+    private final Setting<SettingColor> tracerColor = sgRender.add(new ColorSetting.Builder()
+        .name("Tracer Color")
+        .description("Color of the tracer lines")
         .defaultValue(new SettingColor(0, 255, 0, 127))
-        .visible(() -> showTracers.get() && (detectionMode.get() == DetectionMode.Villagers || detectionMode.get() == DetectionMode.Both))
-        .build()
-    );
-
-    private final Setting<SettingColor> zombieVillagerTracerColor = sgRender.add(new ColorSetting.Builder()
-        .name("Zombie Villager Tracer Color")
-        .description("Color of the tracer lines for zombie villagers")
-        .defaultValue(new SettingColor(255, 0, 0, 127))
-        .visible(() -> showTracers.get() && (detectionMode.get() == DetectionMode.ZombieVillagers || detectionMode.get() == DetectionMode.Both))
+        .visible(showTracers::get)
         .build()
     );
 
     private final Setting<Boolean> enableWebhook = sgwebhook.add(new BoolSetting.Builder()
         .name("Webhook")
-        .description("Send webhook notifications when villagers are detected")
+        .description("Send webhook notifications when wandering traders are detected")
         .defaultValue(false)
         .build()
     );
@@ -96,92 +79,80 @@ public class VillagerESP extends Module {
 
     private final Setting<Boolean> enableDisconnect = sgGeneral.add(new BoolSetting.Builder()
         .name("Disconnect")
-        .description("Automatically disconnect when villagers are detected")
+        .description("Automatically disconnect when wandering traders are detected")
         .defaultValue(false)
         .build()
     );
 
     private final Setting<Mode> notificationMode = sgGeneral.add(new EnumSetting.Builder<Mode>()
         .name("notification-mode")
-        .description("How to notify when villagers are detected")
+        .description("How to notify when wandering traders are detected")
         .defaultValue(Mode.Both)
         .build()
     );
 
     private final Setting<Boolean> toggleOnFind = sgGeneral.add(new BoolSetting.Builder()
         .name("Toggle when found")
-        .description("Automatically toggles the module when villagers are detected")
+        .description("Automatically toggles the module when a wandering trader is detected")
         .defaultValue(false)
         .build()
     );
 
-    private final Set<Integer> detectedVillagers = new HashSet<>();
+    private final Set<Integer> detectedTraders = new HashSet<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build();
 
-    public VillagerESP() {
-        super(GlazedAddon.esp, "VillagerESP", "Detects villagers and zombie villagers in the world");
+    public WanderingESP() {
+        super(GlazedAddon.esp, "WanderingESP", "Detects wandering traders in the world");
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (mc.player == null || mc.world == null) return;
 
-        Set<Integer> currentVillagers = new HashSet<>();
-        int villagerCount = 0;
-        int zombieVillagerCount = 0;
+        Set<Integer> currentTraders = new HashSet<>();
 
-        // Find all villagers in the world
+        // Find all wandering traders in the world
         for (net.minecraft.entity.Entity entity : mc.world.getEntities()) {
-            boolean shouldDetect = false;
-            Color tracerColor = null;
-
-            if (entity instanceof VillagerEntity && (detectionMode.get() == DetectionMode.Villagers || detectionMode.get() == DetectionMode.Both)) {
-                shouldDetect = true;
-                tracerColor = new Color(villagerTracerColor.get());
-                villagerCount++;
-            } else if (entity instanceof ZombieVillagerEntity && (detectionMode.get() == DetectionMode.ZombieVillagers || detectionMode.get() == DetectionMode.Both)) {
-                shouldDetect = true;
-                tracerColor = new Color(zombieVillagerTracerColor.get());
-                zombieVillagerCount++;
-            }
-
-            if (shouldDetect) {
-                currentVillagers.add(entity.getId());
+            if (entity instanceof WanderingTraderEntity) {
+                WanderingTraderEntity trader = (WanderingTraderEntity) entity;
+                currentTraders.add(entity.getId());
 
                 // Draw tracers if enabled
                 if (showTracers.get()) {
-                    // Use VersionUtil for cross-version compatibility
                     double x = VersionUtil.getPrevX(entity) + (entity.getX() - VersionUtil.getPrevX(entity)) * event.tickDelta;
                     double y = VersionUtil.getPrevY(entity) + (entity.getY() - VersionUtil.getPrevY(entity)) * event.tickDelta;
                     double z = VersionUtil.getPrevZ(entity) + (entity.getZ() - VersionUtil.getPrevZ(entity)) * event.tickDelta;
 
-                    // Target the center/body of the villager
-                    double height = entity.getBoundingBox().maxY - entity.getBoundingBox().minY;
+                    // Target the center/body of the trader
+                    double height = trader.getBoundingBox().maxY - trader.getBoundingBox().minY;
                     y += height / 2;
 
-                    event.renderer.line(RenderUtils.center.x, RenderUtils.center.y, RenderUtils.center.z, x, y, z, tracerColor);
+                    Color color = new Color(tracerColor.get());
+                    event.renderer.line(RenderUtils.center.x, RenderUtils.center.y, RenderUtils.center.z, x, y, z, color);
                 }
             }
         }
 
-        // Check if we found new villagers
-        if (!currentVillagers.isEmpty() && !currentVillagers.equals(detectedVillagers)) {
-            Set<Integer> newVillagers = new HashSet<>(currentVillagers);
-            newVillagers.removeAll(detectedVillagers);
+        // Check if we found new traders
+        if (!currentTraders.isEmpty() && !currentTraders.equals(detectedTraders)) {
+            Set<Integer> newTraders = new HashSet<>(currentTraders);
+            newTraders.removeAll(detectedTraders);
 
-            if (!newVillagers.isEmpty()) {
-                detectedVillagers.addAll(newVillagers);
-                handleVillagerDetection(villagerCount, zombieVillagerCount);
+            if (!newTraders.isEmpty()) {
+                detectedTraders.addAll(newTraders);
+                handleTraderDetection(newTraders.size());
             }
-        } else if (currentVillagers.isEmpty()) {
-            detectedVillagers.clear();
+        } else if (currentTraders.isEmpty()) {
+            detectedTraders.clear();
         }
     }
 
-    private void handleVillagerDetection(int villagerCount, int zombieVillagerCount) {
-        String message = buildDetectionMessage(villagerCount, zombieVillagerCount);
+    private void handleTraderDetection(int traderCount) {
+        String message = traderCount == 1 ?
+            "Wandering trader detected!" :
+            String.format("%d wandering traders detected!", traderCount);
 
         switch (notificationMode.get()) {
             case Chat -> info("(highlight)%s", message);
@@ -193,7 +164,7 @@ public class VillagerESP extends Module {
         }
 
         if (enableWebhook.get()) {
-            sendWebhookNotification(villagerCount, zombieVillagerCount);
+            sendWebhookNotification(traderCount);
         }
 
         if (toggleOnFind.get()) {
@@ -205,26 +176,7 @@ public class VillagerESP extends Module {
         }
     }
 
-    private String buildDetectionMessage(int villagerCount, int zombieVillagerCount) {
-        int totalCount = villagerCount + zombieVillagerCount;
-
-        if (detectionMode.get() == DetectionMode.Villagers) {
-            return villagerCount == 1 ? "Villager detected!" : String.format("%d villagers detected!", villagerCount);
-        } else if (detectionMode.get() == DetectionMode.ZombieVillagers) {
-            return zombieVillagerCount == 1 ? "Zombie villager detected!" : String.format("%d zombie villagers detected!", zombieVillagerCount);
-        } else {
-            // Both mode
-            if (villagerCount > 0 && zombieVillagerCount > 0) {
-                return String.format("%d villagers and %d zombie villagers detected!", villagerCount, zombieVillagerCount);
-            } else if (villagerCount > 0) {
-                return villagerCount == 1 ? "Villager detected!" : String.format("%d villagers detected!", villagerCount);
-            } else {
-                return zombieVillagerCount == 1 ? "Zombie villager detected!" : String.format("%d zombie villagers detected!", zombieVillagerCount);
-            }
-        }
-    }
-
-    private void sendWebhookNotification(int villagerCount, int zombieVillagerCount) {
+    private void sendWebhookNotification(int traderCount) {
         String url = webhookUrl.get().trim();
         if (url.isEmpty()) {
             warning("Webhook URL not configured!");
@@ -241,7 +193,8 @@ public class VillagerESP extends Module {
                     messageContent = String.format("<@%s>", discordId.get().trim());
                 }
 
-                String description = buildDetectionMessage(villagerCount, zombieVillagerCount);
+                String traderText = traderCount == 1 ? "trader" : "traders";
+                String description = String.format("%d wandering %s detected!", traderCount, traderText);
 
                 // Get current coordinates
                 String coordinates = "Unknown";
@@ -250,49 +203,29 @@ public class VillagerESP extends Module {
                         mc.player.getX(), mc.player.getY(), mc.player.getZ());
                 }
 
-                // Build fields based on what was detected
-                StringBuilder fieldsBuilder = new StringBuilder();
-                fieldsBuilder.append(String.format(
-                    "{\"name\":\"Server\",\"value\":\"%s\",\"inline\":true},",
-                    serverInfo.replace("\"", "\\\"")
-                ));
-
-                if (villagerCount > 0) {
-                    fieldsBuilder.append(String.format(
-                        "{\"name\":\"Villagers\",\"value\":\"%d\",\"inline\":true},",
-                        villagerCount
-                    ));
-                }
-
-                if (zombieVillagerCount > 0) {
-                    fieldsBuilder.append(String.format(
-                        "{\"name\":\"Zombie Villagers\",\"value\":\"%d\",\"inline\":true},",
-                        zombieVillagerCount
-                    ));
-                }
-
-                fieldsBuilder.append(String.format(
-                    "{\"name\":\"Coordinates\",\"value\":\"%s\",\"inline\":false}," +
-                        "{\"name\":\"Time\",\"value\":\"<t:%d:R>\",\"inline\":true}",
-                    coordinates.replace("\"", "\\\""),
-                    System.currentTimeMillis() / 1000
-                ));
-
                 String jsonPayload = String.format(
                     "{\"content\":\"%s\"," +
-                        "\"username\":\"VillagerESP\"," +
+                        "\"username\":\"WanderingESP\"," +
                         "\"avatar_url\":\"https://i.imgur.com/OL2y1cr.png\"," +
                         "\"embeds\":[{" +
-                        "\"title\":\"🏘️ Villager Alert\"," +
+                        "\"title\":\"🛒 Wandering Trader Alert\"," +
                         "\"description\":\"%s\"," +
                         "\"color\":65280," +
                         "\"thumbnail\":{\"url\":\"https://i.imgur.com/OL2y1cr.png\"}," +
-                        "\"fields\":[%s]," +
+                        "\"fields\":[" +
+                        "{\"name\":\"Count\",\"value\":\"%d\",\"inline\":true}," +
+                        "{\"name\":\"Server\",\"value\":\"%s\",\"inline\":true}," +
+                        "{\"name\":\"Coordinates\",\"value\":\"%s\",\"inline\":false}," +
+                        "{\"name\":\"Time\",\"value\":\"<t:%d:R>\",\"inline\":true}" +
+                        "]," +
                         "\"footer\":{\"text\":\"Sent by Glazed\"}" +
                         "}]}",
                     messageContent.replace("\"", "\\\""),
                     description.replace("\"", "\\\""),
-                    fieldsBuilder.toString()
+                    traderCount,
+                    serverInfo.replace("\"", "\\\""),
+                    coordinates.replace("\"", "\\\""),
+                    System.currentTimeMillis() / 1000
                 );
 
                 HttpRequest request = HttpRequest.newBuilder()
@@ -326,39 +259,22 @@ public class VillagerESP extends Module {
 
     @Override
     public void onActivate() {
-        detectedVillagers.clear();
+        detectedTraders.clear();
     }
 
     @Override
     public void onDeactivate() {
-        detectedVillagers.clear();
+        detectedTraders.clear();
     }
 
     @Override
     public String getInfoString() {
-        return detectedVillagers.isEmpty() ? null : String.valueOf(detectedVillagers.size());
+        return detectedTraders.isEmpty() ? null : String.valueOf(detectedTraders.size());
     }
 
     public enum Mode {
         Chat,
         Toast,
         Both
-    }
-
-    public enum DetectionMode {
-        Villagers("Villagers"),
-        ZombieVillagers("Zombie Villagers"),
-        Both("Both");
-
-        private final String name;
-
-        DetectionMode(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
     }
 }

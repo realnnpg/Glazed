@@ -1,7 +1,4 @@
-//made by etianl with "inspiration" from Meteor Client.
-//Thank you to them for a bit of this code https://github.com/MeteorDevelopment/meteor-client/blob/master/src/main/java/meteordevelopment/meteorclient/systems/modules/render/TunnelESP.java
-
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.esp;
 
 import com.nnpg.glazed.GlazedAddon;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -11,7 +8,6 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.Renderer3D;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.network.MeteorExecutor;
@@ -27,7 +23,6 @@ import net.minecraft.world.chunk.WorldChunk;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class HoleTunnelStairsESP extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -167,15 +162,27 @@ public class HoleTunnelStairsESP extends Module {
         .build()
     );
     private final Setting<SettingColor> holeLineColor = sgRender.add(new ColorSetting.Builder()
-        .name("hole-line-color")
-        .description("The color of the lines for the holes being rendered.")
+        .name("1x1-hole-line-color")
+        .description("The color of the lines for 1x1 holes being rendered.")
         .defaultValue(new SettingColor(255, 0, 0, 95))
         .build()
     );
     private final Setting<SettingColor> holeSideColor = sgRender.add(new ColorSetting.Builder()
-        .name("hole-side-color")
-        .description("The color of the sides for the holes being rendered.")
+        .name("1x1-hole-side-color")
+        .description("The color of the sides for 1x1 holes being rendered.")
         .defaultValue(new SettingColor(255, 0, 0, 30))
+        .build()
+    );
+    private final Setting<SettingColor> hole3x1LineColor = sgRender.add(new ColorSetting.Builder()
+        .name("3x1-hole-line-color")
+        .description("The color of the lines for 3x1 holes being rendered.")
+        .defaultValue(new SettingColor(255, 165, 0, 95))
+        .build()
+    );
+    private final Setting<SettingColor> hole3x1SideColor = sgRender.add(new ColorSetting.Builder()
+        .name("3x1-hole-side-color")
+        .description("The color of the sides for 3x1 holes being rendered.")
+        .defaultValue(new SettingColor(255, 165, 0, 30))
         .build()
     );
     private final Setting<SettingColor> tunnelLineColor = sgRender.add(new ColorSetting.Builder()
@@ -209,13 +216,16 @@ public class HoleTunnelStairsESP extends Module {
     private final Set<Box> holes = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<Box> tunnels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<Box> staircases = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Box> holes3x1 = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
     public HoleTunnelStairsESP() {
-        super(GlazedAddon.esp, "HoleTunnelStairsESP", "Finds and highlights holes and tunnels and stairs.");
+        super(GlazedAddon.esp, "Hole/Tunnel/StairsESP", "Finds and highlights holes and tunnels and stairs.");
     }
-    // Add this method to HoleAndTunnelAndStairsESP class
+
     public Set<Box> getHoles() {
         return new HashSet<>(holes);
     }
+
     @Override
     public void onDeactivate() {
         chunks.clear();
@@ -223,7 +233,9 @@ public class HoleTunnelStairsESP extends Module {
         holes.clear();
         tunnels.clear();
         staircases.clear();
+        holes3x1.clear();
     }
+
     @EventHandler
     private void onTick(TickEvent.Post event) {
         synchronized (chunks) {
@@ -245,7 +257,6 @@ public class HoleTunnelStairsESP extends Module {
     }
 
     private void removeBoxesOutsideRenderDistance() {
-        // Collect all loaded chunks using Utils.chunks()
         Set<WorldChunk> chunkSet = new HashSet<>();
         for (Chunk chunk : Utils.chunks(true)) {
             if (chunk instanceof WorldChunk) {
@@ -256,7 +267,9 @@ public class HoleTunnelStairsESP extends Module {
         removeBoxesOutsideRenderDistance(holes, chunkSet);
         removeBoxesOutsideRenderDistance(tunnels, chunkSet);
         removeBoxesOutsideRenderDistance(staircases, chunkSet);
+        removeBoxesOutsideRenderDistance(holes3x1, chunkSet);
     }
+
     private void removeBoxesOutsideRenderDistance(Set<Box> boxSet, Set<WorldChunk> worldChunks) {
         boxSet.removeIf(box -> {
             BlockPos boxPos = new BlockPos((int)Math.floor(box.getCenter().getX()), (int)Math.floor(box.getCenter().getY()), (int)Math.floor(box.getCenter().getZ()));
@@ -264,6 +277,7 @@ public class HoleTunnelStairsESP extends Module {
             return !worldChunks.contains(mc.world.getChunk(boxPos));
         });
     }
+
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         switch (detectionMode.get()) {
@@ -271,14 +285,17 @@ public class HoleTunnelStairsESP extends Module {
                 renderHoles(event.renderer);
                 renderTunnels(event.renderer);
                 renderStaircases(event.renderer);
+                render3x1Holes(event.renderer);
                 break;
             case HOLES_AND_TUNNELS:
                 renderHoles(event.renderer);
                 renderTunnels(event.renderer);
+                render3x1Holes(event.renderer);
                 break;
             case HOLES_AND_STAIRCASES:
                 renderHoles(event.renderer);
                 renderStaircases(event.renderer);
+                render3x1Holes(event.renderer);
                 break;
             case TUNNELS_AND_STAIRCASES:
                 renderTunnels(event.renderer);
@@ -286,6 +303,7 @@ public class HoleTunnelStairsESP extends Module {
                 break;
             case HOLES:
                 renderHoles(event.renderer);
+                render3x1Holes(event.renderer);
                 break;
             case TUNNELS:
                 renderTunnels(event.renderer);
@@ -293,29 +311,38 @@ public class HoleTunnelStairsESP extends Module {
             case STAIRCASES:
                 renderStaircases(event.renderer);
                 break;
+            case HOLES_3X1_AND_TUNNELS:
+                renderHoles(event.renderer);
+                render3x1Holes(event.renderer);
+                renderTunnels(event.renderer);
+                break;
         }
     }
+
     private void renderHoles(Renderer3D renderer) {
-        if (holes != null) {
-            for (Box box : holes) {
-                renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, holeSideColor.get(), holeLineColor.get(), shapeMode.get(), 0);
-            }
+        for (Box box : holes) {
+            renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, holeSideColor.get(), holeLineColor.get(), shapeMode.get(), 0);
         }
     }
+
+    private void render3x1Holes(Renderer3D renderer) {
+        for (Box box : holes3x1) {
+            renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, hole3x1SideColor.get(), hole3x1LineColor.get(), shapeMode.get(), 0);
+        }
+    }
+
     private void renderTunnels(Renderer3D renderer) {
-        if (tunnels != null) {
-            for (Box box : tunnels) {
-                renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, tunnelSideColor.get(), tunnelLineColor.get(), shapeMode.get(), 0);
-            }
+        for (Box box : tunnels) {
+            renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, tunnelSideColor.get(), tunnelLineColor.get(), shapeMode.get(), 0);
         }
     }
+
     private void renderStaircases(Renderer3D renderer) {
-        if (staircases != null) {
-            for (Box box : staircases) {
-                renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, staircaseSideColor.get(), staircaseLineColor.get(), shapeMode.get(), 0);
-            }
+        for (Box box : staircases) {
+            renderer.box(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, staircaseSideColor.get(), staircaseLineColor.get(), shapeMode.get(), 0);
         }
     }
+
     private void processChunkQueue() {
         int maxChunksPerTick = maxChunks.get();
         int processed = 0;
@@ -331,6 +358,7 @@ public class HoleTunnelStairsESP extends Module {
             }
         }
     }
+
     private void searchChunk(Chunk chunk, TChunk tChunk) {
         var sections = chunk.getSectionArray();
         int Ymin = mc.world.getBottomY() + minY.get();
@@ -338,7 +366,7 @@ public class HoleTunnelStairsESP extends Module {
         int Y = mc.world.getBottomY();
         for (ChunkSection section : sections) {
             if (section != null && !section.isEmpty()) {
-                for (int z = 0; z <= 16; z++) {
+                for (int z = 0; z < 16; z++) {
                     for (int x = 0; x < 16; x++) {
                         for (int y = 0; y < 16; y++) {
                             int currentY = Y + y;
@@ -348,17 +376,20 @@ public class HoleTunnelStairsESP extends Module {
                                 switch (detectionMode.get()) {
                                     case ALL:
                                         checkHole(pos, holes);
+                                        check3x1Hole(pos, holes3x1);
                                         checkTunnel(pos);
                                         if (diagonals.get()) checkDiagonalTunnel(pos);
                                         checkStaircase(pos);
                                         break;
                                     case HOLES_AND_TUNNELS:
                                         checkHole(pos, holes);
+                                        check3x1Hole(pos, holes3x1);
                                         checkTunnel(pos);
                                         if (diagonals.get()) checkDiagonalTunnel(pos);
                                         break;
                                     case HOLES_AND_STAIRCASES:
                                         checkHole(pos, holes);
+                                        check3x1Hole(pos, holes3x1);
                                         checkStaircase(pos);
                                         break;
                                     case TUNNELS_AND_STAIRCASES:
@@ -368,6 +399,7 @@ public class HoleTunnelStairsESP extends Module {
                                         break;
                                     case HOLES:
                                         checkHole(pos, holes);
+                                        check3x1Hole(pos, holes3x1);
                                         break;
                                     case TUNNELS:
                                         checkTunnel(pos);
@@ -375,6 +407,12 @@ public class HoleTunnelStairsESP extends Module {
                                         break;
                                     case STAIRCASES:
                                         checkStaircase(pos);
+                                        break;
+                                    case HOLES_3X1_AND_TUNNELS:
+                                        checkHole(pos, holes);
+                                        check3x1Hole(pos, holes3x1);
+                                        checkTunnel(pos);
+                                        if (diagonals.get()) checkDiagonalTunnel(pos);
                                         break;
                                 }
                             }
@@ -385,13 +423,14 @@ public class HoleTunnelStairsESP extends Module {
             Y += 16;
         }
     }
+
     private void checkHole(BlockPos pos, Set<Box> holes) {
         if (isValidHoleSection(pos)) {
             BlockPos.Mutable currentPos = pos.mutableCopy();
             while (isValidHoleSection(currentPos)) {
                 currentPos.move(Direction.UP);
             }
-            if (currentPos.getY()-pos.getY() >= minHoleDepth.get()) {
+            if (currentPos.getY() - pos.getY() >= minHoleDepth.get()) {
                 Box holeBox = new Box(
                     pos.getX(), pos.getY(), pos.getZ(),
                     pos.getX() + 1, currentPos.getY(), pos.getZ() + 1
@@ -402,9 +441,77 @@ public class HoleTunnelStairsESP extends Module {
             }
         }
     }
+
+    private void check3x1Hole(BlockPos pos, Set<Box> holes3x1) {
+        // Check 3x1 hole in X direction (3 blocks east-west, 1 block north-south)
+        if (isValid3x1HoleSectionX(pos)) {
+            BlockPos.Mutable currentPos = pos.mutableCopy();
+            while (isValid3x1HoleSectionX(currentPos)) {
+                currentPos.move(Direction.UP);
+            }
+            if (currentPos.getY() - pos.getY() >= minHoleDepth.get()) {
+                Box holeBox = new Box(
+                    pos.getX(), pos.getY(), pos.getZ(),
+                    pos.getX() + 3, currentPos.getY(), pos.getZ() + 1
+                );
+                if (!holes3x1.contains(holeBox) && holes3x1.stream().noneMatch(existingHole -> existingHole.intersects(holeBox))) {
+                    holes3x1.add(holeBox);
+                }
+            }
+        }
+
+        // Check 3x1 hole in Z direction (1 block east-west, 3 blocks north-south)
+        if (isValid3x1HoleSectionZ(pos)) {
+            BlockPos.Mutable currentPos = pos.mutableCopy();
+            while (isValid3x1HoleSectionZ(currentPos)) {
+                currentPos.move(Direction.UP);
+            }
+            if (currentPos.getY() - pos.getY() >= minHoleDepth.get()) {
+                Box holeBox = new Box(
+                    pos.getX(), pos.getY(), pos.getZ(),
+                    pos.getX() + 1, currentPos.getY(), pos.getZ() + 3
+                );
+                if (!holes3x1.contains(holeBox) && holes3x1.stream().noneMatch(existingHole -> existingHole.intersects(holeBox))) {
+                    holes3x1.add(holeBox);
+                }
+            }
+        }
+    }
+
     private boolean isValidHoleSection(BlockPos pos) {
         return isPassableBlock(pos) && !isPassableBlock(pos.north()) && !isPassableBlock(pos.south()) && !isPassableBlock(pos.east()) && !isPassableBlock(pos.west());
     }
+
+    private boolean isValid3x1HoleSectionX(BlockPos pos) {
+        // Check if this is part of a 3x1 hole in X direction
+        return isPassableBlock(pos) &&
+            isPassableBlock(pos.east()) &&
+            isPassableBlock(pos.east(2)) &&
+            !isPassableBlock(pos.north()) &&
+            !isPassableBlock(pos.south()) &&
+            !isPassableBlock(pos.east(3)) &&
+            !isPassableBlock(pos.west()) &&
+            !isPassableBlock(pos.east().north()) &&
+            !isPassableBlock(pos.east().south()) &&
+            !isPassableBlock(pos.east(2).north()) &&
+            !isPassableBlock(pos.east(2).south());
+    }
+
+    private boolean isValid3x1HoleSectionZ(BlockPos pos) {
+        // Check if this is part of a 3x1 hole in Z direction
+        return isPassableBlock(pos) &&
+            isPassableBlock(pos.south()) &&
+            isPassableBlock(pos.south(2)) &&
+            !isPassableBlock(pos.east()) &&
+            !isPassableBlock(pos.west()) &&
+            !isPassableBlock(pos.south(3)) &&
+            !isPassableBlock(pos.north()) &&
+            !isPassableBlock(pos.south().east()) &&
+            !isPassableBlock(pos.south().west()) &&
+            !isPassableBlock(pos.south(2).east()) &&
+            !isPassableBlock(pos.south(2).west());
+    }
+
     private void checkTunnel(BlockPos pos) {
         for (Direction dir : DIRECTIONS) {
             BlockPos.Mutable currentPos = pos.mutableCopy();
@@ -417,9 +524,7 @@ public class HoleTunnelStairsESP extends Module {
             }
             while (isTunnelSection(currentPos, dir)) {
                 maxHeight = Math.max(maxHeight, getTunnelHeight(currentPos));
-
                 endPos = currentPos.toImmutable();
-
                 currentPos.move(dir);
                 stepCount++;
             }
@@ -440,6 +545,7 @@ public class HoleTunnelStairsESP extends Module {
             }
         }
     }
+
     private boolean isTunnelSection(BlockPos pos, Direction dir) {
         int height = getTunnelHeight(pos);
         if (height < minTunnelHeight.get() || height > maxTunnelHeight.get()) return false;
@@ -454,9 +560,10 @@ public class HoleTunnelStairsESP extends Module {
         }
         return true;
     }
+
     private void checkDiagonalTunnel(BlockPos pos) {
         for (Direction dir : DIRECTIONS) {
-            for (int i = minDiagonalWidth.get()-1; i < maxDiagonalWidth.get(); i++) {
+            for (int i = minDiagonalWidth.get() - 1; i < maxDiagonalWidth.get(); i++) {
                 BlockPos.Mutable currentPos = pos.mutableCopy();
                 int stepCount = 0;
                 List<Box> potentialBoxes = new ArrayList<>();
@@ -490,7 +597,7 @@ public class HoleTunnelStairsESP extends Module {
                     stepCount++;
                 }
 
-                if (stepCount/minDiagonalWidth.get() >= minDiagonalLength.get()) {
+                if (stepCount / minDiagonalWidth.get() >= minDiagonalLength.get()) {
                     potentialBoxes.forEach(potentialBox -> {
                         if (!tunnels.contains(potentialBox) && tunnels.stream().noneMatch(existingDiagonal -> existingDiagonal.intersects(potentialBox))) {
                             tunnels.add(potentialBox);
@@ -506,11 +613,11 @@ public class HoleTunnelStairsESP extends Module {
         if (height < minTunnelHeight.get() || height > maxTunnelHeight.get()) return false;
         if (isPassableBlock(pos.down()) || isPassableBlock(pos.up(height))) return false;
 
-        boolean waspassableblockfound = false;
+        boolean wasPassableBlockFound = false;
         for (int i = 0; i < height; i++) {
-            if (isPassableBlock(pos.up(i).offset(dir))) waspassableblockfound = true;
+            if (isPassableBlock(pos.up(i).offset(dir))) wasPassableBlockFound = true;
         }
-        if (waspassableblockfound) return false;
+        if (wasPassableBlockFound) return false;
 
         return true;
     }
@@ -522,6 +629,7 @@ public class HoleTunnelStairsESP extends Module {
         }
         return height;
     }
+
     private void checkStaircase(BlockPos pos) {
         for (Direction dir : DIRECTIONS) {
             BlockPos.Mutable currentPos = pos.mutableCopy();
@@ -546,13 +654,14 @@ public class HoleTunnelStairsESP extends Module {
                 stepCount++;
             }
 
-            for (Box stairsBox : potentialStaircaseBoxes){
+            for (Box stairsBox : potentialStaircaseBoxes) {
                 if (stepCount >= minStaircaseLength.get() && !staircases.contains(stairsBox) && !staircases.stream().anyMatch(existingStaircase -> existingStaircase.intersects(stairsBox))) {
                     staircases.add(stairsBox);
                 }
             }
         }
     }
+
     private int getStaircaseHeight(BlockPos pos) {
         int height = 0;
         while (isPassableBlock(pos.up(height)) && height < maxStaircaseHeight.get()) {
@@ -560,6 +669,7 @@ public class HoleTunnelStairsESP extends Module {
         }
         return height;
     }
+
     private boolean isStaircaseSection(BlockPos pos, Direction dir) {
         int height = getStaircaseHeight(pos);
         if (height < minStaircaseHeight.get() || height > maxStaircaseHeight.get()) return false;
@@ -574,6 +684,7 @@ public class HoleTunnelStairsESP extends Module {
         }
         return true;
     }
+
     private boolean isPassableBlock(BlockPos pos) {
         BlockState state = mc.world.getBlockState(pos);
         if (airBlocks.get()) {
@@ -591,7 +702,8 @@ public class HoleTunnelStairsESP extends Module {
         TUNNELS_AND_STAIRCASES,
         HOLES,
         TUNNELS,
-        STAIRCASES
+        STAIRCASES,
+        HOLES_3X1_AND_TUNNELS
     }
 
     private class TChunk {
@@ -603,6 +715,7 @@ public class HoleTunnelStairsESP extends Module {
             this.z = z;
             this.marked = true;
         }
+
         public long getKey() {
             return ChunkPos.toLong(x, z);
         }

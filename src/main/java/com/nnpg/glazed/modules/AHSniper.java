@@ -762,7 +762,7 @@ public class AHSniper extends Module {
                             "url": "%s"
                         },
                         "footer": {
-                            "text": "Auction Sniper Bot  ᵐᵃᵈᵉ ᵇʸ ᵗᵉᵐʳᵉᵈᵈ "
+                            "text": "Auction Sniper Bot"
                         },
                         "timestamp": "%s"
                     }

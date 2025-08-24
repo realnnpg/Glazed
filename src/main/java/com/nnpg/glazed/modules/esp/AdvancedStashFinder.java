@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.esp;
 
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
@@ -15,7 +15,6 @@ import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WMinus;
 import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.render.MeteorToast;
@@ -76,6 +75,13 @@ public class AdvancedStashFinder extends Module {
         .build()
     );
 
+    private final Setting<Boolean> disconnectOnFind = sgGeneral.add(new BoolSetting.Builder()
+        .name("disconnect-on-base-find")
+        .description("Automatically disconnect from the server when a base is found.")
+        .defaultValue(false)
+        .build()
+    );
+
     private final Setting<Boolean> sendNotifications = sgGeneral.add(new BoolSetting.Builder()
         .name("notifications")
         .description("Sends Minecraft notifications when new stashes are found.")
@@ -128,7 +134,7 @@ public class AdvancedStashFinder extends Module {
         .build();
 
     public AdvancedStashFinder() {
-        super(GlazedAddon.CATEGORY, "AdvancedStashFinder", "Advanced stash finder with webhook support.");
+        super(GlazedAddon.esp, "AdvancedStashFinder", "Advanced stash finder with webhook support and auto-disconnect.");
     }
 
     @Override
@@ -172,7 +178,7 @@ public class AdvancedStashFinder extends Module {
             isCriticalSpawner = true;
             detectionReason = "Spawner(s) detected (Critical mode)";
         }
-            else if (chunk.getTotal() >= minimumStorageCount.get()) {
+        else if (chunk.getTotal() >= minimumStorageCount.get()) {
             isStash = true;
             detectionReason = "Storage threshold reached (" + chunk.getTotal() + " blocks)";
         }
@@ -187,7 +193,9 @@ public class AdvancedStashFinder extends Module {
             saveJson();
             saveCsv();
 
-            if (sendNotifications.get() && (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk))) {
+            boolean isNewOrUpdated = (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk));
+
+            if (sendNotifications.get() && isNewOrUpdated) {
                 String stashType = isCriticalSpawner ? "spawner base" : "stash";
 
                 switch (notificationMode.get()) {
@@ -204,8 +212,17 @@ public class AdvancedStashFinder extends Module {
                 }
             }
 
-            if (enableWebhook.get() && (!chunk.equals(prevChunk) || !chunk.countsEqual(prevChunk))) {
+            if (enableWebhook.get() && isNewOrUpdated) {
                 sendWebhookNotification(chunk, isCriticalSpawner, detectionReason);
+            }
+
+            if (disconnectOnFind.get() && isNewOrUpdated) {
+                //info("Base Found - Disconnecting at (highlight)%s(default), (highlight)%s(default)", chunk.x, chunk.z);
+                toggle();
+
+                if (mc.world != null) {
+                    mc.world.disconnect();
+                }
             }
         }
     }

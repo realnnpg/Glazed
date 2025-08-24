@@ -1,25 +1,18 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
-import com.nnpg.glazed.MyScreen;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.gui.GuiThemes;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
-import net.minecraft.entity.decoration.ArmorStandEntity;
-import net.minecraft.entity.vehicle.ChestMinecartEntity;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class AntiTrap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();

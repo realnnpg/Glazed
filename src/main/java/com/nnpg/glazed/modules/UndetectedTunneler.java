@@ -8,8 +8,8 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.MiningToolItem;
 import net.minecraft.item.ShearsItem;
+import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
@@ -175,7 +175,6 @@ public class UndetectedTunneler extends Module {
 
     @Override
     public void onActivate() {
-
         warning("Works for 1x1, 2x1 tunnels. Very beta version, might get stuck sometimes");
         if (mc.player == null || mc.world == null || !mc.player.isAlive() || mc.player.networkHandler == null || !mc.player.networkHandler.getConnection().isOpen()) {
             senderror("Invalid player or server state! Cannot activate module.");
@@ -217,8 +216,7 @@ public class UndetectedTunneler extends Module {
         packetSentThisTick = false;
         miningBlock = null;
 
-            sendInfo("AITunneler activated at Y=" + Math.round(mc.player.getY()) + ". Waiting for initialization...");
-
+        sendInfo("AITunneler activated at Y=" + Math.round(mc.player.getY()) + ". Waiting for initialization...");
     }
 
     @Override
@@ -229,8 +227,7 @@ public class UndetectedTunneler extends Module {
             safetyValidator.reset();
         }
         miningBlock = null;
-            sendInfo("AITunneler deactivated.");
-
+        sendInfo("AITunneler deactivated.");
     }
 
     private void resetMovement() {
@@ -250,7 +247,6 @@ public class UndetectedTunneler extends Module {
         }
     }
 
-    //very cool chatgpt idea
     private void sendInfo(String message) {
         if (chatFeedback.get()) {
             info(message);
@@ -268,7 +264,6 @@ public class UndetectedTunneler extends Module {
             error(message);
         }
     }
-    //cool idea ends :(
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
@@ -397,7 +392,14 @@ public class UndetectedTunneler extends Module {
     }
 
     private boolean isTool(ItemStack itemStack) {
-        return itemStack.getItem() instanceof MiningToolItem || itemStack.getItem() instanceof ShearsItem;
+        return itemStack.isIn(ItemTags.PICKAXES) ||
+            itemStack.isIn(ItemTags.SHOVELS) ||
+            itemStack.isIn(ItemTags.AXES) ||
+            itemStack.getItem() instanceof ShearsItem;
+    }
+
+    private boolean isPickaxe(ItemStack itemStack) {
+        return itemStack.isIn(ItemTags.PICKAXES);
     }
 
     private void gradualCenterPlayer() {
@@ -1392,7 +1394,7 @@ public class UndetectedTunneler extends Module {
             }
 
             ItemStack mainHand = player.getMainHandStack();
-            if (mainHand.getItem() instanceof net.minecraft.item.PickaxeItem) {
+            if (isPickaxe(mainHand)) {
                 int durability = mainHand.getMaxDamage() - mainHand.getDamage();
                 if (durability < 100) {
                     return false;
@@ -1437,7 +1439,7 @@ public class UndetectedTunneler extends Module {
 
         public boolean hasValidTool(net.minecraft.entity.player.PlayerEntity player) {
             ItemStack mainHand = player.getMainHandStack();
-            return mainHand.getItem() instanceof net.minecraft.item.PickaxeItem;
+            return isPickaxe(mainHand);
         }
     }
 }

@@ -11,6 +11,10 @@ public class VersionUtil {
         return player.getInventory().getArmorStack(slot);
     }
 
+    public static ItemStack getArmorStackByType(ClientPlayerEntity player, int armorType) {
+        return player.getInventory().getArmorStack(armorType);
+    }
+
     public static int getSelectedSlot(ClientPlayerEntity player) {
         return player.getInventory().selectedSlot;
     }

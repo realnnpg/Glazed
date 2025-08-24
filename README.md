@@ -22,28 +22,72 @@
 
 ## 🚀 Features
 
-| Module Name      | Description                                                           | Status        |
-|------------------|-----------------------------------------------------------------------|---------------|
-| Elytra Swap      | Automatically swaps between Elytra and Chestplate based on context    | ✅ Added       |
-| Auto Inv Totem   | Automatically puts a Totem into your offhand when inventory opens     | ✅ Added       |
-| Auto Firework    | Automatically uses fireworks for elytra flying.                       | ✅ Added       |
-| Cord Snapper     | Instantly copies your current coordinates to clipboard                | ✅ Added       |
-| Pearl Throw      | Instantly throws a pearl                                              | ✅ Added       |
-| Player Detection | Detects when players are rendered                                     | ✅ Added       |
-| RTP Base Finder  | Uses /rtp and checks for bases using storage/spawner detection        | ✅ Added       |
-| Anti Trap        | Allows you to escape from armor stands and chest minecarts.           | ✅ Added       |
-| AHSniper         | Refreshes and snipes underpriced items from the auction house         | ✅ Added       |
-| SpawnerProtect   | Mines all your spawners and stores them when a player is nearby       | ✅ Added       |
-| RTPer            | Automatically RTPs until near specified coordinates                   | ✅ Added       |
-| RTPTunnelMiner   | RTPs, mines to a Y level, and then uses #tunnel to mine horizontally. | ✅ Added       |
-| Auto Sell        | Automatically sells sea pickles via /sell                             | ✅ Added       |
-| Xray             | Xray for DonutSMP                                                     | 🟠 Coming soon |
-| Bone Dropper     | Automatically drops bones collected from spawners                     | 🟠 Coming soon |
-| Auto Order       | Automatically executes /order for configured items                    | 🟠 Coming soon |
-| TPSniper         | Automatically spams specific players with /tpa or /tpahere requests   | ❌ Not Yet     |
-| ShulkerOrder     | Buys and then /orders the shulkers                                    | ❌ Not Yet     |
-| OrderSniper      | Snipes for good order prices and sells your stuff                     | ❌ Not Yet     |
+### 📌 Main Modules
 
+| Module Name               | Description                                                        | Status  |
+| ------------------------- |--------------------------------------------------------------------| ------- |
+| AHSniper                  | Refreshes and snipes underpriced items from the auction house      | ✅ Added |
+| AHSell                    | Automatically lists items on the auction house                     | ✅ Added |
+| Auto Order                | Automatically fulfills and sells orders                            | ✅ Added |
+| Auto Firework             | Automatically uses fireworks for Elytra flying                     | ✅ Added |
+| Auto Sell                 | Automatically sells selected items via /sell                       | ✅ Added |
+| AutoSex                   | ...                                                                | ✅ Added |
+| AutoShulkerOrder          | Automatically buys and manages shulkers                            | ✅ Added |
+| AutoShulkerShellOrder     | Automatically buys and manages shulker shells                      | ✅ Added |
+| Undetected TreeFarmer (3) | Plants, bone-meals, and breaks trees automatically                 | ✅ Added |
+| CoordSnapper              | Instantly copies your coordinates to clipboard                     | ✅ Added |
+| CrateBuyer                | Automatically buys crate items                                     | ✅ Added |
+| ElytraAutoFly             | Flies to preset coordinates with Elytra                            | ✅ Added |
+| Emergency Seller          | Instantly sells selected items at high price                       | ✅ Added |
+| FastBreak                 | Mines blocks faster than vanilla                                   | ✅ Added |
+| Hide Scoreboard           | Removes the scoreboard from your HUD                               | ✅ Added |
+| OrderSniper               | Snipes profitable orders instantly                                 | ✅ Added |
+| OrderDropper              | Drops items from queued orders                                     | ✅ Added |
+| Player Detection          | Detects when players are rendered                                  | ✅ Added |
+| RTP Base Finder           | Uses /rtp and checks for bases via spawner/storage detection       | ✅ Added |
+| RTP End Base Finder       | Uses RTP in the End to check for bases                             | ✅ Added |
+| Fixed End Base Finder     | Bug-fixed version of End Base Finder                               | ✅ Added |
+| RTPer                     | RTPs until near specified coordinates. CoordFinder and BiomeFinder | ✅ Added |
+| Tunnel Base Finder        | Uses Baritone tunnel mining to find bases                          | ✅ Added |
+| Undetected Tunneler       | Stealth tunnel miner until base is found                           | ✅ Added |
+| ShopBuyer                 | Automatically buys items via `/shop`                               | ✅ Added |
+| ShulkerDropper            | Buys shulkers and drops them automatically                         | ✅ Added |
+| SpawnerDropper            | Drops items directly from spawners                                 | ✅ Added |
+| SpawnerProtect            | Mines spawners, stores them, disconnects if player detected        | ✅ Added |
+| TabDetector               | Alerts when players appear in tab                                  | ✅ Added |
+| TPA Macro                 | Automates `/tpa` requests and acceptance                           | ✅ Added |
+
+
+### 🌍 ESP Modules
+| Module Name             | Description                              | Status  |
+| ----------------------- | ---------------------------------------- | ------- |
+| 1x1x1 Holes             | Highlights single-block holes            | ✅ Added |
+| Advanced StashFinder      | Alerts when a base is found              | ✅ Added |
+| Notifier (Block)          | Alerts when specified blocks are detected | ✅ Added |
+| Notifier (Spawner)        | Alerts when spawners are detected        | ✅ Added |
+| Covered Hole            | Highlights covered holes                 | ✅ Added |
+| HoleTunnelStairsESP     | Detects holes, tunnels, stairs           | ✅ Added |
+| ClusterFinder           | Highlights amethyst clusters             | ✅ Added |
+| DeepslateESP            | Highlights deepslate above Y=8           | ✅ Added |
+| RotatedDeepslateESP     | Highlights rotated deepslate             | ✅ Added |
+| DripstoneESP            | Highlights dripstone                     | ✅ Added |
+| KelpESP                 | Highlights kelp reaching surface         | ✅ Added |
+| LlamaESP                | Highlights llamas                        | ✅ Added |
+| PillagerESP             | Highlights pillagers                     | ✅ Added |
+| VillagerESP             | Highlights villagers and zombie villagers | ✅ Added |
+| WanderingESP            | Highlights wandering traders             | ✅ Added |
+
+
+### ⚔️ PvP Modules
+| Module Name            | Description                                 | Status  |
+|------------------------|---------------------------------------------| ------- |
+| AnchorMacro            | Automates anchor detonation                 | ✅ Added |
+| LegitAnchorMacro       | AnchorMacro that looks more legit           | ✅ Added |
+| AntiTrap               | Lets you pearl through armor stands / carts | ✅ Added |
+| Auto Inv Totem         | Equips Totem when opening inventory         | ✅ Added |
+| CrystalMacro           | Automates exploding end crystals            | ✅ Added |
+| Elytra Swap            | Swaps between Elytra and armor chestplate   | ✅ Added |
+| Pearl Throw            | Instantly throws an ender pearl             | ✅ Added |
 
 ---
 
@@ -51,7 +95,6 @@
 
 Pair your DonutSMPAddon setup with these built-in Meteor modules for max efficiency:
 
-- `Auto Totem` – Keeps you alive during PvP
 - `Auto Replenish` – Automatically restocks blocks/tools
 - `Auto Eat` – Keeps your hunger up
 - `Fast Place` – Places blocks faster than vanilla

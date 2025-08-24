@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.esp;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class DripstoneESP extends Module {
     private final SettingGroup sgStalactite = settings.createGroup("Stalactite ESP");

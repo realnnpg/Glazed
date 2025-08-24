@@ -1,15 +1,16 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.screen.slot.SlotActionType;
 
 public class AutoInvTotem extends Module {
@@ -40,9 +41,46 @@ public class AutoInvTotem extends Module {
         .build()
     );
 
+    private final Setting<Boolean> openInv = sgGeneral.add(new BoolSetting.Builder()
+        .name("open-inv")
+        .description("Automatically open inventory when totem pops")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Integer> invOpenDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("inv-open-delay")
+        .description("Ticks to wait before opening inventory after totem pop (1-10 ticks)")
+        .defaultValue(2)
+        .min(1)
+        .max(10)
+        .sliderMin(1)
+        .sliderMax(10)
+        .visible(() -> openInv.get())
+        .build()
+    );
+
+    private final Setting<Integer> invCloseDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("inv-close-delay")
+        .description("Ticks to wait before closing inventory after opening (5-20 ticks)")
+        .defaultValue(8)
+        .min(5)
+        .max(20)
+        .sliderMin(5)
+        .sliderMax(20)
+        .visible(() -> openInv.get())
+        .build()
+    );
+
     private boolean needsTotem = false;
     private int delayTicks = 0;
     private boolean hadTotemInOffhand = false;
+
+    // Auto inventory variables
+    private boolean shouldOpenInv = false;
+    private int invOpenTicks = 0;
+    private int invCloseTicks = 0;
+    private boolean invAutoOpened = false;
 
     public AutoInvTotem() {
         super(GlazedAddon.pvp, "Auto Inv Totem", "Automatically moves totems to offhand when inventory is opened after totem pop.");
@@ -54,12 +92,45 @@ public class AutoInvTotem extends Module {
             hadTotemInOffhand = hasTotemInOffhand();
             needsTotem = false;
             delayTicks = 0;
+            resetInvAutoState();
+        }
+    }
+
+    @Override
+    public void onDeactivate() {
+        resetInvAutoState();
+    }
+
+    private void resetInvAutoState() {
+        shouldOpenInv = false;
+        invOpenTicks = 0;
+        invCloseTicks = 0;
+        invAutoOpened = false;
+    }
+
+    @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        if (event.packet instanceof EntityStatusS2CPacket packet) {
+            // Check if it's a totem pop (status 35) AND the entity is the player
+            if (packet.getStatus() == 35 && mc.player != null && packet.getEntity(mc.world) == mc.player) {
+                // Player's totem pop detected
+                if (openInv.get() && mc.currentScreen == null) {
+                    shouldOpenInv = true;
+                    invOpenTicks = invOpenDelay.get();
+                    if (!disableLogs.get()) {
+                        info("Player totem pop detected! Will auto-open inventory in %d ticks.", invOpenTicks);
+                    }
+                }
+            }
         }
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null) return;
+
+        // Handle auto inventory opening/closing
+        handleAutoInventory();
 
         boolean currentlyHasTotem = hasTotemInOffhand();
 
@@ -82,6 +153,40 @@ public class AutoInvTotem extends Module {
         if (currentlyHasTotem && needsTotem) {
             needsTotem = false;
             delayTicks = 0;
+        }
+    }
+
+    private void handleAutoInventory() {
+        // Handle opening inventory
+        if (shouldOpenInv && invOpenTicks > 0) {
+            invOpenTicks--;
+            if (invOpenTicks == 0 && mc.currentScreen == null) {
+                mc.setScreen(new InventoryScreen(mc.player));
+                invAutoOpened = true;
+                invCloseTicks = invCloseDelay.get();
+                shouldOpenInv = false;
+                if (!disableLogs.get()) {
+                    info("Auto-opened inventory, will close in %d ticks.", invCloseTicks);
+                }
+            }
+        }
+
+        // Handle closing inventory
+        if (invAutoOpened && invCloseTicks > 0) {
+            invCloseTicks--;
+            if (invCloseTicks == 0 && mc.currentScreen instanceof InventoryScreen) {
+                mc.setScreen(null);
+                invAutoOpened = false;
+                if (!disableLogs.get()) {
+                    info("Auto-closed inventory.");
+                }
+            }
+        }
+
+        // Reset if inventory was manually closed
+        if (invAutoOpened && !(mc.currentScreen instanceof InventoryScreen)) {
+            invAutoOpened = false;
+            invCloseTicks = 0;
         }
     }
 

@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules;
+package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -9,12 +9,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.item.Items;
 import net.minecraft.item.ShieldItem;
 import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -22,7 +17,7 @@ import java.util.Set;
 import com.nnpg.glazed.VersionUtil;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Hand;
-import net.minecraft.screen.slot.SlotActionType;
+
 import java.util.Random;
 
 public class AnchorMacro extends Module {
