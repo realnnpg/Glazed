@@ -12,10 +12,14 @@ import com.nnpg.glazed.utils.glazed.BlockUtil;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
 import net.minecraft.component.DataComponentTypes;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.item.ShieldItem;
 import net.minecraft.util.hit.BlockHitResult;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class LegitAnchorMacro extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -59,12 +63,52 @@ public class LegitAnchorMacro extends Module {
         .build()
     );
 
+    private final Setting<Boolean> switchBackToAnchor = sgGeneral.add(new BoolSetting.Builder()
+        .name("switch-back-to-anchor")
+        .description("Switch back to respawn anchor after explosion.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Double> switchBackDelay = sgGeneral.add(new DoubleSetting.Builder()
+        .name("switch-back-delay")
+        .description("Delay in ticks before switching back to anchor.")
+        .defaultValue(5.0)
+        .min(0.0)
+        .max(20.0)
+        .sliderMax(20.0)
+        .visible(() -> switchBackToAnchor.get())
+        .build()
+    );
+
+    private final Setting<Boolean> pauseOnKill = sgGeneral.add(new BoolSetting.Builder()
+        .name("pause-on-kill")
+        .description("Temporarily pauses the module when a player is killed to prevent destroying their items.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Double> pauseDelay = sgGeneral.add(new DoubleSetting.Builder()
+        .name("pause-delay")
+        .description("How long to pause the module after a player death (in seconds).")
+        .defaultValue(2.0)
+        .min(0.5)
+        .max(10.0)
+        .sliderMax(10.0)
+        .visible(() -> pauseOnKill.get())
+        .build()
+    );
+
     private int keybindCounter;
     private int glowstoneDelayCounter;
     private int explodeDelayCounter;
+    private int switchBackDelayCounter;
+    private int pauseCounter;
     private boolean hasPlacedGlowstone = false;
     private boolean hasExplodedAnchor = false;
+    private boolean shouldSwitchBack = false;
     private BlockHitResult lastBlockHitResult = null;
+    private List<PlayerEntity> deadPlayers = new ArrayList<>();
 
     public LegitAnchorMacro() {
         super(GlazedAddon.pvp, "LegitAnchorMacro", "Automatically charges and explodes respawn anchors.");
@@ -75,7 +119,10 @@ public class LegitAnchorMacro extends Module {
         resetCounters();
         hasPlacedGlowstone = false;
         hasExplodedAnchor = false;
+        shouldSwitchBack = false;
         lastBlockHitResult = null;
+        pauseCounter = 0;
+        deadPlayers = new ArrayList<>();
     }
 
     @Override
@@ -83,13 +130,17 @@ public class LegitAnchorMacro extends Module {
         resetCounters();
         hasPlacedGlowstone = false;
         hasExplodedAnchor = false;
+        shouldSwitchBack = false;
         lastBlockHitResult = null;
+        pauseCounter = 0;
+        deadPlayers.clear();
     }
 
     private void resetCounters() {
         keybindCounter = 0;
         glowstoneDelayCounter = 0;
         explodeDelayCounter = 0;
+        switchBackDelayCounter = 0;
     }
 
     @EventHandler
@@ -97,17 +148,60 @@ public class LegitAnchorMacro extends Module {
         if (mc.currentScreen != null) {
             return;
         }
+
+        // Update pause counter
+        if (pauseCounter > 0) {
+            pauseCounter--;
+        }
+
+        // Check for dead players and pause if needed
+        if (pauseOnKill.get() && checkForDeadPlayers()) {
+            pauseCounter = (int)(pauseDelay.get() * 20); // Convert seconds to ticks
+            if (mc.player != null) {
+                mc.player.sendMessage(net.minecraft.text.Text.literal("§7[§bLegitAnchorMacro§7] §ePaused for " + pauseDelay.get() + " seconds due to player death"), false);
+            }
+        }
+
+        // Check if module is paused due to player death
+        if (pauseCounter > 0) {
+            return;
+        }
+
         if (isShieldOrFoodActive()) {
             return;
         }
-        if (KeyUtils.isKeyPressed(1)) { // Right mouse button
+
+        if (shouldSwitchBack && switchBackToAnchor.get()) {
+            handleSwitchBackToAnchor();
+            return;
+        }
+
+        if (KeyUtils.isKeyPressed(1)) {
             handleAnchorInteraction();
         } else {
-            // Reset state when key is released
             hasPlacedGlowstone = false;
             hasExplodedAnchor = false;
+            shouldSwitchBack = false;
             lastBlockHitResult = null;
         }
+    }
+
+    private boolean checkForDeadPlayers() {
+        if (mc.world == null) return false;
+
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player != mc.player && player.getHealth() <= 0) {
+                if (!deadPlayers.contains(player)) {
+                    deadPlayers.add(player);
+                    return true;
+                }
+            }
+        }
+
+        // Clean up players that are no longer dead
+        deadPlayers.removeIf(player -> player.getHealth() > 0);
+
+        return false;
     }
 
     private boolean isShieldOrFoodActive() {
@@ -117,6 +211,17 @@ public class LegitAnchorMacro extends Module {
             mc.player.getOffHandStack().getItem() instanceof ShieldItem;
         final boolean isRightClickPressed = GLFW.glfwGetMouseButton(mc.getWindow().getHandle(), 1) == 1;
         return (isFood || isShield) && isRightClickPressed;
+    }
+
+    private void handleSwitchBackToAnchor() {
+        if (switchBackDelayCounter < switchBackDelay.get().intValue()) {
+            ++switchBackDelayCounter;
+            return;
+        }
+
+        switchBackDelayCounter = 0;
+        swapToItem(Items.RESPAWN_ANCHOR);
+        shouldSwitchBack = false;
     }
 
     private void handleAnchorInteraction() {
@@ -184,6 +289,11 @@ public class LegitAnchorMacro extends Module {
             explodeDelayCounter = 0;
             BlockUtil.interactWithBlock(blockHitResult, true);
             hasExplodedAnchor = true;
+
+            if (switchBackToAnchor.get()) {
+                shouldSwitchBack = true;
+                switchBackDelayCounter = 0;
+            }
         }
     }
 
