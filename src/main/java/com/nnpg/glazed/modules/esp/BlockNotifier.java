@@ -36,7 +36,6 @@ public class BlockNotifier extends Module {
     private final SettingGroup sg_webhook = settings.createGroup("Webhook");
     private final SettingGroup sg_render = settings.createGroup("Render");
 
-    // General settings
     private final Setting<List<Block>> blocks_to_find = sg_general.add(new BlockListSetting.Builder()
         .name("blocks-to-find")
         .description("Blocks to notify when found.")
@@ -44,7 +43,6 @@ public class BlockNotifier extends Module {
         .build()
     );
 
-    // Notification settings
     private final Setting<Mode> notification_mode = sg_notifications.add(new EnumSetting.Builder<Mode>()
         .name("notification-mode")
         .description("The mode to use for notifications.")
@@ -59,7 +57,6 @@ public class BlockNotifier extends Module {
         .build()
     );
 
-    // Webhook settings
     private final Setting<Boolean> webhook_enabled = sg_webhook.add(new BoolSetting.Builder()
         .name("webhook-enabled")
         .description("Enable webhook notifications.")
@@ -91,7 +88,6 @@ public class BlockNotifier extends Module {
         .build()
     );
 
-    // Render settings
     private final Setting<Boolean> show_esp = sg_render.add(new BoolSetting.Builder()
         .name("show-esp")
         .description("Highlight found blocks with ESP boxes.")
@@ -199,7 +195,6 @@ public class BlockNotifier extends Module {
                         found_blocks.put(block, found_blocks.getOrDefault(block, 0) + 1);
                         block_positions.computeIfAbsent(block, k -> new ArrayList<>()).add(pos);
 
-                        // Track individual block positions for ESP
                         if (!found_block_positions.contains(pos)) {
                             found_block_positions.add(pos);
                             new_found_blocks.add(pos);
@@ -231,12 +226,10 @@ public class BlockNotifier extends Module {
         double maxDistance = render_distance.get();
 
         for (BlockPos pos : found_block_positions) {
-            // Check if we should only render new blocks
             if (only_render_new.get() && !new_found_blocks.contains(pos)) {
                 continue;
             }
 
-            // Check render distance
             if (maxDistance > 0) {
                 double distance = playerPos.distanceTo(Vec3d.ofCenter(pos));
                 if (distance > maxDistance) {
@@ -244,12 +237,10 @@ public class BlockNotifier extends Module {
                 }
             }
 
-            // Render ESP box
             if (show_esp.get()) {
                 event.renderer.box(pos, sideColor, lineColor, shape_mode.get(), 0);
             }
 
-            // Render tracers
             if (show_tracers.get()) {
                 Vec3d blockCenter = Vec3d.ofCenter(pos);
 

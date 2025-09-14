@@ -25,6 +25,7 @@ repositories {
     }
 
 
+
     dependencies {
         // Fabric
         minecraft("com.mojang:minecraft:${properties["minecraft_version"] as String}")

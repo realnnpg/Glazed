@@ -185,13 +185,8 @@ Huge thanks to the projects that make this addon possible:
 - [FabricMC](https://fabricmc.net/)
 - [Claude AI](https://claude.ai/)
 - [szpuszi](https://github.com/szpuszi)
-- [S1ilvr](https://github.com/S1ilvr)
 - [dankor](https://github.com/dankor1337)
-- [Kez]
 - [Potato]
-- [kxusk]
-- [kq]
-- [some random] 
 ---
 
 ## ⚠️ Disclaimer

@@ -21,6 +21,9 @@
       "com.nnpg.glazed.GlazedAddon"
     ]
   },
+  "mixins": [
+    "mixins.json"
+  ],
 
 
   "custom": {

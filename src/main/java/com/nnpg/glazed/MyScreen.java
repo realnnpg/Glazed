@@ -36,12 +36,12 @@ public class MyScreen extends WindowScreen {
 
         MeteorExecutor.execute(() -> {
             try {
-                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.4.txt").sendString();
+                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.5.txt").sendString();
                 if (versionString != null && !versionString.isEmpty()) {
                     int latestVersion = Integer.parseInt(versionString.trim());
 
 
-                    if (latestVersion > GlazedAddon.VERSION) {
+                    if (latestVersion > GlazedAddon.MyScreenVERSION) {
                         net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
                             net.minecraft.client.MinecraftClient.getInstance().setScreen(new MyScreen(meteordevelopment.meteorclient.gui.GuiThemes.get()));
                         });
@@ -64,17 +64,17 @@ public class MyScreen extends WindowScreen {
     private void fetchLatestVersion() {
         MeteorExecutor.execute(() -> {
             try {
-                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.4.txt").sendString();
+                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.5.txt").sendString();
                 if (versionString != null && !versionString.isEmpty()) {
                     latestVersion = Integer.parseInt(versionString.trim());
                 } else {
-                    latestVersion = GlazedAddon.VERSION;
+                    latestVersion = GlazedAddon.MyScreenVERSION;
                 }
                 isVersionFetched = true;
 
                 reload();
             } catch (Exception e) {
-                latestVersion = GlazedAddon.VERSION;
+                latestVersion = GlazedAddon.MyScreenVERSION;
                 isVersionFetched = true;
                 reload();
             }
@@ -86,7 +86,7 @@ public class MyScreen extends WindowScreen {
 
         add(theme.horizontalSeparator()).padVertical(theme.scale(4)).expandX();
 
-        addMessage(String.format("Installed Version: %d", GlazedAddon.VERSION));
+        addMessage(String.format("Installed Version: %d", GlazedAddon.MyScreenVERSION));
 
         if (isVersionFetched) {
             addMessage(String.format("Latest Version: %d", latestVersion));
@@ -97,9 +97,9 @@ public class MyScreen extends WindowScreen {
         // Always add separator and update message area to maintain consistent height
         add(theme.horizontalSeparator()).padVertical(theme.scale(8)).expandX();
 
-        if (isVersionFetched && latestVersion > GlazedAddon.VERSION) {
+        if (isVersionFetched && latestVersion > GlazedAddon.MyScreenVERSION) {
             addWrappedMessage("You're using an outdated version of the Glazed addon. Please update to the latest version. Newer versions may include important bug fixes, improvements, and additional features.");
-        } else if (isVersionFetched && latestVersion == GlazedAddon.VERSION) {
+        } else if (isVersionFetched && latestVersion == GlazedAddon.MyScreenVERSION) {
             addWrappedMessage("You're using the latest version of the Glazed addon. No update needed.");
         } else {
             addWrappedMessage("Checking for updates...");

@@ -1,9 +1,8 @@
 package com.nnpg.glazed;
 
-import com.nnpg.glazed.modules.*;
 import com.nnpg.glazed.modules.esp.*;
+import com.nnpg.glazed.modules.main.*;
 import com.nnpg.glazed.modules.pvp.*;
-import com.nnpg.glazed.modules.treefarmer.*;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.Category;
@@ -14,18 +13,23 @@ import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.MeteorClient;
 
 
+
+
+
 public class GlazedAddon extends MeteorAddon {
     public static final Category CATEGORY = new Category("Glazed");
     public static final Category esp = new Category("Glazed-ESPs");
     public static final Category pvp = new Category("Glazed-PVP");
-    public static final Category treefarmer = new Category("TreeFarmer");
 
 
 
-    public static int VERSION = 12;
+    public static int MyScreenVERSION = 13;
 
     @Override
     public void onInitialize() {
+
+
+
         Modules.get().add(new SpawnerProtect()); //done
         Modules.get().add(new PearlThrow()); //done
         Modules.get().add(new RTPBaseFinder()); //done
@@ -44,6 +48,7 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new AutoOrder()); //done
         Modules.get().add(new HideScoreboard());
         Modules.get().add(new AutoInvTotem());
+        Modules.get().add(new LegitCrystalMacro());
         Modules.get().add(new CrystalMacro());
         Modules.get().add(new AHSell());
         Modules.get().add(new AnchorMacro());
@@ -67,7 +72,6 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new ClusterFinder());
         Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new EmergencySeller());
-        Modules.get().add(new AutoTreeFarmer()); //treefarmer
         Modules.get().add(new RTPEndBaseFinder());
         Modules.get().add(new ShopBuyer());
         Modules.get().add(new UndetectedTunneler());
@@ -79,12 +83,12 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new ChunkFinder());
         Modules.get().add(new BlockNotifier());
         Modules.get().add(new LegitAnchorMacro());
-        Modules.get().add(new TreeFarmer()); //treefarmer
-        Modules.get().add(new AutoTreeFarmer2()); //treefarmer
-
-
-
-
+        Modules.get().add(new SpawnerOrder());
+        Modules.get().add(new RegionMap());
+        Modules.get().add(new HoverTotem());
+        Modules.get().add(new Itemswap());
+        Modules.get().add(new AutoTrident());
+        Modules.get().add(new AutoTreeFarmer());
 
 
 
@@ -107,8 +111,6 @@ public class GlazedAddon extends MeteorAddon {
         Modules.registerCategory(CATEGORY);
         Modules.registerCategory(esp);
         Modules.registerCategory(pvp);
-        Modules.registerCategory(treefarmer);
-
 
 
         //mc.setScreen(new MyScreen(GuiThemes.get()));
@@ -118,4 +120,6 @@ public class GlazedAddon extends MeteorAddon {
     public String getPackage() {
         return "com.nnpg.glazed";
     }
+
+
 }

@@ -2,6 +2,7 @@ package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
+import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -76,7 +77,6 @@ public class AutoInvTotem extends Module {
     private int delayTicks = 0;
     private boolean hadTotemInOffhand = false;
 
-    // Auto inventory variables
     private boolean shouldOpenInv = false;
     private int invOpenTicks = 0;
     private int invCloseTicks = 0;
@@ -88,17 +88,21 @@ public class AutoInvTotem extends Module {
 
     @Override
     public void onActivate() {
+        resetState();
+    }
+
+    @Override
+    public void onDeactivate() {
+        resetInvAutoState();
+    }
+
+    private void resetState() {
         if (mc.player != null) {
             hadTotemInOffhand = hasTotemInOffhand();
             needsTotem = false;
             delayTicks = 0;
             resetInvAutoState();
         }
-    }
-
-    @Override
-    public void onDeactivate() {
-        resetInvAutoState();
     }
 
     private void resetInvAutoState() {
@@ -109,11 +113,17 @@ public class AutoInvTotem extends Module {
     }
 
     @EventHandler
+    private void onGameJoined(GameJoinedEvent event) {
+        resetState();
+        if (!disableLogs.get()) {
+            info("Auto Inv Totem state reset for new world/reconnection");
+        }
+    }
+
+    @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof EntityStatusS2CPacket packet) {
-            // Check if it's a totem pop (status 35) AND the entity is the player
             if (packet.getStatus() == 35 && mc.player != null && packet.getEntity(mc.world) == mc.player) {
-                // Player's totem pop detected
                 if (openInv.get() && mc.currentScreen == null) {
                     shouldOpenInv = true;
                     invOpenTicks = invOpenDelay.get();
@@ -129,7 +139,6 @@ public class AutoInvTotem extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null) return;
 
-        // Handle auto inventory opening/closing
         handleAutoInventory();
 
         boolean currentlyHasTotem = hasTotemInOffhand();
@@ -157,7 +166,6 @@ public class AutoInvTotem extends Module {
     }
 
     private void handleAutoInventory() {
-        // Handle opening inventory
         if (shouldOpenInv && invOpenTicks > 0) {
             invOpenTicks--;
             if (invOpenTicks == 0 && mc.currentScreen == null) {
@@ -171,7 +179,6 @@ public class AutoInvTotem extends Module {
             }
         }
 
-        // Handle closing inventory
         if (invAutoOpened && invCloseTicks > 0) {
             invCloseTicks--;
             if (invCloseTicks == 0 && mc.currentScreen instanceof InventoryScreen) {
@@ -183,7 +190,6 @@ public class AutoInvTotem extends Module {
             }
         }
 
-        // Reset if inventory was manually closed
         if (invAutoOpened && !(mc.currentScreen instanceof InventoryScreen)) {
             invAutoOpened = false;
             invCloseTicks = 0;

@@ -219,7 +219,7 @@ public class HoleTunnelStairsESP extends Module {
     private final Set<Box> holes3x1 = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public HoleTunnelStairsESP() {
-        super(GlazedAddon.esp, "Hole/Tunnel/StairsESP", "Finds and highlights holes and tunnels and stairs.");
+        super(GlazedAddon.esp, "HoleTunnelStairESP", "Finds and highlights holes and tunnels and stairs.");
     }
 
     public Set<Box> getHoles() {
