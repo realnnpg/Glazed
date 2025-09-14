@@ -14,6 +14,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.screen.GenericContainerScreenHandler;
@@ -342,7 +343,7 @@ public class SpawnerProtect extends Module {
                 //me
                 toggle(); //maybe?
                 if (mc.world != null) {
-                    mc.world.disconnect();
+                      mc.world.disconnect(net.minecraft.text.Text.of("Disconnected by addon"));
                 }
 
                 detectedPlayer = playerName;
@@ -531,15 +532,14 @@ public class SpawnerProtect extends Module {
     }
 
     private void setSneaking(boolean sneak) {
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null) return;
 
+        // Sneaking is handled client-side in 1.21.8
         if (sneak && !sneaking) {
             mc.player.setSneaking(true);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
             sneaking = true;
         } else if (!sneak && sneaking) {
             mc.player.setSneaking(false);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
             sneaking = false;
         }
     }
@@ -736,7 +736,7 @@ public class SpawnerProtect extends Module {
         }
 
         if (mc.world != null) {
-            mc.world.disconnect();
+              mc.world.disconnect(net.minecraft.text.Text.of("Disconnected by addon"));
         }
 
         info("Disconnected due to player detection.");

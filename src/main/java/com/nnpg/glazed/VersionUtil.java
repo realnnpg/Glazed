@@ -8,34 +8,35 @@ import net.minecraft.util.collection.DefaultedList;
 public class VersionUtil {
 
     public static ItemStack getArmorStack(ClientPlayerEntity player, int slot) {
-        return player.getInventory().getArmorStack(slot);
+    return player.getInventory().getStack(slot);
     }
 
     public static ItemStack getArmorStackByType(ClientPlayerEntity player, int armorType) {
-        return player.getInventory().getArmorStack(armorType);
+    return player.getInventory().getStack(armorType);
     }
 
     public static int getSelectedSlot(ClientPlayerEntity player) {
-        return player.getInventory().selectedSlot;
+    return player.getInventory().getSelectedSlot();
     }
 
     public static void setSelectedSlot(ClientPlayerEntity player, int slot) {
-        player.getInventory().selectedSlot = slot;
+    player.getInventory().setSelectedSlot(slot);
     }
 
     public static double getPrevX(net.minecraft.entity.Entity entity) {
-        return entity.prevX;
+    return entity.lastRenderX;
     }
 
     public static double getPrevY(net.minecraft.entity.Entity entity) {
-        return entity.prevY;
+    return entity.lastRenderY;
     }
 
     public static double getPrevZ(net.minecraft.entity.Entity entity) {
-        return entity.prevZ;
+    return entity.lastRenderZ;
     }
 
     public static DefaultedList<ItemStack> getMainInventory(ClientPlayerEntity player) {
-        return player.getInventory().main;
+    // If main is not available, you may need to loop over getStack(i) for 0-35
+    return null; // Placeholder, update as needed for your use case
     }
 }

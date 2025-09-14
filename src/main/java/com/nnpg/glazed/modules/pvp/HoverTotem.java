@@ -79,7 +79,7 @@ public class HoverTotem extends Module {
         if (focusedSlot == null || focusedSlot.getIndex() > 35) return;
 
         if (autoSwitchToTotem.get()) {
-            mc.player.getInventory().selectedSlot = hotbarSlot.get() - 1;
+            mc.player.getInventory().setSelectedSlot(hotbarSlot.get() - 1);
         }
 
         if (!focusedSlot.getStack().isOf(Items.TOTEM_OF_UNDYING)) return;

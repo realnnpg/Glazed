@@ -196,7 +196,7 @@ public class AutoFirework extends Module {
         switch (lowDurabilityAction.get()) {
             case Disconnect:
                 toggle();
-                mc.world.disconnect();
+                  mc.world.disconnect(net.minecraft.text.Text.of("Disconnected by addon"));
                 break;
             case SendWebhook:
                 sendWebhookNotification(durabilityPercent);
@@ -204,7 +204,7 @@ public class AutoFirework extends Module {
             case DisconnectAndWebhook:
                 sendWebhookNotification(durabilityPercent);
                 toggle();
-                mc.world.disconnect();
+                  mc.world.disconnect(net.minecraft.text.Text.of("Disconnected by addon"));
                 break;
             case Nothing:
             default:

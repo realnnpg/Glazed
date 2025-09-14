@@ -36,9 +36,9 @@
     }
   },
   "depends": {
-    "java": ">=21",
-    "minecraft": ["${mc_version}"],
-    "meteor-client": "*"
+  "java": ">=21",
+  "minecraft": ["1.21.8"],
+  "meteor-client": "*"
   }
 
 }

@@ -1138,7 +1138,7 @@ public class AutoTreeFarmer extends Module {
 
     private void autoRefillHotbar(Item targetItem, int minAmount) {
         try {
-            int selectedSlot = mc.player.getInventory().selectedSlot;
+            int selectedSlot = mc.player.getInventory().getSelectedSlot();
             ItemStack stack = mc.player.getInventory().getStack(selectedSlot);
 
             if (stack == null || stack.isEmpty() || stack.getItem() != targetItem || stack.getCount() <= minAmount) {

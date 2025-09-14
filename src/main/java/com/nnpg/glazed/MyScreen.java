@@ -36,7 +36,7 @@ public class MyScreen extends WindowScreen {
 
         MeteorExecutor.execute(() -> {
             try {
-                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.4.txt").sendString();
+                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.5.txt").sendString();
                 if (versionString != null && !versionString.isEmpty()) {
                     int latestVersion = Integer.parseInt(versionString.trim());
 
@@ -64,7 +64,7 @@ public class MyScreen extends WindowScreen {
     private void fetchLatestVersion() {
         MeteorExecutor.execute(() -> {
             try {
-                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.4.txt").sendString();
+                String versionString = Http.get("https://glazedclient.com/versions/normal1.21.5.txt").sendString();
                 if (versionString != null && !versionString.isEmpty()) {
                     latestVersion = Integer.parseInt(versionString.trim());
                 } else {

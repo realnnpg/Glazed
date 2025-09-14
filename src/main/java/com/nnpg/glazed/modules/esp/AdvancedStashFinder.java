@@ -17,7 +17,7 @@ import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
-import meteordevelopment.meteorclient.utils.render.MeteorToast;
+import net.minecraft.client.toast.SystemToast;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.entity.*;
 import net.minecraft.item.Items;
@@ -201,13 +201,11 @@ public class AdvancedStashFinder extends Module {
                 switch (notificationMode.get()) {
                     case Chat -> info("Found %s at (highlight)%s(default), (highlight)%s(default). %s", stashType, chunk.x, chunk.z, detectionReason);
                     case Toast -> {
-                        MeteorToast toast = new MeteorToast(Items.CHEST, title, "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
-                        mc.getToastManager().add(toast);
+                          mc.getToastManager().add(new SystemToast(SystemToast.Type.WORLD_BACKUP, net.minecraft.text.Text.of(title), net.minecraft.text.Text.of("Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!")));
                     }
                     case Both -> {
                         info("Found %s at (highlight)%s(default), (highlight)%s(default). %s", stashType, chunk.x, chunk.z, detectionReason);
-                        MeteorToast toast = new MeteorToast(Items.CHEST, title, "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
-                        mc.getToastManager().add(toast);
+                        mc.getToastManager().add(new SystemToast(SystemToast.Type.WORLD_BACKUP, net.minecraft.text.Text.of(title), net.minecraft.text.Text.of("Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!")));
                     }
                 }
             }
@@ -221,7 +219,7 @@ public class AdvancedStashFinder extends Module {
                 toggle();
 
                 if (mc.world != null) {
-                    mc.world.disconnect();
+                      mc.world.disconnect(net.minecraft.text.Text.of("Disconnected by addon"));
                 }
             }
         }

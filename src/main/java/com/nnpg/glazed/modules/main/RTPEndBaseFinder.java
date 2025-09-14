@@ -15,7 +15,7 @@ import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
-import meteordevelopment.meteorclient.utils.render.MeteorToast;
+import net.minecraft.client.toast.SystemToast;
 import meteordevelopment.meteorclient.utils.entity.Target;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
@@ -264,16 +264,12 @@ public class RTPEndBaseFinder extends Module {
                     case Chat -> info("Found %s at (highlight)%s(default), (highlight)%s(default). %s",
                         stashType, chunk.x, chunk.z, detectionReason);
                     case Toast -> {
-                        MeteorToast toast = new MeteorToast(Items.ENDER_CHEST, title,
-                            "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
-                        mc.getToastManager().add(toast);
+                        mc.getToastManager().add(new SystemToast(SystemToast.Type.WORLD_BACKUP, net.minecraft.text.Text.of(title), net.minecraft.text.Text.of("Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!")));
                     }
                     case Both -> {
                         info("Found %s at (highlight)%s(default), (highlight)%s(default). %s",
                             stashType, chunk.x, chunk.z, detectionReason);
-                        MeteorToast toast = new MeteorToast(Items.ENDER_CHEST, title,
-                            "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
-                        mc.getToastManager().add(toast);
+                        mc.getToastManager().add(new SystemToast(SystemToast.Type.WORLD_BACKUP, net.minecraft.text.Text.of(title), net.minecraft.text.Text.of("Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!")));
                     }
                 }
             }

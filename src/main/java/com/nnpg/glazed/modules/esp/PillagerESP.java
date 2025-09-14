@@ -24,7 +24,7 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.settings.StringSetting;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.render.MeteorToast;
+import net.minecraft.client.toast.SystemToast;
 import meteordevelopment.meteorclient.utils.render.RenderUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
@@ -195,10 +195,10 @@ public class PillagerESP extends Module {
 
                     switch (notificationMode.get()) {
                         case Chat -> info("§5[§dPillagerESP§5] §c" + message);
-                        case Toast -> mc.getToastManager().add(new MeteorToast(Items.CROSSBOW, title, message));
+                        case Toast -> mc.getToastManager().add(new SystemToast(SystemToast.Type.WORLD_BACKUP, net.minecraft.text.Text.of(title), net.minecraft.text.Text.of(message)));
                         case Both -> {
                             info("§5[§dPillagerESP§5] §c" + message);
-                            mc.getToastManager().add(new MeteorToast(Items.CROSSBOW, title, message));
+                            mc.getToastManager().add(new SystemToast(SystemToast.Type.WORLD_BACKUP, net.minecraft.text.Text.of(title), net.minecraft.text.Text.of(message)));
                         }
                     }
                 }
