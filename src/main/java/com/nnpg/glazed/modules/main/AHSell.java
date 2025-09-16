@@ -28,7 +28,7 @@ public class AHSell extends Module {
         .name("confirm-delay")
         .description("Delay in ticks before clicking the confirm button.")
         .defaultValue(10)
-        .min(0)
+        .min(5)
         .max(100)
         .sliderMax(20)
         .build()
