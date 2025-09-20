@@ -23,7 +23,7 @@ public final class BlockUtil {
 
         ChunkPos center = mc.player.getChunkPos();
         ChunkPos min = new ChunkPos(center.x - radius, center.z - radius);
-        ChunkPos max = new ChunkPos(center.x + radius, center.z - radius);
+        ChunkPos max = new ChunkPos(center.x + radius, center.z + radius);
 
         return Stream.iterate(min, pos -> {
                 int x = pos.x;
