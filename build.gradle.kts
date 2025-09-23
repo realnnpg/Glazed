@@ -37,7 +37,9 @@ repositories {
 
 
         // Baritone
-        modImplementation("meteordevelopment:baritone:${properties["baritone_version"] as String}-SNAPSHOT")
+        // TODO: look into this dep issue
+        // modImplementation("meteordevelopment:baritone:${properties["baritone_version"] as String}-SNAPSHOT")
+        modCompileOnly("meteordevelopment:baritone:${properties["baritone_version"] as String}-SNAPSHOT")
 
         implementation("com.google.code.gson:gson:2.10.1")
 

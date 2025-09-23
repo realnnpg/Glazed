@@ -2,7 +2,10 @@
   "required": true,
   "package": "com.nnpg.glazed.mixins",
   "compatibilityLevel": "JAVA_17",
-  "mixins": [],
+  "mixins": [
+    "DefaultSettingsWidgetFactoryAccessor",
+    "DefaultSettingsWidgetFactoryMixin"
+  ],
   "client": [
     "HandledScreenMixin"
   ],
