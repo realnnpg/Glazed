@@ -37,7 +37,7 @@ public class WRandomBetweenSlider extends WWidget implements MeteorWidget {
     @Override
     protected void onCalculateSize() {
         double s = handleSize();
-        width = s;
+        width = s * 6;
         height = s;
     }
 
