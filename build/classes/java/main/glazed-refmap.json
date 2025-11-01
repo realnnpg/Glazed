@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "com/nnpg/glazed/mixins/HandledScreenMixin": {
+      "focusedSlot": "field_2787:Lnet/minecraft/class_1735;"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "com/nnpg/glazed/mixins/HandledScreenMixin": {
+        "focusedSlot": "field_2787:Lnet/minecraft/class_1735;"
+      }
+    }
+  }
+}
