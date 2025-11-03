@@ -1,83 +1,240 @@
 package com.nnpg.glazed.modules.main;
 
-import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.option.KeyBinding;
+import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
+import net.minecraft.item.Items;
+import net.minecraft.item.ItemStack;
+import net.minecraft.text.Text;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Direction;
+
+import java.util.Set;
+import java.util.List;
 
 public class RTPBaseFinder extends Module {
-    private BlockPos currentTarget = null;
-    private boolean waitingForTeleport = false;
-    private long lastTeleportTime = 0;
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    private final Setting<String> rtpDirection = sgGeneral.add(new StringSetting.Builder()
+        .name("rtp-direction")
+        .description("Which direction to /rtp in (east or west).")
+        .defaultValue("east")
+        .build()
+    );
+
+    private final Setting<Integer> baseDetectionAmount = sgGeneral.add(new IntSetting.Builder()
+        .name("base-detection-amount")
+        .description("How many storages must be found to count as a base.")
+        .defaultValue(5)
+        .min(1)
+        .sliderMax(50)
+        .build()
+    );
+
+    private final Setting<Integer> yMin = sgGeneral.add(new IntSetting.Builder()
+        .name("y-min")
+        .description("Lowest Y level before forcing another /rtp.")
+        .defaultValue(-50)
+        .min(-64)
+        .max(320)
+        .build()
+    );
+
+    private final Setting<Integer> yMax = sgGeneral.add(new IntSetting.Builder()
+        .name("y-max")
+        .description("Highest Y level before forcing another /rtp.")
+        .defaultValue(20)
+        .min(-64)
+        .max(320)
+        .build()
+    );
+
+    private final Setting<Double> rotationSpeed = sgGeneral.add(new DoubleSetting.Builder()
+        .name("rotation-speed")
+        .description("Speed of player rotation (degrees per tick).")
+        .defaultValue(10.0)
+        .min(1.0)
+        .max(90.0)
+        .sliderMax(45.0)
+        .build()
+    );
+
+    private boolean digging = false;
+    private boolean clutching = false;
+    private boolean rotating = false;
+    private boolean waitingForRtp = false; // prevents rtp spam
+
+    private float targetPitch = 90f;
+
+    private BlockPos miningBlock = null;
+
+    private final Set<Block> storages = Set.of(
+        Blocks.CHEST, Blocks.TRAPPED_CHEST, Blocks.BARREL, Blocks.SHULKER_BOX
+    );
+
+    private final List<net.minecraft.item.Item> pickaxePriority = List.of(
+        Items.NETHERITE_PICKAXE,
+        Items.DIAMOND_PICKAXE,
+        Items.IRON_PICKAXE,
+        Items.STONE_PICKAXE,
+        Items.GOLDEN_PICKAXE,
+        Items.WOODEN_PICKAXE
+    );
 
     public RTPBaseFinder() {
-        super(GlazedAddon.CATEGORY, "RTPBaseFinder", "Aimbots downward, holds left click to mine to Y=-58, then runs /rtp east.");
+        super(com.nnpg.glazed.GlazedAddon.CATEGORY, "rtp-base-finder", "Uses /rtp and digs to detect bases.");
     }
 
     @Override
     public void onActivate() {
-        currentTarget = mc.player.getBlockPos().down();
-        waitingForTeleport = false;
-        info("RTPBaseFinder activated. Mining straight down.");
+        if (mc.player == null) return;
+        sendRtp();
     }
 
-    @Override
-    public void onDeactivate() {
-        releaseLeftClick();
-        info("RTPBaseFinder disabled.");
+    private void sendRtp() {
+        if (mc.player != null) {
+            mc.player.networkHandler.sendChatCommand("rtp " + rtpDirection.get().toLowerCase());
+            digging = false;
+            clutching = false;
+            rotating = true;
+            miningBlock = null;
+            waitingForRtp = true; // prevent spam until rotation completes
+        }
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.options == null || mc.currentScreen != null) return;
+        if (mc.player == null) return;
 
-        if (waitingForTeleport) {
-            if (System.currentTimeMillis() - lastTeleportTime > 3000) {
-                currentTarget = mc.player.getBlockPos().down();
-                waitingForTeleport = false;
+        // Smooth rotation to look down before digging
+        if (rotating) {
+            float currentPitch = mc.player.getPitch();
+            float step = rotationSpeed.get().floatValue();
+
+            if (Math.abs(targetPitch - currentPitch) <= step) {
+                mc.player.setPitch(targetPitch);
+                rotating = false;
+                digging = true;
+                waitingForRtp = false; // ready for next cycle
+            } else {
+                float newPitch = currentPitch + Math.signum(targetPitch - currentPitch) * step;
+                mc.player.setPitch(newPitch);
+            }
+        }
+
+        // Falling check → try MLG
+        if (mc.player.fallDistance > 3 && mc.player.getVelocity().y < -0.5 && !clutching) {
+            if (tryMLG()) clutching = true;
+            return;
+        }
+
+        // After MLG, pick up water
+        if (clutching) {
+            BlockPos feet = mc.player.getBlockPos();
+            if (mc.world.getBlockState(feet).getBlock() == Blocks.WATER) {
+                int bucketSlot = findHotbarSlot(Items.BUCKET);
+                if (bucketSlot != -1) {
+                    mc.player.getInventory().selectedSlot = bucketSlot;
+                    mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
+                }
+                clutching = false;
+                digging = true;
             }
             return;
         }
 
-        aimDownward();
+        // Normal digging
+        if (digging) {
+            mineLookingAt();
+            detectBase();
 
-        if (currentTarget == null || currentTarget.getY() <= -58) {
-            triggerTeleport();
+            int y = mc.player.getBlockY();
+            if (y <= yMin.get() && !waitingForRtp) {
+                sendRtp(); // only once
+            }
+        }
+    }
+
+    /**
+     * Mine the block the player is currently looking at (like vanilla survival).
+     */
+    private void mineLookingAt() {
+        HitResult result = mc.player.raycast(5.0, 0.0f, false);
+        if (!(result instanceof BlockHitResult bhr)) {
+            miningBlock = null;
             return;
         }
 
-        holdLeftClick();
+        BlockPos targetPos = bhr.getBlockPos();
+        Direction face = bhr.getSide();
 
-        if (mc.world.getBlockState(currentTarget).isAir()) {
-            currentTarget = currentTarget.down();
+        if (mc.world.getBlockState(targetPos).isAir()) {
+            miningBlock = null;
+            return;
+        }
+
+        // Equip best available pickaxe
+        int pickSlot = -1;
+        for (net.minecraft.item.Item pick : pickaxePriority) {
+            int s = findHotbarSlot(pick);
+            if (s != -1) {
+                pickSlot = s;
+                break;
+            }
+        }
+        if (pickSlot != -1) mc.player.getInventory().selectedSlot = pickSlot;
+
+        // New block → start mining
+        if (miningBlock == null || !miningBlock.equals(targetPos)) {
+            miningBlock = targetPos;
+            mc.interactionManager.attackBlock(targetPos, face); // start break
+        }
+
+        // Continue mining progress
+        mc.interactionManager.updateBlockBreakingProgress(targetPos, face);
+        mc.player.swingHand(Hand.MAIN_HAND);
+
+        // Reset when block breaks
+        if (mc.world.getBlockState(targetPos).isAir()) {
+            miningBlock = null;
         }
     }
 
-    private void aimDownward() {
-        mc.player.setPitch(90f); // Look straight down
-        Vec3d eyePos = mc.player.getEyePos();
-        Vec3d targetVec = Vec3d.ofCenter(currentTarget);
-        Vec3d dir = targetVec.subtract(eyePos).normalize();
-        float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z));
-        mc.player.setYaw(yaw);
+    private void detectBase() {
+        int found = 0;
+        BlockPos playerPos = mc.player.getBlockPos();
+
+        for (BlockPos pos : BlockPos.iterateOutwards(playerPos, 6, 6, 6)) {
+            Block block = mc.world.getBlockState(pos).getBlock();
+            if (storages.contains(block)) found++;
+        }
+
+        if (found >= baseDetectionAmount.get()) {
+            mc.player.networkHandler.getConnection().disconnect(Text.literal("[RtpBaseFinder] Base Found"));
+        }
     }
 
-    private void holdLeftClick() {
-        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
+    private boolean tryMLG() {
+        int waterSlot = findHotbarSlot(Items.WATER_BUCKET);
+        if (waterSlot == -1) return false;
+
+        mc.player.getInventory().selectedSlot = waterSlot;
+        mc.player.setPitch(90);
+        mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
+        return true;
     }
 
-    private void releaseLeftClick() {
-        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
-    }
-
-    private void triggerTeleport() {
-        releaseLeftClick();
-        mc.player.networkHandler.sendChatCommand("rtp east");
-        lastTeleportTime = System.currentTimeMillis();
-        waitingForTeleport = true;
-        info("Reached Y=-58. Teleporting east.");
+    private int findHotbarSlot(net.minecraft.item.Item item) {
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = mc.player.getInventory().getStack(i);
+            if (stack.getItem() == item) return i;
+        }
+        return -1;
     }
 }
