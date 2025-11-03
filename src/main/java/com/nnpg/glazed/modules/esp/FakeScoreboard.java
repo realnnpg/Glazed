@@ -27,45 +27,24 @@ public class FakeScoreboard extends Module {
     private final SettingGroup sgStats = settings.getDefaultGroup();
 
     private final Setting<String> title = sgStats.add(new StringSetting.Builder()
-            .name("title")
-            .defaultValue("Glazed on top")
-            .build());
+            .name("title").defaultValue("Glazed on top").build());
     private final Setting<String> money = sgStats.add(new StringSetting.Builder()
-            .name("money")
-            .defaultValue("67")
-            .build());
+            .name("money").defaultValue("67").build());
     private final Setting<String> shards = sgStats.add(new StringSetting.Builder()
-            .name("shards")
-            .defaultValue("67")
-            .build());
+            .name("shards").defaultValue("67").build());
     private final Setting<String> kills = sgStats.add(new StringSetting.Builder()
-            .name("kills")
-            .defaultValue("67")
-            .build());
+            .name("kills").defaultValue("67").build());
     private final Setting<String> deaths = sgStats.add(new StringSetting.Builder()
-            .name("deaths")
-            .defaultValue("67")
-            .build());
+            .name("deaths").defaultValue("67").build());
     private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder()
-            .name("keyall")
-            .description("Starting countdown in minutes")
-            .defaultValue(10)
-            .range(0, 60)
-            .build());
+            .name("keyall").description("Starting countdown in minutes").defaultValue(10).range(0, 60).build());
     private final Setting<String> playtimeStart = sgStats.add(new StringSetting.Builder()
-            .name("playtime")
-            .defaultValue("0h 0m")
-            .build());
+            .name("playtime").defaultValue("0h 0m").build());
     private final Setting<String> team = sgStats.add(new StringSetting.Builder()
-            .name("team")
-            .defaultValue("Glazed on top")
-            .build());
+            .name("team").defaultValue("Glazed on top").build());
     private final Setting<String> footer = sgStats.add(new StringSetting.Builder()
-            .name("footer")
-            .defaultValue(" Glazed(67ms)")
-            .build());
+            .name("footer").defaultValue(" Glazed(67ms)").build());
 
-    // Runtime variables
     private int keyallTimer;
     private long playtimeSeconds;
     private Thread updaterThread;
@@ -80,15 +59,12 @@ public class FakeScoreboard extends Module {
     @Override
     public void onActivate() {
         if (mc.world == null || mc.player == null) return;
-
         Scoreboard scoreboard = mc.world.getScoreboard();
         originalObjective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
-
         keyallTimer = keyallStart.get() * 60;
         playtimeSeconds = parsePlaytime(playtimeStart.get());
         killsCount = parseInt(kills.get());
         deathsCount = parseInt(deaths.get());
-
         running = true;
         updaterThread = new Thread(this::updateLoop);
         updaterThread.start();
@@ -97,10 +73,7 @@ public class FakeScoreboard extends Module {
     @Override
     public void onDeactivate() {
         running = false;
-        try {
-            if (updaterThread != null) updaterThread.join();
-        } catch (InterruptedException ignored) {}
-
+        try { if (updaterThread != null) updaterThread.join(); } catch (InterruptedException ignored) {}
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
         if (originalObjective != null) scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
@@ -113,17 +86,9 @@ public class FakeScoreboard extends Module {
             try {
                 detectKillsDeaths();
                 updateScoreboard();
-
-                // Random delay between 0.6s - 1.2s
                 Thread.sleep(600 + random.nextInt(601));
-
-                // Keyall countdown
-                keyallTimer--;
-                if (keyallTimer <= 0) keyallTimer = 60 * 60;
-
-                // Playtime increment
+                keyallTimer--; if (keyallTimer <= 0) keyallTimer = 60 * 60;
                 playtimeSeconds++;
-
             } catch (InterruptedException ignored) {}
         }
     }
@@ -133,23 +98,16 @@ public class FakeScoreboard extends Module {
         if (player == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
         String playerName = player.getEntityName();
-
-        Objective killsObj = null;
-        Objective deathsObj = null;
-
-        for (Objective o : scoreboard.getObjectives()) {
-            if (o.getName().equals("playerKills")) killsObj = o;
-            if (o.getName().equals("playerDeaths")) deathsObj = o;
-        }
+        Objective killsObj = scoreboard.getObjective("playerKills");
+        Objective deathsObj = scoreboard.getObjective("playerDeaths");
 
         if (killsObj != null) {
             Score score = scoreboard.getPlayerScore(playerName, killsObj);
-            if (score.getScore() > killsCount) killsCount = score.getScore();
+            killsCount = Math.max(killsCount, score.getScore());
         }
-
         if (deathsObj != null) {
             Score score = scoreboard.getPlayerScore(playerName, deathsObj);
-            if (score.getScore() > deathsCount) deathsCount = score.getScore();
+            deathsCount = Math.max(deathsCount, score.getScore());
         }
     }
 
@@ -157,7 +115,6 @@ public class FakeScoreboard extends Module {
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
         if (customObjective != null) scoreboard.removeObjective(customObjective);
-
         customObjective = scoreboard.addObjective(
                 SCOREBOARD_NAME,
                 ScoreboardCriterion.DUMMY,
@@ -170,7 +127,6 @@ public class FakeScoreboard extends Module {
 
         List<MutableText> entries = generateEntriesText();
         List<Team> teams = new ArrayList<>();
-
         for (int i = 0; i < entries.size(); i++) {
             String teamName = "team_line_" + i;
             Team t = scoreboard.getTeam(teamName);
@@ -180,14 +136,10 @@ public class FakeScoreboard extends Module {
         }
 
         for (int i = 0; i < entries.size(); i++) {
-            String holderName = "\u00A7" + i;
-            ScoreHolder holder = ScoreHolder.fromName(holderName);
-            scoreboard.removeScore(holder, customObjective);
-
-            ScoreAccess score = scoreboard.getOrCreateScore(holder, customObjective);
+            String playerName = "\u00A7" + i;
+            Score score = scoreboard.getPlayerScore(playerName, customObjective);
             score.setScore(entries.size() - i);
-
-            scoreboard.addScoreHolderToTeam(holder.getNameForScoreboard(), teams.get(i));
+            scoreboard.addPlayerToTeam(playerName, teams.get(i));
         }
     }
 
@@ -206,81 +158,32 @@ public class FakeScoreboard extends Module {
         );
     }
 
-    private String formatKeyall() {
-        int minutes = keyallTimer / 60;
-        int seconds = keyallTimer % 60;
-        return String.format("%02dm %02ds", minutes, seconds);
-    }
-
-    private String formatPlaytime() {
-        long totalMinutes = playtimeSeconds / 60;
-        long hours = totalMinutes / 60;
-        long minutes = totalMinutes % 60;
-        return String.format("%dh %dm", hours, minutes);
-    }
-
-    private long parsePlaytime(String raw) {
-        try {
-            String[] parts = raw.split(" ");
-            long hours = Long.parseLong(parts[0].replace("h", ""));
-            long minutes = Long.parseLong(parts[1].replace("m", ""));
-            return hours * 3600 + minutes * 60;
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    private int parseInt(String raw) {
-        try {
-            return Integer.parseInt(raw);
-        } catch (Exception e) {
-            return 0;
-        }
-    }
+    private String formatKeyall() { int m = keyallTimer / 60, s = keyallTimer % 60; return String.format("%02dm %02ds", m, s); }
+    private String formatPlaytime() { long totalMin = playtimeSeconds / 60, h = totalMin / 60, m = totalMin % 60; return String.format("%dh %dm", h, m); }
+    private long parsePlaytime(String raw) { try { String[] p = raw.split(" "); return Long.parseLong(p[0].replace("h",""))*3600 + Long.parseLong(p[1].replace("m",""))*60; } catch(Exception e){return 0;} }
+    private int parseInt(String raw) { try{return Integer.parseInt(raw);} catch(Exception e){return 0;} }
 
     private MutableText footerText() {
-        int ping;
-        double chance = random.nextDouble();
-        if (chance < 0.7) ping = random.nextInt(37); // 0-36
-        else ping = 37 + random.nextInt(64); // 37-100 less likely
-
+        int ping = random.nextDouble() < 0.7 ? random.nextInt(37) : 37 + random.nextInt(64);
         String raw = footer.get();
-        int start = raw.indexOf('(');
-        int end = raw.indexOf(')');
-        String region = start != -1 && end > start ? raw.substring(0, start).trim() : raw;
+        int start = raw.indexOf('('), end = raw.indexOf(')');
+        String region = (start != -1 && end > start) ? raw.substring(0,start).trim() : raw;
         return colored(region + " (" + ping + "ms)", 0xA0A0A0);
     }
 
-    private MutableText colored(String text, int rgb) {
-        return Text.literal(text).setStyle(Style.EMPTY.withColor(TextColor.fromRgb(rgb)));
-    }
+    private MutableText colored(String text,int rgb){ return Text.literal(text).setStyle(Style.EMPTY.withColor(TextColor.fromRgb(rgb))); }
+    private MutableText text(String s){ return Text.literal(s); }
 
-    private MutableText text(String s) {
-        return Text.literal(s);
-    }
-
-    private MutableText gradientTitle(String text) {
-        return gradient(text, 0x007CF9, 0x00C6F9);
-    }
-
-    private MutableText gradient(String text, int startColor, int endColor) {
-        int startR = (startColor >> 16) & 0xFF;
-        int startG = (startColor >> 8) & 0xFF;
-        int startB = startColor & 0xFF;
-
-        int endR = (endColor >> 16) & 0xFF;
-        int endG = (endColor >> 8) & 0xFF;
-        int endB = endColor & 0xFF;
-
+    private MutableText gradientTitle(String text){ return gradient(text,0x007CF9,0x00C6F9); }
+    private MutableText gradient(String text,int start,int end){
+        int sr=(start>>16)&0xFF,sg=(start>>8)&0xFF,sb=start&0xFF;
+        int er=(end>>16)&0xFF,eg=(end>>8)&0xFF,eb=end&0xFF;
         MutableText result = Text.empty();
-        int len = Math.max(1, text.length());
-        for (int i = 0; i < len; i++) {
-            float t = (float) i / Math.max(len - 1, 1);
-            int r = Math.round(startR + (endR - startR) * t);
-            int g = Math.round(startG + (endG - startG) * t);
-            int b = Math.round(startB + (endB - startB) * t);
-            result.append(Text.literal(String.valueOf(text.charAt(i)))
-                    .setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
+        int len = Math.max(1,text.length());
+        for(int i=0;i<len;i++){
+            float t=(float)i/Math.max(len-1,1);
+            int r=Math.round(sr+(er-sr)*t), g=Math.round(sg+(eg-sg)*t), b=Math.round(sb+(eb-sb)*t);
+            result.append(Text.literal(String.valueOf(text.charAt(i))).setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r<<16)|(g<<8)|b))));
         }
         return result;
     }
