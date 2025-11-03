@@ -14,59 +14,69 @@ import net.minecraft.text.TextColor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class FakeScoreboard extends Module {
     private static final String SCOREBOARD_NAME = "glazed_custom";
     private ScoreboardObjective customObjective;
     private ScoreboardObjective originalObjective;
     private final MinecraftClient mc = MinecraftClient.getInstance();
+    private final Random random = new Random();
 
     private final SettingGroup sgStats = settings.getDefaultGroup();
 
     private final Setting<String> title = sgStats.add(new StringSetting.Builder()
-        .name("title")
-        .defaultValue("Glazed on top")
-        .build());
+            .name("title")
+            .defaultValue("Glazed on top")
+            .build());
 
     private final Setting<String> money = sgStats.add(new StringSetting.Builder()
-        .name("money")
-        .defaultValue("67")
-        .build());
+            .name("money")
+            .defaultValue("67")
+            .build());
 
     private final Setting<String> shards = sgStats.add(new StringSetting.Builder()
-        .name("shards")
-        .defaultValue("67")
-        .build());
+            .name("shards")
+            .defaultValue("67")
+            .build());
 
     private final Setting<String> kills = sgStats.add(new StringSetting.Builder()
-        .name("kills")
-        .defaultValue("67")
-        .build());
+            .name("kills")
+            .defaultValue("67")
+            .build());
 
     private final Setting<String> deaths = sgStats.add(new StringSetting.Builder()
-        .name("deaths")
-        .defaultValue("67")
-        .build());
+            .name("deaths")
+            .defaultValue("67")
+            .build());
 
-    private final Setting<String> keyall = sgStats.add(new StringSetting.Builder()
-        .name("keyall")
-        .defaultValue("67")
-        .build());
+    private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder()
+            .name("keyall")
+            .description("Starting countdown in minutes")
+            .defaultValue(10)
+            .range(0, 60)
+            .build());
 
-    private final Setting<String> playtime = sgStats.add(new StringSetting.Builder()
-        .name("playtime")
-        .defaultValue("6h 7m")
-        .build());
+    private final Setting<String> playtimeStart = sgStats.add(new StringSetting.Builder()
+            .name("playtime")
+            .defaultValue("0h 0m")
+            .build());
 
     private final Setting<String> team = sgStats.add(new StringSetting.Builder()
-        .name("team")
-        .defaultValue("Glazed on top")
-        .build());
+            .name("team")
+            .defaultValue("Glazed on top")
+            .build());
 
     private final Setting<String> footer = sgStats.add(new StringSetting.Builder()
-        .name("footer")
-        .defaultValue(" Glazed(67ms)") 
-        .build());
+            .name("footer")
+            .defaultValue(" Glazed(67ms)")
+            .build());
+
+    // Runtime variables
+    private int keyallTimer; // in seconds
+    private long playtimeSeconds; // total playtime in seconds
+    private Thread updaterThread;
+    private volatile boolean running = false;
 
     public FakeScoreboard() {
         super(GlazedAddon.esp, "FakeScoreboard", "Custom scoreboard overlay for Glazed.");
@@ -75,14 +85,27 @@ public class FakeScoreboard extends Module {
     @Override
     public void onActivate() {
         if (mc.world == null || mc.player == null) return;
-        Scoreboard scoreboard = mc.world.getScoreboard();
 
+        Scoreboard scoreboard = mc.world.getScoreboard();
         originalObjective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
-        updateScoreboard();
+
+        // Initialize timers
+        keyallTimer = keyallStart.get() * 60; // convert minutes to seconds
+        playtimeSeconds = parsePlaytime(playtimeStart.get());
+
+        // Start updater thread
+        running = true;
+        updaterThread = new Thread(this::updateLoop);
+        updaterThread.start();
     }
 
     @Override
     public void onDeactivate() {
+        running = false;
+        try {
+            if (updaterThread != null) updaterThread.join();
+        } catch (InterruptedException ignored) {}
+
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
 
@@ -94,19 +117,35 @@ public class FakeScoreboard extends Module {
         customObjective = null;
     }
 
-    public void updateScoreboard() {
+    private void updateLoop() {
+        while (running) {
+            try {
+                updateScoreboard();
+                Thread.sleep(1000); // update every second
+                // decrement keyall timer
+                keyallTimer--;
+                if (keyallTimer <= 0) {
+                    keyallTimer = 60 * 60; // loop 60 minutes after finishing
+                }
+                // increment playtime
+                playtimeSeconds++;
+            } catch (InterruptedException ignored) {}
+        }
+    }
+
+    private void updateScoreboard() {
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
 
         if (customObjective != null) scoreboard.removeObjective(customObjective);
 
         customObjective = scoreboard.addObjective(
-            SCOREBOARD_NAME,
-            ScoreboardCriterion.DUMMY,
-            gradientTitle(title.get()),
-            ScoreboardCriterion.RenderType.INTEGER,
-            false,
-            (NumberFormat) BlankNumberFormat.INSTANCE
+                SCOREBOARD_NAME,
+                ScoreboardCriterion.DUMMY,
+                gradientTitle(title.get()),
+                ScoreboardCriterion.RenderType.INTEGER,
+                false,
+                (NumberFormat) BlankNumberFormat.INSTANCE
         );
         scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, customObjective);
 
@@ -135,37 +174,50 @@ public class FakeScoreboard extends Module {
 
     private List<MutableText> generateEntriesText() {
         return List.of(
-            text(" "),
-            colored("$ ", 0x00FF00).append(colored("Money: ", 0xFFFFFF)).append(colored(money.get(), 0x00FF00)),
-            colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
-            colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills.get(), 0xFF0000)),
-            colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths.get(), 0xFC7703)),
-            colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(keyall.get(), 0x00A2FF)),
-            colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(playtime.get(), 0xFFE600)),
-            colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
-            text(" "),
-            footerText()
+                text(" "),
+                colored("$ ", 0x00FF00).append(colored("Money: ", 0xFFFFFF)).append(colored(money.get(), 0x00FF00)),
+                colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
+                colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills.get(), 0xFF0000)),
+                colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths.get(), 0xFC7703)),
+                colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(formatKeyall(), 0x00A2FF)),
+                colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(formatPlaytime(), 0xFFE600)),
+                colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
+                text(" "),
+                footerText()
         );
     }
 
+    private String formatKeyall() {
+        int minutes = keyallTimer / 60;
+        int seconds = keyallTimer % 60;
+        return String.format("%02dm %02ds", minutes, seconds);
+    }
+
+    private String formatPlaytime() {
+        long totalMinutes = playtimeSeconds / 60;
+        long hours = totalMinutes / 60;
+        long minutes = totalMinutes % 60;
+        return String.format("%dh %dm", hours, minutes);
+    }
+
+    private long parsePlaytime(String raw) {
+        try {
+            String[] parts = raw.split(" ");
+            long hours = Long.parseLong(parts[0].replace("h", ""));
+            long minutes = Long.parseLong(parts[1].replace("m", ""));
+            return hours * 3600 + minutes * 60;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     private MutableText footerText() {
+        int ping = random.nextInt(101); // random 0-100 each second
         String raw = footer.get();
         int start = raw.indexOf('(');
         int end = raw.indexOf(')');
-
-        if (start == -1 || end == -1 || end <= start) {
-            return colored(raw, 0xA0A0A0);
-        }
-
-        String region = raw.substring(0, start).trim();
-        String pingValue = raw.substring(start + 1, end).trim();
-
-        MutableText result = colored(region + " ", 0xA0A0A0)
-            .append(colored("(", 0xA0A0A0))
-            .append(colored(pingValue, 0x00A2FF))
-            .append(colored(")", 0xA0A0A0));
-
-        return result;
+        String region = start != -1 && end > start ? raw.substring(0, start).trim() : raw;
+        return colored(region + " (" + ping + "ms)", 0xA0A0A0);
     }
 
     private MutableText colored(String text, int rgb) {
@@ -178,10 +230,6 @@ public class FakeScoreboard extends Module {
 
     private MutableText gradientTitle(String text) {
         return gradient(text, 0x007CF9, 0x00C6F9);
-    }
-
-    private MutableText gradientFooter(String text) {
-        return gradient(text, 0x00C6F9, 0x007CF9);
     }
 
     private MutableText gradient(String text, int startColor, int endColor) {
@@ -201,7 +249,7 @@ public class FakeScoreboard extends Module {
             int g = Math.round(startG + (endG - startG) * t);
             int b = Math.round(startB + (endB - startB) * t);
             result.append(Text.literal(String.valueOf(text.charAt(i)))
-                .setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
+                    .setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
         }
         return result;
     }
