@@ -4,6 +4,7 @@ import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.scoreboard.*;
 import net.minecraft.scoreboard.number.BlankNumberFormat;
 import net.minecraft.scoreboard.number.NumberFormat;
@@ -29,54 +30,48 @@ public class FakeScoreboard extends Module {
             .name("title")
             .defaultValue("Glazed on top")
             .build());
-
     private final Setting<String> money = sgStats.add(new StringSetting.Builder()
             .name("money")
             .defaultValue("67")
             .build());
-
     private final Setting<String> shards = sgStats.add(new StringSetting.Builder()
             .name("shards")
             .defaultValue("67")
             .build());
-
     private final Setting<String> kills = sgStats.add(new StringSetting.Builder()
             .name("kills")
             .defaultValue("67")
             .build());
-
     private final Setting<String> deaths = sgStats.add(new StringSetting.Builder()
             .name("deaths")
             .defaultValue("67")
             .build());
-
     private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder()
             .name("keyall")
             .description("Starting countdown in minutes")
             .defaultValue(10)
             .range(0, 60)
             .build());
-
     private final Setting<String> playtimeStart = sgStats.add(new StringSetting.Builder()
             .name("playtime")
             .defaultValue("0h 0m")
             .build());
-
     private final Setting<String> team = sgStats.add(new StringSetting.Builder()
             .name("team")
             .defaultValue("Glazed on top")
             .build());
-
     private final Setting<String> footer = sgStats.add(new StringSetting.Builder()
             .name("footer")
             .defaultValue(" Glazed(67ms)")
             .build());
 
     // Runtime variables
-    private int keyallTimer; // in seconds
-    private long playtimeSeconds; // total playtime in seconds
+    private int keyallTimer;
+    private long playtimeSeconds;
     private Thread updaterThread;
     private volatile boolean running = false;
+    private int killsCount;
+    private int deathsCount;
 
     public FakeScoreboard() {
         super(GlazedAddon.esp, "FakeScoreboard", "Custom scoreboard overlay for Glazed.");
@@ -89,11 +84,11 @@ public class FakeScoreboard extends Module {
         Scoreboard scoreboard = mc.world.getScoreboard();
         originalObjective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
 
-        // Initialize timers
-        keyallTimer = keyallStart.get() * 60; // convert minutes to seconds
+        keyallTimer = keyallStart.get() * 60;
         playtimeSeconds = parsePlaytime(playtimeStart.get());
+        killsCount = parseInt(kills.get());
+        deathsCount = parseInt(deaths.get());
 
-        // Start updater thread
         running = true;
         updaterThread = new Thread(this::updateLoop);
         updaterThread.start();
@@ -108,7 +103,6 @@ public class FakeScoreboard extends Module {
 
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
-
         if (originalObjective != null)
             scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
         if (customObjective != null)
@@ -121,22 +115,47 @@ public class FakeScoreboard extends Module {
         while (running) {
             try {
                 updateScoreboard();
-                Thread.sleep(1000); // update every second
-                // decrement keyall timer
+
+                // Random delay between 0.6s - 1.2s
+                long delay = 600 + random.nextInt(601);
+                Thread.sleep(delay);
+
+                // Keyall countdown
                 keyallTimer--;
-                if (keyallTimer <= 0) {
-                    keyallTimer = 60 * 60; // loop 60 minutes after finishing
-                }
-                // increment playtime
+                if (keyallTimer <= 0) keyallTimer = 60 * 60;
+
+                // Playtime increment
                 playtimeSeconds++;
+
+                // Detect kills/deaths automatically
+                detectKillsDeaths();
+
             } catch (InterruptedException ignored) {}
+        }
+    }
+
+    private void detectKillsDeaths() {
+        ClientPlayerEntity player = mc.player;
+        if (player == null) return;
+        Scoreboard scoreboard = mc.world.getScoreboard();
+
+        ScoreObjective killsObjective = scoreboard.getObjective("playerKills");
+        ScoreObjective deathsObjective = scoreboard.getObjective("playerDeaths");
+
+        if (killsObjective != null) {
+            int realKills = scoreboard.getOrCreateScore(player.getScoreboardName(), killsObjective).getScore();
+            if (realKills > killsCount) killsCount = realKills;
+        }
+
+        if (deathsObjective != null) {
+            int realDeaths = scoreboard.getOrCreateScore(player.getScoreboardName(), deathsObjective).getScore();
+            if (realDeaths > deathsCount) deathsCount = realDeaths;
         }
     }
 
     private void updateScoreboard() {
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
-
         if (customObjective != null) scoreboard.removeObjective(customObjective);
 
         customObjective = scoreboard.addObjective(
@@ -177,8 +196,8 @@ public class FakeScoreboard extends Module {
                 text(" "),
                 colored("$ ", 0x00FF00).append(colored("Money: ", 0xFFFFFF)).append(colored(money.get(), 0x00FF00)),
                 colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
-                colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills.get(), 0xFF0000)),
-                colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths.get(), 0xFC7703)),
+                colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(String.valueOf(killsCount), 0xFF0000)),
+                colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(String.valueOf(deathsCount), 0xFC7703)),
                 colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(formatKeyall(), 0x00A2FF)),
                 colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(formatPlaytime(), 0xFFE600)),
                 colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
@@ -211,8 +230,21 @@ public class FakeScoreboard extends Module {
         }
     }
 
+    private int parseInt(String raw) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     private MutableText footerText() {
-        int ping = random.nextInt(101); // random 0-100 each second
+        // Weighted randomness: rare above 36
+        int ping;
+        double rand = random.nextDouble();
+        if (rand < 0.7) ping = random.nextInt(37); // 0-36
+        else ping = 37 + random.nextInt(64); // 37-100 less likely
+
         String raw = footer.get();
         int start = raw.indexOf('(');
         int end = raw.indexOf(')');
