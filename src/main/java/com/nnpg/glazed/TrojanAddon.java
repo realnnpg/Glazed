@@ -20,9 +20,9 @@ import meteordevelopment.meteorclient.systems.modules.Category;
 
 public class GlazedAddon extends MeteorAddon {
 
-public static final Category CATEGORY = new Category("Glazed", new ItemStack(Items.CAKE));
-public static final Category esp = new Category("Glazed ESP ", new ItemStack(Items.VINE));
-public static final Category pvp = new Category("Glazed PVP", new ItemStack(Items.DIAMOND_SWORD));
+public static final Category CATEGORY = new Category("MAIN", new ItemStack(Items.GRASS_BLOCK));
+public static final Category esp = new Category("TROJAN ESP ", new ItemStack(Items.AMETHYST_BLOCK));
+public static final Category pvp = new Category("TROJAN COMBAT", new ItemStack(Items.NETHERITE_SWORD));
 
 
 
@@ -59,7 +59,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new TpaMacro());
         Modules.get().add(new TabDetector());
         Modules.get().add(new OrderSniper());
-        Modules.get().add(new LamaESP());
         Modules.get().add(new PillagerESP());
         Modules.get().add(new HoleTunnelStairsESP());
         Modules.get().add(new CoveredHole());
@@ -88,7 +87,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new StunMace());
         Modules.get().add(new HoldHotbarTotem());
         Modules.get().add(new ElytraFirework());
-        Modules.get().add(new PistonESP());
         Modules.get().add(new TpaAllMacro());
         Modules.get().add(new RTPNetherBaseFinder());
         Modules.get().add(new HomeReset());
