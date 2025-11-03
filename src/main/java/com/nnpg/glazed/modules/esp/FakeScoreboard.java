@@ -19,8 +19,8 @@ import java.util.Random;
 
 public class FakeScoreboard extends Module {
     private static final String SCOREBOARD_NAME = "glazed_custom";
-    private ScoreboardObjective customObjective;
-    private ScoreboardObjective originalObjective;
+    private Objective customObjective;
+    private Objective originalObjective;
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private final Random random = new Random();
 
@@ -103,22 +103,19 @@ public class FakeScoreboard extends Module {
 
         if (mc.world == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
-        if (originalObjective != null)
-            scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
-        if (customObjective != null)
-            scoreboard.removeObjective(customObjective);
-
+        if (originalObjective != null) scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
+        if (customObjective != null) scoreboard.removeObjective(customObjective);
         customObjective = null;
     }
 
     private void updateLoop() {
         while (running) {
             try {
+                detectKillsDeaths();
                 updateScoreboard();
 
                 // Random delay between 0.6s - 1.2s
-                long delay = 600 + random.nextInt(601);
-                Thread.sleep(delay);
+                Thread.sleep(600 + random.nextInt(601));
 
                 // Keyall countdown
                 keyallTimer--;
@@ -126,9 +123,6 @@ public class FakeScoreboard extends Module {
 
                 // Playtime increment
                 playtimeSeconds++;
-
-                // Detect kills/deaths automatically
-                detectKillsDeaths();
 
             } catch (InterruptedException ignored) {}
         }
@@ -138,18 +132,24 @@ public class FakeScoreboard extends Module {
         ClientPlayerEntity player = mc.player;
         if (player == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
+        String playerName = player.getEntityName();
 
-        ScoreObjective killsObjective = scoreboard.getObjective("playerKills");
-        ScoreObjective deathsObjective = scoreboard.getObjective("playerDeaths");
+        Objective killsObj = null;
+        Objective deathsObj = null;
 
-        if (killsObjective != null) {
-            int realKills = scoreboard.getOrCreateScore(player.getScoreboardName(), killsObjective).getScore();
-            if (realKills > killsCount) killsCount = realKills;
+        for (Objective o : scoreboard.getObjectives()) {
+            if (o.getName().equals("playerKills")) killsObj = o;
+            if (o.getName().equals("playerDeaths")) deathsObj = o;
         }
 
-        if (deathsObjective != null) {
-            int realDeaths = scoreboard.getOrCreateScore(player.getScoreboardName(), deathsObjective).getScore();
-            if (realDeaths > deathsCount) deathsCount = realDeaths;
+        if (killsObj != null) {
+            Score score = scoreboard.getPlayerScore(playerName, killsObj);
+            if (score.getScore() > killsCount) killsCount = score.getScore();
+        }
+
+        if (deathsObj != null) {
+            Score score = scoreboard.getPlayerScore(playerName, deathsObj);
+            if (score.getScore() > deathsCount) deathsCount = score.getScore();
         }
     }
 
@@ -239,10 +239,9 @@ public class FakeScoreboard extends Module {
     }
 
     private MutableText footerText() {
-        // Weighted randomness: rare above 36
         int ping;
-        double rand = random.nextDouble();
-        if (rand < 0.7) ping = random.nextInt(37); // 0-36
+        double chance = random.nextDouble();
+        if (chance < 0.7) ping = random.nextInt(37); // 0-36
         else ping = 37 + random.nextInt(64); // 37-100 less likely
 
         String raw = footer.get();
