@@ -71,7 +71,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new RTPEndBaseFinder());
         Modules.get().add(new ShopBuyer());
         Modules.get().add(new OrderDropper());
-        Modules.get().add(new CollectibleESP());
         Modules.get().add(new SpawnerNotifier());
         Modules.get().add(new VineESP());
         Modules.get().add(new ChunkFinder());
@@ -85,7 +84,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new RegionMap());
         Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new NoBlockInteract());
-        Modules.get().add(new BeehiveESP());
         Modules.get().add(new WindPearlMacro());
         Modules.get().add(new QuickShieldBreaker());
         Modules.get().add(new UDTriggerBot());
@@ -94,7 +92,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new DoubleAnchorMacro());
         Modules.get().add(new StunMace());
         Modules.get().add(new HoldHotbarTotem());
-        Modules.get().add(new SweetBerryESP());
         Modules.get().add(new ElytraFirework());
         Modules.get().add(new PistonESP());
         Modules.get().add(new TpaAllMacro());
@@ -119,7 +116,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new FakeScoreboard());
         Modules.get().add(new AutoInvTotem());
         Modules.get().add(new FreecamMining());
-        Modules.get().add(new BedrockVoidESP());
         Modules.get().add(new UIHelper());
 
 
