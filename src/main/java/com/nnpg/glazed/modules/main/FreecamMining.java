@@ -8,8 +8,10 @@ import meteordevelopment.meteorclient.systems.modules.render.Freecam;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.option.KeyBinding;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -30,10 +32,15 @@ public class FreecamMining extends Module {
             freecam.toggle();
             info("Freecam activated for mining.");
         }
+        // Ensure attack key is not accidentally stuck when enabling
+        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
     }
 
     @Override
     public void onDeactivate() {
+        // Release attack key so mining stops immediately when module is turned off
+        KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
+
         if (freecam.isActive()) {
             freecam.toggle();
             info("Freecam deactivated.");
@@ -72,8 +79,13 @@ public class FreecamMining extends Module {
             BlockHitResult blockHit = (BlockHitResult) ray;
             BlockPos targetPos = blockHit.getBlockPos();
 
-            player.swingHand(Hand.MAIN_HAND);
-            mc.interactionManager.attackBlock(targetPos, blockHit.getSide());
+            // Hold the attack key and update breaking progress so the block is mined instead of spamming
+            KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), true);
+            mc.interactionManager.updateBlockBreakingProgress(targetPos, blockHit.getSide());
+        }
+        else {
+            // Release attack when not targeting a block
+            KeyBinding.setKeyPressed(mc.options.attackKey.getDefaultKey(), false);
         }
     }
 }
