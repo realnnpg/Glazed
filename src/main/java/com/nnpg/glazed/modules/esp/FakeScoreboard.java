@@ -23,15 +23,24 @@ public class FakeScoreboard extends Module {
 
     private final SettingGroup sgStats = settings.getDefaultGroup();
 
-    private final Setting<String> title = sgStats.add(new StringSetting.Builder().name("title").defaultValue("Glazed on top").build());
-    private final Setting<String> money = sgStats.add(new StringSetting.Builder().name("money").defaultValue("67").build());
-    private final Setting<String> shards = sgStats.add(new StringSetting.Builder().name("shards").defaultValue("67").build());
-    private final Setting<String> killsStart = sgStats.add(new StringSetting.Builder().name("kills").defaultValue("0").build());
-    private final Setting<String> deathsStart = sgStats.add(new StringSetting.Builder().name("deaths").defaultValue("0").build());
-    private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder().name("keyall").description("Starting countdown in minutes").defaultValue(10).range(0, 60).build());
-    private final Setting<String> playtimeStart = sgStats.add(new StringSetting.Builder().name("playtime").defaultValue("0h 0m").build());
-    private final Setting<String> team = sgStats.add(new StringSetting.Builder().name("team").defaultValue("Glazed on top").build());
-    private final Setting<String> footer = sgStats.add(new StringSetting.Builder().name("footer").defaultValue(" Glazed(67ms)").build());
+    private final Setting<String> title = sgStats.add(new StringSetting.Builder()
+        .name("title").defaultValue("Glazed on top").build());
+    private final Setting<String> money = sgStats.add(new StringSetting.Builder()
+        .name("money").defaultValue("67").build());
+    private final Setting<String> shards = sgStats.add(new StringSetting.Builder()
+        .name("shards").defaultValue("67").build());
+    private final Setting<String> killsStart = sgStats.add(new StringSetting.Builder()
+        .name("kills").defaultValue("0").build());
+    private final Setting<String> deathsStart = sgStats.add(new StringSetting.Builder()
+        .name("deaths").defaultValue("0").build());
+    private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder()
+        .name("keyall").description("Starting countdown in minutes").defaultValue(10).range(0, 60).build());
+    private final Setting<String> playtimeStart = sgStats.add(new StringSetting.Builder()
+        .name("playtime").defaultValue("0h 0m").build());
+    private final Setting<String> team = sgStats.add(new StringSetting.Builder()
+        .name("team").defaultValue("Glazed on top").build());
+    private final Setting<String> footer = sgStats.add(new StringSetting.Builder()
+        .name("footer").defaultValue(" Glazed(67ms)").build());
 
     private volatile int keyallTimer;
     private volatile long playtimeSeconds;
@@ -79,18 +88,15 @@ public class FakeScoreboard extends Module {
         runOnClientSync(() -> {
             Scoreboard sb = mc.world.getScoreboard();
 
-            // remove fake objective first
-            if (customObjective != null && sb.getObjective(SCOREBOARD_NAME) != null) {
+            if (customObjective != null && sb.getNullableObjective(SCOREBOARD_NAME) != null) {
                 sb.removeObjective(customObjective);
                 customObjective = null;
             }
 
-            // restore old one (if there was one)
-            if (originalObjective != null) {
+            if (originalObjective != null)
                 sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
-            } else {
+            else
                 sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
-            }
 
             return null;
         });
@@ -245,7 +251,9 @@ public class FakeScoreboard extends Module {
     private MutableText colored(String text, int rgb) {
         return Text.literal(text).setStyle(Style.EMPTY.withColor(TextColor.fromRgb(rgb)));
     }
+
     private MutableText text(String s) { return Text.literal(s); }
+
     private MutableText gradientTitle(String text) { return gradient(text, 0x007CF9, 0x00C6F9); }
 
     private MutableText gradient(String text, int start, int end) {
