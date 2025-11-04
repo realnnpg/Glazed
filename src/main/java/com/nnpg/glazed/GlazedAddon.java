@@ -3,6 +3,7 @@ package com.nnpg.glazed;
 import com.nnpg.glazed.modules.esp.*;
 import com.nnpg.glazed.modules.main.*;
 import com.nnpg.glazed.modules.pvp.*;
+import com.nnpg.glazed.modules.troll.*;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.Category;
@@ -23,6 +24,7 @@ public class GlazedAddon extends MeteorAddon {
 public static final Category CATEGORY = new Category("MAIN", new ItemStack(Items.GRASS_BLOCK));
 public static final Category esp = new Category("TROJAN ESP ", new ItemStack(Items.AMETHYST_BLOCK));
 public static final Category pvp = new Category("TROJAN COMBAT", new ItemStack(Items.NETHERITE_SWORD));
+public static final Category pvp = new Category("TROLL", new ItemStack(Items.TNT_BLOCK));
 
 
 
@@ -87,6 +89,7 @@ public static final Category pvp = new Category("TROJAN COMBAT", new ItemStack(I
         Modules.registerCategory(CATEGORY);
         Modules.registerCategory(esp);
         Modules.registerCategory(pvp);
+        Modules.registerCategory(troll);
 
 
         //mc.setScreen(new MyScreen(GuiThemes.get()));
