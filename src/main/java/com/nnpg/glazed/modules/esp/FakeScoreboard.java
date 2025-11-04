@@ -16,7 +16,7 @@ public class FakeScoreboard extends Module {
     private static final String SCOREBOARD_NAME = "glazed_custom";
 
     private ScoreboardObjective customObjective;
-    private ScoreboardObjective originalObjective;
+    private ScoreboardObjective savedVanillaObjective; // For HideScoreboard behavior
 
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private final Random random = new Random();
@@ -61,7 +61,11 @@ public class FakeScoreboard extends Module {
         if (mc.world == null || mc.player == null) return;
 
         Scoreboard sb = mc.world.getScoreboard();
-        originalObjective = sb.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        // Save the vanilla scoreboard like HideScoreboard
+        savedVanillaObjective = sb.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+
+        // Hide the vanilla scoreboard
+        sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
 
         keyallTimer = keyallStart.get() * 60;
         playtimeSeconds = parsePlaytime(playtimeStart.get());
@@ -88,15 +92,19 @@ public class FakeScoreboard extends Module {
         runOnClientSync(() -> {
             Scoreboard sb = mc.world.getScoreboard();
 
+            // Remove our custom scoreboard
             if (customObjective != null && sb.getNullableObjective(SCOREBOARD_NAME) != null) {
                 sb.removeObjective(customObjective);
                 customObjective = null;
             }
 
-            if (originalObjective != null)
-                sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
-            else
+            // Restore saved vanilla scoreboard
+            if (savedVanillaObjective != null) {
+                sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, savedVanillaObjective);
+                savedVanillaObjective = null;
+            } else {
                 sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
+            }
 
             return null;
         });
