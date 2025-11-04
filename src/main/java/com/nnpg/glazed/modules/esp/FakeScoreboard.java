@@ -16,7 +16,7 @@ public class FakeScoreboard extends Module {
     private static final String SCOREBOARD_NAME = "glazed_custom";
 
     private ScoreboardObjective customObjective;
-    private ScoreboardObjective savedVanillaObjective; // For HideScoreboard behavior
+    private ScoreboardObjective savedVanillaObjective;
 
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private final Random random = new Random();
@@ -61,10 +61,8 @@ public class FakeScoreboard extends Module {
         if (mc.world == null || mc.player == null) return;
 
         Scoreboard sb = mc.world.getScoreboard();
-        // Save the vanilla scoreboard like HideScoreboard
+        // Save and hide the vanilla scoreboard
         savedVanillaObjective = sb.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
-
-        // Hide the vanilla scoreboard
         sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
 
         keyallTimer = keyallStart.get() * 60;
@@ -92,13 +90,13 @@ public class FakeScoreboard extends Module {
         runOnClientSync(() -> {
             Scoreboard sb = mc.world.getScoreboard();
 
-            // Remove our custom scoreboard
-            if (customObjective != null && sb.getNullableObjective(SCOREBOARD_NAME) != null) {
+            // Completely remove the custom scoreboard
+            if (customObjective != null) {
                 sb.removeObjective(customObjective);
                 customObjective = null;
             }
 
-            // Restore saved vanilla scoreboard
+            // Restore the vanilla scoreboard
             if (savedVanillaObjective != null) {
                 sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, savedVanillaObjective);
                 savedVanillaObjective = null;
@@ -115,10 +113,7 @@ public class FakeScoreboard extends Module {
             try {
                 detectKillsDeaths();
 
-                runOnClientSync(() -> {
-                    buildScoreboard();
-                    return null;
-                });
+                runOnClientSync(this::buildScoreboard);
 
                 Thread.sleep(1000L);
                 keyallTimer--;
@@ -132,8 +127,7 @@ public class FakeScoreboard extends Module {
         while (running) {
             ping = weightedPing();
             try {
-                long delay = 600L + ThreadLocalRandom.current().nextLong(601L);
-                Thread.sleep(delay);
+                Thread.sleep(600L + ThreadLocalRandom.current().nextLong(601L));
             } catch (InterruptedException ignored) {}
         }
     }
@@ -183,7 +177,7 @@ public class FakeScoreboard extends Module {
             gradientTitle(title.get()),
             ScoreboardCriterion.RenderType.INTEGER,
             false,
-            (NumberFormat) BlankNumberFormat.INSTANCE
+            (NumberFormat) BlankNumberFormat.INSTANCE // This allows unlimited numbers like "5.56k"
         );
         sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, customObjective);
 
@@ -203,7 +197,7 @@ public class FakeScoreboard extends Module {
             ScoreHolder holder = ScoreHolder.fromName(holderName);
             sb.removeScore(holder, customObjective);
             ScoreAccess sc = sb.getOrCreateScore(holder, customObjective);
-            sc.setScore(entries.size() - i);
+            sc.setScore(entries.size() - i); // order
             sb.addScoreHolderToTeam(holder.getNameForScoreboard(), teams.get(i));
         }
     }
@@ -288,9 +282,7 @@ public class FakeScoreboard extends Module {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<T> ref = new AtomicReference<>();
         mc.execute(() -> {
-            try {
-                ref.set(callable.call());
-            } catch (Exception ignored) {} 
+            try { ref.set(callable.call()); } catch (Exception ignored) {}
             finally { latch.countDown(); }
         });
 
