@@ -29,9 +29,9 @@ public class FakeScoreboard extends Module {
         .name("money").defaultValue("67").build());
     private final Setting<String> shards = sgStats.add(new StringSetting.Builder()
         .name("shards").defaultValue("67").build());
-    private final Setting<String> killsStart = sgStats.add(new StringSetting.Builder()
+    private final Setting<String> killsSetting = sgStats.add(new StringSetting.Builder()
         .name("kills").defaultValue("0").build());
-    private final Setting<String> deathsStart = sgStats.add(new StringSetting.Builder()
+    private final Setting<String> deathsSetting = sgStats.add(new StringSetting.Builder()
         .name("deaths").defaultValue("0").build());
     private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder()
         .name("keyall").description("Starting countdown in minutes").defaultValue(10).range(0, 60).build());
@@ -44,8 +44,8 @@ public class FakeScoreboard extends Module {
 
     private volatile int keyallTimer;
     private volatile long playtimeSeconds;
-    private volatile int kills;
-    private volatile int deaths;
+    private volatile String kills;
+    private volatile String deaths;
     private volatile int ping = 67;
 
     private volatile boolean running = false;
@@ -66,8 +66,8 @@ public class FakeScoreboard extends Module {
 
         keyallTimer = keyallStart.get() * 60;
         playtimeSeconds = parsePlaytime(playtimeStart.get());
-        kills = parseInt(killsStart.get());
-        deaths = parseInt(deathsStart.get());
+        kills = killsSetting.get();
+        deaths = deathsSetting.get();
 
         running = true;
         updaterThread = new Thread(this::updateLoop, "FakeScoreboard-Updater");
@@ -105,9 +105,6 @@ public class FakeScoreboard extends Module {
     private void updateLoop() {
         while (running) {
             try {
-                detectKillsDeaths();
-
-                // ✅ Fixed: wrap void method in lambda returning null
                 runOnClientSync(() -> {
                     buildScoreboard();
                     return null;
@@ -135,32 +132,6 @@ public class FakeScoreboard extends Module {
         if (r < 0.75) return random.nextInt(37);
         if (r < 0.95) return 37 + random.nextInt(20);
         return 57 + random.nextInt(44);
-    }
-
-    private void detectKillsDeaths() {
-        if (mc.player == null || mc.world == null) return;
-
-        runOnClientSync(() -> {
-            Scoreboard sb = mc.world.getScoreboard();
-            String playerName = mc.player.getName().getString();
-
-            ScoreboardObjective killsObj = sb.getNullableObjective("playerKills");
-            ScoreboardObjective deathsObj = sb.getNullableObjective("playerDeaths");
-
-            if (killsObj != null) {
-                ScoreAccess killScore = sb.getOrCreateScore(ScoreHolder.fromName(playerName), killsObj);
-                int liveKills = killScore.getScore();
-                if (liveKills > kills) kills = liveKills;
-            }
-
-            if (deathsObj != null) {
-                ScoreAccess deathScore = sb.getOrCreateScore(ScoreHolder.fromName(playerName), deathsObj);
-                int liveDeaths = deathScore.getScore();
-                if (liveDeaths > deaths) deaths = liveDeaths;
-            }
-
-            return null; // ✅ Important: return null for Callable
-        });
     }
 
     private void buildScoreboard() {
@@ -205,8 +176,8 @@ public class FakeScoreboard extends Module {
             text(" "),
             colored("$ ", 0x00FF00).append(colored("Money: ", 0xFFFFFF)).append(colored(money.get(), 0x00FF00)),
             colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
-            colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(String.valueOf(kills), 0xFF0000)),
-            colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(String.valueOf(deaths), 0xFC7703)),
+            colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills, 0xFF0000)),
+            colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths, 0xFC7703)),
             colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(formatKeyall(), 0x00A2FF)),
             colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(formatPlaytime(), 0xFFE600)),
             colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
@@ -235,10 +206,6 @@ public class FakeScoreboard extends Module {
             long m = Long.parseLong(p[1].replace("m", ""));
             return h * 3600 + m * 60;
         } catch (Exception e) { return 0L; }
-    }
-
-    private int parseInt(String raw) {
-        try { return Integer.parseInt(raw); } catch (Exception e) { return 0; }
     }
 
     private MutableText footerText() {
