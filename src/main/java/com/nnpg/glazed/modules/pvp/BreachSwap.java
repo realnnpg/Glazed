@@ -1,123 +1,152 @@
 package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
+import meteordevelopment.meteorclient.events.entity.player.AttackEntityEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
-import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.FindItemResult;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.Hand;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-public class BreachSwap extends Module {
-    private static final Logger LOGGER = LogManager.getLogger();
+public class MaceSwap extends Module {
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final Setting<Boolean> autoSwap = sgGeneral.add(new BoolSetting.Builder()
+        .name("auto-swap-breach-mace")
+        .description("Automatically finds and swaps to a breach mace.")
+        .defaultValue(true)
+        .build());
+    private final Setting<Integer> targetSlot = sgGeneral.add(new IntSetting.Builder()
+        .name("target-slot")
+        .description("The hotbar slot to swap to when attacking.")
+        .sliderRange(1, 9)
+        .defaultValue(1)
+        .min(1)
+        .visible(() -> !autoSwap.get())
+        .build());
+    private final Setting<Boolean> debugMode = sgGeneral.add(new BoolSetting.Builder()
+        .name("debug")
+        .description("Print debug messages in chat.")
+        .defaultValue(false)
+        .build());
 
-    private final SettingGroup sg;
+    private final Setting<Boolean> checkWeapon = sgGeneral.add(new BoolSetting.Builder()
+        .name("check-weapon")
+        .description("Only activate when holding a sword or axe.")
+        .defaultValue(true)
+        .build());
 
-    private final Setting<Integer> maceSlot;
-    private final Setting<Integer> returnSlot;
-    private final Setting<Integer> comboCooldown;
+    private final Setting<Boolean> allowSword = sgGeneral.add(new BoolSetting.Builder()
+        .name("allow-sword")
+        .description("Allow activation when holding a sword.")
+        .defaultValue(true)
+        .visible(checkWeapon::get)
+        .build());
 
-    private final MinecraftClient mc;
+    private final Setting<Boolean> allowAxe = sgGeneral.add(new BoolSetting.Builder()
+        .name("allow-axe")
+        .description("Allow activation when holding an axe.")
+        .defaultValue(true)
+        .visible(checkWeapon::get)
+        .build());
 
-    private boolean comboActive = false;
-    private long lastComboTime = 0;  // Store the last time combo was triggered
+    private final Setting<Boolean> swapBack = sgGeneral.add(new BoolSetting.Builder()
+        .name("swap-back")
+        .description("Swap back to the original slot after a short delay.")
+        .defaultValue(true)
+        .build());
+    private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder().name("swap-back-delay").description("Delay in ticks before swapping back to the previous slot.").sliderRange(1, 20).defaultValue(8).min(1).visible(swapBack::get).build());
+    private int prevSlot = -1;
+    private int dDelay = 0;
+    public MaceSwap() {
+        super(GlazedAddon.pvp, "mace-swap", "Swaps with the mace in the target slot on attack");
+    }
 
-    public BreachSwap() {
-        super(GlazedAddon.pvp, "breachswap", "Use mace slot and return to slot all in one tick.");
+    private int findBreachMace() {
+        int bestSlot = -1;
+        int highestLevel = 0;
 
-        sg = settings.createGroup("Settings");
+        // Search through hotbar for items with Breach enchantment
+        for (int i = 0; i < 9; i++) {
+            var stack = mc.player.getInventory().getStack(i);
+            if (!stack.isEmpty()) {
+                var enchantInfo = stack.getEnchantments();
+                String enchantString = enchantInfo.toString();
+                if (debugMode.get()) info("Slot " + i + " enchants: " + enchantString);
 
-        maceSlot = sg.add(new IntSetting.Builder()
-            .name("mace-slot")
-            .description("Hotbar slot (0–8) containing your mace.")
-            .defaultValue(2)
-            .min(0)
-            .max(8)
-            .build()
-        );
-
-        returnSlot = sg.add(new IntSetting.Builder()
-            .name("return-slot")
-            .description("Hotbar slot to return to after the combo (0–8).")
-            .defaultValue(0)
-            .min(0)
-            .max(8)
-            .build()
-        );
-
-        comboCooldown = sg.add(new IntSetting.Builder()
-            .name("combo-cooldown")
-            .description("Cooldown time in milliseconds before the combo can be triggered again.")
-            .defaultValue(1000) // 1 second cooldown by default
-            .min(0)
-            .max(5000)  // Max cooldown of 5 seconds
-            .build()
-        );
-
-        mc = MinecraftClient.getInstance();
+                if (enchantString.contains("minecraft:breach")) {
+                    try {
+                        // Find the number after the =>
+                        int levelStart = enchantString.lastIndexOf("=>");
+                        if (levelStart != -1) {
+                            String levelStr = enchantString.substring(levelStart + 2).replaceAll("[^0-9]", "");
+                            int level = Integer.parseInt(levelStr);
+                            if (debugMode.get()) info("Found breach level " + level + " in slot " + i);
+                            if (level > highestLevel) {
+                                highestLevel = level;
+                                bestSlot = i;
+                            }
+                        }
+                    } catch (Exception e) {
+                        if (debugMode.get()) error("Error parsing level: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        if (bestSlot != -1) {
+            if (debugMode.get()) info("Selected slot " + bestSlot + " with level " + highestLevel);
+        } else {
+            if (debugMode.get()) warning("No breach mace found");
+        }
+        return bestSlot;
     }
 
     @EventHandler
-    private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null || mc.interactionManager == null) return;
+    private void onAttack(AttackEntityEvent event) {
+        if (mc.player == null || mc.world == null) return;
 
-        ClientPlayerEntity player = mc.player;
-
-        // Check if combo is on cooldown
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastComboTime < comboCooldown.get()) {
-            return;  // If cooldown hasn't passed, exit early and don't trigger combo
-        }
-
-        // Reset combo if grounded
-        if (player.isOnGround() && comboActive) {
-            comboActive = false;
-            return;
-        }
-
-        // Ensure the combo is not spammed, trigger only once per cooldown
-        if (!comboActive) {
-            PlayerEntity target = getTarget();
-            if (target != null) {
-                LOGGER.info("Target found: " + target.getName().getString()); // Log the target
-
-                // Trigger combo
-                comboActive = true;
-                lastComboTime = currentTime; // Update the last combo time
-
-                // Mace hit
-                LOGGER.info("Switching to mace slot: " + maceSlot.get()); // Log slot switch
-                player.getInventory().setSelectedSlot(maceSlot.get());
-                mc.interactionManager.attackEntity(player, target);
-                player.swingHand(Hand.MAIN_HAND);
-
-                // Return to the return slot immediately (same tick)
-                LOGGER.info("Returning to slot: " + returnSlot.get()); // Log return slot
-                player.getInventory().setSelectedSlot(returnSlot.get());
-
-                // Combo complete
-                comboActive = false;
+        // Check if we're holding a valid weapon when weapon checking is enabled
+        if (checkWeapon.get()) {
+            String heldItemId = mc.player.getMainHandStack().getItem().toString();
+            boolean isSword = heldItemId.contains("sword");
+            boolean isAxe = heldItemId.contains("_axe");
+            
+            if ((!allowSword.get() || !isSword) && (!allowAxe.get() || !isAxe)) {
+                if (debugMode.get()) info("Not holding selected weapon type");
+                return;
             }
+        }
+        
+        if (swapBack.get()) {
+            // PlayerInventory no longer exposes getSelectedSlot(); use the selectedSlot field instead
+            prevSlot = mc.player.getInventory().selectedSlot;
+        }
+
+        if (autoSwap.get()) {
+            // Find breach mace in hotbar
+            int breachMaceSlot = findBreachMace();
+            if (breachMaceSlot != -1) {
+                InvUtils.swap(breachMaceSlot, false);
+            }
+        } else {
+            InvUtils.swap(targetSlot.get() - 1, false);
+        }
+
+        if (swapBack.get() && prevSlot != -1) {
+            dDelay = delay.get();
         }
     }
-
-    private PlayerEntity getTarget() {
-        Entity targeted = mc.targetedEntity;
-        if (targeted instanceof PlayerEntity player) {
-            if (Friends.get().isFriend(player)) {
-                LOGGER.info("Target is a friend, ignoring: " + player.getName().getString()); // Log friend check
-                return null;
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (dDelay > 0) {
+            dDelay--;
+            if (dDelay == 0 && prevSlot != -1) {
+                InvUtils.swap(prevSlot, false);
+                prevSlot = -1;
             }
-            return player;
         }
-        return null;
     }
 }
