@@ -61,7 +61,6 @@ public class FakeScoreboard extends Module {
         if (mc.world == null || mc.player == null) return;
 
         Scoreboard sb = mc.world.getScoreboard();
-        // Save and hide the vanilla scoreboard
         savedVanillaObjective = sb.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
         sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
 
@@ -89,21 +88,16 @@ public class FakeScoreboard extends Module {
 
         runOnClientSync(() -> {
             Scoreboard sb = mc.world.getScoreboard();
-
-            // Completely remove the custom scoreboard
             if (customObjective != null) {
                 sb.removeObjective(customObjective);
                 customObjective = null;
             }
-
-            // Restore the vanilla scoreboard
             if (savedVanillaObjective != null) {
                 sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, savedVanillaObjective);
                 savedVanillaObjective = null;
             } else {
                 sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
             }
-
             return null;
         });
     }
@@ -113,7 +107,11 @@ public class FakeScoreboard extends Module {
             try {
                 detectKillsDeaths();
 
-                runOnClientSync(this::buildScoreboard);
+                // ✅ Fixed: wrap void method in lambda returning null
+                runOnClientSync(() -> {
+                    buildScoreboard();
+                    return null;
+                });
 
                 Thread.sleep(1000L);
                 keyallTimer--;
@@ -161,7 +159,7 @@ public class FakeScoreboard extends Module {
                 if (liveDeaths > deaths) deaths = liveDeaths;
             }
 
-            return null;
+            return null; // ✅ Important: return null for Callable
         });
     }
 
@@ -177,7 +175,7 @@ public class FakeScoreboard extends Module {
             gradientTitle(title.get()),
             ScoreboardCriterion.RenderType.INTEGER,
             false,
-            (NumberFormat) BlankNumberFormat.INSTANCE // This allows unlimited numbers like "5.56k"
+            (NumberFormat) BlankNumberFormat.INSTANCE
         );
         sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, customObjective);
 
@@ -197,7 +195,7 @@ public class FakeScoreboard extends Module {
             ScoreHolder holder = ScoreHolder.fromName(holderName);
             sb.removeScore(holder, customObjective);
             ScoreAccess sc = sb.getOrCreateScore(holder, customObjective);
-            sc.setScore(entries.size() - i); // order
+            sc.setScore(entries.size() - i);
             sb.addScoreHolderToTeam(holder.getNameForScoreboard(), teams.get(i));
         }
     }
