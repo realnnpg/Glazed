@@ -4,20 +4,17 @@ import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.scoreboard.*;
 import net.minecraft.scoreboard.number.BlankNumberFormat;
 import net.minecraft.scoreboard.number.NumberFormat;
 import net.minecraft.text.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class FakeScoreboard extends Module {
     private static final String SCOREBOARD_NAME = "glazed_custom";
 
-    // scoreboard handles
     private ScoreboardObjective customObjective;
     private ScoreboardObjective originalObjective;
 
@@ -31,17 +28,16 @@ public class FakeScoreboard extends Module {
     private final Setting<String> shards = sgStats.add(new StringSetting.Builder().name("shards").defaultValue("67").build());
     private final Setting<String> killsStart = sgStats.add(new StringSetting.Builder().name("kills").defaultValue("0").build());
     private final Setting<String> deathsStart = sgStats.add(new StringSetting.Builder().name("deaths").defaultValue("0").build());
-    private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder().name("keyall").description("Starting countdown in minutes").defaultValue(10).range(0,60).build());
+    private final Setting<Integer> keyallStart = sgStats.add(new IntSetting.Builder().name("keyall").description("Starting countdown in minutes").defaultValue(10).range(0, 60).build());
     private final Setting<String> playtimeStart = sgStats.add(new StringSetting.Builder().name("playtime").defaultValue("0h 0m").build());
     private final Setting<String> team = sgStats.add(new StringSetting.Builder().name("team").defaultValue("Glazed on top").build());
     private final Setting<String> footer = sgStats.add(new StringSetting.Builder().name("footer").defaultValue(" Glazed(67ms)").build());
 
-    // runtime state
-    private volatile int keyallTimer;           // seconds
-    private volatile long playtimeSeconds;      // seconds
-    private volatile int kills;                 // displayed kills
-    private volatile int deaths;                // displayed deaths
-    private volatile int ping = 67;             // displayed ping (updated by pingThread)
+    private volatile int keyallTimer;
+    private volatile long playtimeSeconds;
+    private volatile int kills;
+    private volatile int deaths;
+    private volatile int ping = 67;
 
     private volatile boolean running = false;
     private Thread updaterThread;
@@ -55,7 +51,6 @@ public class FakeScoreboard extends Module {
     public void onActivate() {
         if (mc.world == null || mc.player == null) return;
 
-        // capture original objective (safely on client thread)
         Scoreboard sb = mc.world.getScoreboard();
         originalObjective = sb.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
 
@@ -75,67 +70,70 @@ public class FakeScoreboard extends Module {
     public void onDeactivate() {
         running = false;
         try {
-            if (updaterThread != null) updaterThread.join();
-            if (pingThread != null) pingThread.join();
+            if (updaterThread != null) updaterThread.join(300);
+            if (pingThread != null) pingThread.join(300);
         } catch (InterruptedException ignored) {}
 
         if (mc.world == null) return;
 
-        // restore original scoreboard safely on client thread and remove custom
         runOnClientSync(() -> {
             Scoreboard sb = mc.world.getScoreboard();
-            if (originalObjective != null) sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
-            if (customObjective != null) sb.removeObjective(customObjective);
-            customObjective = null;
+
+            // remove fake objective first
+            if (customObjective != null && sb.getObjective(SCOREBOARD_NAME) != null) {
+                sb.removeObjective(customObjective);
+                customObjective = null;
+            }
+
+            // restore old one (if there was one)
+            if (originalObjective != null) {
+                sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
+            } else {
+                sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
+            }
+
             return null;
         });
     }
 
-    // updater loop - runs every ~1 second (keeps playtime/keyall/scoreboard)
     private void updateLoop() {
         while (running) {
             try {
-                // detect external kills/deaths and update local counters (synchronously)
                 detectKillsDeaths();
 
-                // rebuild scoreboard (safely on client thread)
                 runOnClientSync(() -> {
                     buildScoreboard();
                     return null;
                 });
 
-                // sleep about 1 second, then update timers
                 Thread.sleep(1000L);
                 keyallTimer--;
-                if (keyallTimer <= 0) keyallTimer = 60 * 60; // loop 60 minutes
+                if (keyallTimer <= 0) keyallTimer = 60 * 60;
                 playtimeSeconds++;
             } catch (InterruptedException ignored) {}
         }
     }
 
-    // ping loop - updates ping with weighted randomness every 0.6-1.2s
     private void pingLoop() {
         while (running) {
             ping = weightedPing();
             try {
-                long delay = 600L + ThreadLocalRandom.current().nextLong(601L); // 600..1200 ms
+                long delay = 600L + ThreadLocalRandom.current().nextLong(601L);
                 Thread.sleep(delay);
             } catch (InterruptedException ignored) {}
         }
     }
 
-    // more likely low pings; higher pings rarer
     private int weightedPing() {
         double r = random.nextDouble();
-        if (r < 0.75) return random.nextInt(37);           // 0-36 most likely
-        if (r < 0.95) return 37 + random.nextInt(20);      // 37-56 less likely
-        return 57 + random.nextInt(44);                    // 57-100 rare
+        if (r < 0.75) return random.nextInt(37);
+        if (r < 0.95) return 37 + random.nextInt(20);
+        return 57 + random.nextInt(44);
     }
 
-    // read live player kills/deaths (synchronously on client main thread)
     private void detectKillsDeaths() {
         if (mc.player == null || mc.world == null) return;
-        // run synchronously on client thread and update kills/deaths atomically
+
         runOnClientSync(() -> {
             Scoreboard sb = mc.world.getScoreboard();
             String playerName = mc.player.getName().getString();
@@ -159,7 +157,6 @@ public class FakeScoreboard extends Module {
         });
     }
 
-    // create/update scoreboard on the client main thread
     private void buildScoreboard() {
         if (mc.world == null) return;
         Scoreboard sb = mc.world.getScoreboard();
@@ -245,7 +242,6 @@ public class FakeScoreboard extends Module {
         return colored(region + " (" + ping + "ms)", 0xA0A0A0);
     }
 
-    // utility — colored text helpers
     private MutableText colored(String text, int rgb) {
         return Text.literal(text).setStyle(Style.EMPTY.withColor(TextColor.fromRgb(rgb)));
     }
@@ -262,13 +258,12 @@ public class FakeScoreboard extends Module {
             int r = Math.round(sr + (er - sr) * t);
             int g = Math.round(sg + (eg - sg) * t);
             int b = Math.round(sb + (eb - sb) * t);
-            result.append(Text.literal(String.valueOf(text.charAt(i))).setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
+            result.append(Text.literal(String.valueOf(text.charAt(i)))
+                .setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
         }
         return result;
     }
 
-    // Synchronously run a Callable on Minecraft's client thread and return the result.
-    // Uses a CountDownLatch so caller waits for result (safe synchronous client-thread invocation).
     private <T> T runOnClientSync(Callable<T> callable) {
         if (mc == null || mc.getNetworkHandler() == null || mc.isOnThread()) {
             try { return callable.call(); } catch (Exception e) { return null; }
@@ -279,14 +274,11 @@ public class FakeScoreboard extends Module {
         mc.execute(() -> {
             try {
                 ref.set(callable.call());
-            } catch (Exception ignored) {
-            } finally {
-                latch.countDown();
-            }
+            } catch (Exception ignored) {} 
+            finally { latch.countDown(); }
         });
-        try {
-            latch.await(1500, TimeUnit.MILLISECONDS); // wait up to 1.5s
-        } catch (InterruptedException ignored) {}
+
+        try { latch.await(1000, TimeUnit.MILLISECONDS); } catch (InterruptedException ignored) {}
         return ref.get();
     }
 }
