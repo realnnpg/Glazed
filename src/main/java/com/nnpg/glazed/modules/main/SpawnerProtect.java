@@ -150,6 +150,8 @@ public class SpawnerProtect extends Module {
 
     private World trackedWorld = null;
     private int worldChangeCount = 0;
+    // If there are this many or more other players online, do not activate protection
+    private final int PLAYER_COUNT_THRESHOLD = 3;
 
     public SpawnerProtect() {
         super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
@@ -271,6 +273,11 @@ public class SpawnerProtect extends Module {
     }
 
     private boolean checkEmergencyDisconnect() {
+        // If there are too many other players online (e.g., spawn crowded during restart),
+        // skip emergency disconnect logic to avoid false positives.
+        long otherPlayers = mc.world.getPlayers().stream().filter(p -> p != mc.player).count();
+        if (otherPlayers >= PLAYER_COUNT_THRESHOLD) return false;
+
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
             if (player == null) continue;
@@ -307,6 +314,10 @@ public class SpawnerProtect extends Module {
     }
 
     private void checkForPlayers() {
+        // If there are many other players (spawn crowd / server restart), don't activate protection
+        long otherPlayers = mc.world.getPlayers().stream().filter(p -> p != mc.player).count();
+        if (otherPlayers >= PLAYER_COUNT_THRESHOLD) return;
+
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
             if (player == null) continue;
