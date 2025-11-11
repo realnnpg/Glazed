@@ -62,7 +62,7 @@ public class BreachSwap extends Module {
     private int prevSlot = -1;
     private int dDelay = 0;
     public BreachSwap() {
-        super(GlazedAddon.pvp, "mace-swap", "Swaps with the mace in the target slot on attack");
+        super(GlazedAddon.pvp, "breach-swap", "Swaps with the breach mace in a target slot on attack");
     }
 
     private int findBreachMace() {
