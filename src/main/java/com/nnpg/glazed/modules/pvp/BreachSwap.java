@@ -12,7 +12,7 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 
-public class MaceSwap extends Module {
+public class BreachSwap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final Setting<Boolean> autoSwap = sgGeneral.add(new BoolSetting.Builder()
         .name("auto-swap-breach-mace")
@@ -61,7 +61,7 @@ public class MaceSwap extends Module {
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder().name("swap-back-delay").description("Delay in ticks before swapping back to the previous slot.").sliderRange(1, 20).defaultValue(8).min(1).visible(swapBack::get).build());
     private int prevSlot = -1;
     private int dDelay = 0;
-    public MaceSwap() {
+    public BreachSwap() {
         super(GlazedAddon.pvp, "mace-swap", "Swaps with the mace in the target slot on attack");
     }
 
@@ -122,7 +122,7 @@ public class MaceSwap extends Module {
         
         if (swapBack.get()) {
             // PlayerInventory no longer exposes getSelectedSlot(); use the selectedSlot field instead
-            prevSlot = mc.player.getInventory().selectedSlot;
+            prevSlot = com.nnpg.glazed.utils.InventoryUtils.getSelectedSlot(mc.player.getInventory());
         }
 
         if (autoSwap.get()) {
