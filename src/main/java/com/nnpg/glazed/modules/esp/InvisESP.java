@@ -128,7 +128,7 @@ public class InvisESP extends Module {
     );
 
     public InvisESP() {
-        super(Categories.Render, "show-invis-hitbox", "Shows 3D hitbox for invisible players and mobs");
+        super(Categories.Render, "InvisESP", "Shows 3D hitbox for invisible players and mobs");
     }
 
     @Override
