@@ -1,4 +1,0 @@
-/gmc
-/game
-/gamemode creative
-/gamemode survival
