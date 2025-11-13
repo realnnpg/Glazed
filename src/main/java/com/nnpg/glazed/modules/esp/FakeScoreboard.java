@@ -4,6 +4,7 @@ import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.*;
 import net.minecraft.scoreboard.number.BlankNumberFormat;
 import net.minecraft.scoreboard.number.NumberFormat;
@@ -20,56 +21,72 @@ public class FakeScoreboard extends Module {
     private ScoreboardObjective customObjective;
     private ScoreboardObjective originalObjective;
     private final MinecraftClient mc = MinecraftClient.getInstance();
+    private final List<String> teamNames = new ArrayList<>();
 
     private final SettingGroup sgStats = settings.getDefaultGroup();
 
     private final Setting<String> title = sgStats.add(new StringSetting.Builder()
-        .name("title")
-        .defaultValue("Glazed on top")
-        .build());
+            .name("title")
+            .defaultValue("Glazed on top")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> money = sgStats.add(new StringSetting.Builder()
-        .name("money")
-        .defaultValue("67")
-        .build());
+            .name("money")
+            .defaultValue("67")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> shards = sgStats.add(new StringSetting.Builder()
-        .name("shards")
-        .defaultValue("67")
-        .build());
+            .name("shards")
+            .defaultValue("67")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> kills = sgStats.add(new StringSetting.Builder()
-        .name("kills")
-        .defaultValue("67")
-        .build());
+            .name("kills")
+            .defaultValue("67")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> deaths = sgStats.add(new StringSetting.Builder()
-        .name("deaths")
-        .defaultValue("67")
-        .build());
+            .name("deaths")
+            .defaultValue("67")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> keyall = sgStats.add(new StringSetting.Builder()
-        .name("keyall")
-        .defaultValue("67")
-        .build());
+            .name("keyall")
+            .defaultValue("67")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> playtime = sgStats.add(new StringSetting.Builder()
-        .name("playtime")
-        .defaultValue("6h 7m")
-        .build());
+            .name("playtime")
+            .defaultValue("6h 7m")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> team = sgStats.add(new StringSetting.Builder()
-        .name("team")
-        .defaultValue("Glazed on top")
-        .build());
+            .name("team")
+            .defaultValue("Glazed on top")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     private final Setting<String> footer = sgStats.add(new StringSetting.Builder()
-        .name("footer")
-        .defaultValue(" Glazed(67ms)") 
-        .build());
+            .name("footer")
+            .defaultValue(" Glazed(67ms)")
+            .onChanged(s -> safeUpdate())
+            .build());
 
     public FakeScoreboard() {
         super(GlazedAddon.esp, "FakeScoreboard", "Custom scoreboard overlay for Glazed.");
+    }
+
+    private void safeUpdate() {
+        if (isActive() && mc.world != null && mc.player != null) { //xD
+            updateScoreboard();
+        }
     }
 
     @Override
@@ -84,72 +101,120 @@ public class FakeScoreboard extends Module {
     @Override
     public void onDeactivate() {
         if (mc.world == null) return;
-        Scoreboard scoreboard = mc.world.getScoreboard();
 
-        if (originalObjective != null)
-            scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
-        if (customObjective != null)
-            scoreboard.removeObjective(customObjective);
+        try {
+            Scoreboard scoreboard = mc.world.getScoreboard();
 
-        customObjective = null;
+            cleanupTeams(scoreboard);
+
+            if (customObjective != null) {
+                try {
+                    scoreboard.removeObjective(customObjective);
+                } catch (Exception e) {
+                }
+                customObjective = null;
+            }
+
+            if (originalObjective != null) {
+                try {
+                    scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, originalObjective);
+                } catch (Exception e) {
+                    scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
+                }
+            } else {
+                scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, null);
+            }
+
+            originalObjective = null;
+        } catch (Exception e) {
+        }
+    }
+
+    private void cleanupTeams(Scoreboard scoreboard) {
+        for (String teamName : teamNames) {
+            try {
+                Team team = scoreboard.getTeam(teamName);
+                if (team != null) {
+                    scoreboard.removeTeam(team);
+                }
+            } catch (Exception e) {
+            }
+        }
+        teamNames.clear();
     }
 
     public void updateScoreboard() {
-        if (mc.world == null) return;
-        Scoreboard scoreboard = mc.world.getScoreboard();
+        if (mc.world == null || mc.player == null) return;
 
-        if (customObjective != null) scoreboard.removeObjective(customObjective);
+            Scoreboard scoreboard = mc.world.getScoreboard();
 
-        customObjective = scoreboard.addObjective(
-            SCOREBOARD_NAME,
-            ScoreboardCriterion.DUMMY,
-            gradientTitle(title.get()),
-            ScoreboardCriterion.RenderType.INTEGER,
-            false,
-            (NumberFormat) BlankNumberFormat.INSTANCE
-        );
-        scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, customObjective);
+            cleanupTeams(scoreboard);
 
-        List<MutableText> entries = generateEntriesText();
-        List<Team> teams = new ArrayList<>();
+            if (customObjective != null) {
+                scoreboard.removeObjective(customObjective);
+            }
 
-        for (int i = 0; i < entries.size(); i++) {
-            String teamName = "team_line_" + i;
-            Team t = scoreboard.getTeam(teamName);
-            if (t == null) t = scoreboard.addTeam(teamName);
-            t.setPrefix(entries.get(i));
-            teams.add(t);
+            customObjective = scoreboard.addObjective(
+                    SCOREBOARD_NAME,
+                    ScoreboardCriterion.DUMMY,
+                    gradientTitle(title.get()),
+                    ScoreboardCriterion.RenderType.INTEGER,
+                    false,
+                    (NumberFormat) BlankNumberFormat.INSTANCE
+            );
+            scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, customObjective);
+
+            List<MutableText> entries = generateEntriesText();
+
+            for (int i = 0; i < entries.size(); i++) {
+                String teamName = "glazed_team_" + i;
+                teamNames.add(teamName);
+
+                Team t = scoreboard.getTeam(teamName);
+                if (t != null) {
+                    scoreboard.removeTeam(t);
+                }
+                t = scoreboard.addTeam(teamName);
+                t.setPrefix(entries.get(i));
+
+                String holderName = "\u00A7" + Integer.toHexString(i);
+                ScoreHolder holder = ScoreHolder.fromName(holderName);
+
+                scoreboard.removeScore(holder, customObjective);
+
+                ScoreAccess score = scoreboard.getOrCreateScore(holder, customObjective);
+                score.setScore(entries.size() - i);
+
+                scoreboard.addScoreHolderToTeam(holderName, t);
+
         }
+    }
 
-        for (int i = 0; i < entries.size(); i++) {
-            String holderName = "\u00A7" + i;
-            ScoreHolder holder = ScoreHolder.fromName(holderName);
-            scoreboard.removeScore(holder, customObjective);
+    private int getRealPing() {
+        if (mc.player == null || mc.getNetworkHandler() == null) return 0;
 
-            ScoreAccess score = scoreboard.getOrCreateScore(holder, customObjective);
-            score.setScore(entries.size() - i);
-
-            scoreboard.addScoreHolderToTeam(holder.getNameForScoreboard(), teams.get(i));
-        }
+        PlayerListEntry entry = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
+        return entry != null ? entry.getLatency() : 0;
     }
 
     private List<MutableText> generateEntriesText() {
         return List.of(
-            text(" "),
-            colored("$ ", 0x00FF00).append(colored("Money: ", 0xFFFFFF)).append(colored(money.get(), 0x00FF00)),
-            colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
-            colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills.get(), 0xFF0000)),
-            colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths.get(), 0xFC7703)),
-            colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(keyall.get(), 0x00A2FF)),
-            colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(playtime.get(), 0xFFE600)),
-            colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
-            text(" "),
-            footerText()
+                text(" "),
+                colored("$ ", 0x00FF00).append(colored("Money: ", 0xFFFFFF)).append(colored(money.get(), 0x00FF00)),
+                colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
+                colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills.get(), 0xFF0000)),
+                colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths.get(), 0xFC7703)),
+                colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(keyall.get(), 0x00A2FF)),
+                colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(playtime.get(), 0xFFE600)),
+                colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
+                text(" "),
+                footerText()
         );
     }
 
     private MutableText footerText() {
         String raw = footer.get();
+
         int start = raw.indexOf('(');
         int end = raw.indexOf(')');
 
@@ -160,12 +225,10 @@ public class FakeScoreboard extends Module {
         String region = raw.substring(0, start).trim();
         String pingValue = raw.substring(start + 1, end).trim();
 
-        MutableText result = colored(region + " ", 0xA0A0A0)
-            .append(colored("(", 0xA0A0A0))
-            .append(colored(pingValue, 0x00A2FF))
-            .append(colored(")", 0xA0A0A0));
-
-        return result;
+        return colored(region + " ", 0xA0A0A0)
+                .append(colored("(", 0xA0A0A0))
+                .append(colored(pingValue, 0x00A2FF))
+                .append(colored(")", 0xA0A0A0));
     }
 
     private MutableText colored(String text, int rgb) {
@@ -178,10 +241,6 @@ public class FakeScoreboard extends Module {
 
     private MutableText gradientTitle(String text) {
         return gradient(text, 0x007CF9, 0x00C6F9);
-    }
-
-    private MutableText gradientFooter(String text) {
-        return gradient(text, 0x00C6F9, 0x007CF9);
     }
 
     private MutableText gradient(String text, int startColor, int endColor) {
@@ -201,7 +260,7 @@ public class FakeScoreboard extends Module {
             int g = Math.round(startG + (endG - startG) * t);
             int b = Math.round(startB + (endB - startB) * t);
             result.append(Text.literal(String.valueOf(text.charAt(i)))
-                .setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
+                    .setStyle(Style.EMPTY.withColor(TextColor.fromRgb((r << 16) | (g << 8) | b))));
         }
         return result;
     }

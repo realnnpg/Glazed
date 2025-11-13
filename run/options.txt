@@ -7,7 +7,7 @@ entityShadows:true
 forceUnicodeFont:false
 japaneseGlyphVariants:false
 fov:0.0
-fovEffectScale:0.0
+fovEffectScale:1.0
 darknessEffectScale:1.0
 glintSpeed:0.5
 glintStrength:0.75
@@ -40,7 +40,7 @@ realmsNotifications:true
 showSubtitles:false
 directionalAudio:false
 touchscreen:false
-bobView:false
+bobView:true
 toggleCrouch:false
 toggleSprint:false
 darkMojangStudiosBackground:false
@@ -74,11 +74,11 @@ notificationDisplayTime:1.0
 useNativeTransport:true
 mainHand:"right"
 attackIndicator:1
-tutorialStep:none
+tutorialStep:find_tree
 mouseWheelSensitivity:1.0
 rawMouseInput:true
 glDebugVerbosity:1
-skipMultiplayerWarning:false
+skipMultiplayerWarning:true
 hideMatchedNames:true
 joinedFirstServer:true
 syncChunkWrites:true
@@ -126,7 +126,7 @@ key_key.hotbar.9:key.keyboard.9
 key_key.meteor-client.open-gui:key.keyboard.right.shift
 key_key.meteor-client.open-commands:key.keyboard.period
 soundCategory_master:1.0
-soundCategory_music:1.0
+soundCategory_music:0.0
 soundCategory_record:1.0
 soundCategory_weather:1.0
 soundCategory_block:1.0
