@@ -123,6 +123,7 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new UIHelper());
         Modules.get().add(new ShieldBreaker());
         Modules.get().add(new InvisESP());
+        Modules.get().add(new AutoTotemOrder());
     }
 
     @EventHandler
