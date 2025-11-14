@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 public class AutoTotemOrder extends Module {
     private final MinecraftClient mc = MinecraftClient.getInstance();
 
-    private enum Stage {NONE, SHOP, SHOP_END, SHOP_SHULKER, SHOP_CONFIRM, SHOP_CHECK_FULL, SHOP_EXIT, WAIT, ORDERS, ORDERS_SELECT, ORDERS_EXIT, ORDERS_CONFIRM, ORDERS_FINAL_EXIT, CYCLE_PAUSE, TARGET_ORDERS}
+    private enum Stage {NONE, SHOP, SHOP_GEAR, SHOP_TOTEM, SHOP_CONFIRM, SHOP_CHECK_FULL, SHOP_EXIT, WAIT, ORDERS, ORDERS_SELECT, ORDERS_EXIT, ORDERS_CONFIRM, ORDERS_FINAL_EXIT, CYCLE_PAUSE, TARGET_ORDERS}
 
     private Stage stage = Stage.NONE;
     private long stageStart = 0;
@@ -48,7 +48,7 @@ public class AutoTotemOrder extends Module {
 
     private final Setting<String> minPrice = sgGeneral.add(new StringSetting.Builder()
         .name("min-price")
-        .description("Minimum price to deliver shulkers for (supports K, M, B suffixes).")
+        .description("Minimum price to deliver totems for (supports K, M, B suffixes).")
         .defaultValue("850")
         .build()
     );
@@ -92,7 +92,7 @@ public class AutoTotemOrder extends Module {
     );
 
     public AutoTotemOrder() {
-        super(GlazedAddon.CATEGORY, "AutoTotemOrder", "Automatically buys shulkers and sells them in orders for profit with player targeting");
+        super(GlazedAddon.CATEGORY, "AutoTotemOrder", "Automatically buys totems and sells them in orders for profit with player targeting");
     }
 
     @Override
@@ -109,7 +109,7 @@ public class AutoTotemOrder extends Module {
         // Setup target player
         updateTargetPlayer();
 
-        stage = Stage.SHOP; // Always start with shop to buy shulkers first
+        stage = Stage.SHOP; // Always start with shop to buy totems first
         stageStart = System.currentTimeMillis();
         shulkerMoveIndex = 0;
         lastShulkerMoveTime = 0;
@@ -167,14 +167,14 @@ public class AutoTotemOrder extends Module {
                 stage = Stage.SHOP_END;
                 stageStart = now;
             }
-            case SHOP_END -> {
+            case SHOP_GEAR -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
-                        if (!stack.isEmpty() && isEndStone(stack)) {
+                        if (!stack.isEmpty() && isTotemOfUndying(stack)) {
                             mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
-                            stage = Stage.SHOP_SHULKER;
+                            stage = Stage.SHOP_TOTEM;
                             stageStart = now;
                             bulkBuyCount = 0;
                             return;
@@ -187,26 +187,26 @@ public class AutoTotemOrder extends Module {
                     }
                 }
             }
-            case SHOP_SHULKER -> {
+            case SHOP_TOTEM -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
-                    boolean foundShulker = false;
+                    boolean foundTotem = false;
 
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
-                        if (!stack.isEmpty() && isShulkerBox(stack)) {
+                        if (!stack.isEmpty() && isTotemOfUndying(stack)) {
                             // CONTROLLED BUYING - slower to prevent overshooting
                             int clickCount = speedMode.get() ? 10 : 5; // Reduced from 64/27 to 10/5
                             for (int i = 0; i < clickCount; i++) {
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             }
-                            foundShulker = true;
+                            foundTotem = true;
                             bulkBuyCount++;
                             break;
                         }
                     }
 
-                    if (foundShulker) {
+                    if (foundTotem) {
                         stage = Stage.SHOP_CONFIRM;
                         stageStart = now;
                         return;
@@ -239,7 +239,7 @@ public class AutoTotemOrder extends Module {
                         return;
                     }
                     if (now - stageStart > (speedMode.get() ? 200 : 800)) { // Slightly longer wait
-                        stage = Stage.SHOP_SHULKER;
+                        stage = Stage.SHOP_TOTEM;
                         stageStart = now;
                     }
                 }
@@ -254,7 +254,7 @@ public class AutoTotemOrder extends Module {
                     } else {
                         // Small pause before buying more to prevent rapid-fire purchases
                         if (now - stageStart > (speedMode.get() ? 200 : 400)) {
-                            stage = Stage.SHOP_SHULKER;
+                            stage = Stage.SHOP_TOTEM;
                             stageStart = now;
                         }
                     }
@@ -296,7 +296,7 @@ public class AutoTotemOrder extends Module {
 
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
-                        if (!stack.isEmpty() && isShulkerBox(stack) && isPurple(stack)) {
+                        if (!stack.isEmpty() && isTotemOfUndying(stack) && isPurple(stack)) {
                             boolean shouldTakeOrder = false;
                             String orderPlayer = getOrderPlayerName(stack);
 
@@ -369,7 +369,7 @@ public class AutoTotemOrder extends Module {
 
                         for (int batch = 0; batch < batchSize && shulkerMoveIndex < 36; batch++) {
                             ItemStack stack = mc.player.getInventory().getStack(shulkerMoveIndex);
-                            if (isShulkerBox(stack)) {
+                            if (isTotemOfUndying(stack)) {
                                 int playerSlotId = -1;
                                 for (Slot slot : handler.slots) {
                                     if (slot.inventory == mc.player.getInventory() && slot.getIndex() == shulkerMoveIndex) {
@@ -416,7 +416,7 @@ public class AutoTotemOrder extends Module {
                             finalExitStart = now;
 
                             if (notifications.get()) {
-                                info("✅ Order completed! Going back to shop to buy more totem...");
+                                info("✅ Order completed! Going back to shop to buy more totems...");
                             }
                             return;
                         }
@@ -452,7 +452,7 @@ public class AutoTotemOrder extends Module {
             case CYCLE_PAUSE -> {
                 long cycleWait = speedMode.get() ? 10 : 25; // Very fast cycle restart
                 if (now - stageStart >= cycleWait) {
-                    // Always go back to shop to buy more shulkers
+                    // Always go back to shop to buy more totems
                     updateTargetPlayer(); // Refresh target player
                     stage = Stage.SHOP;
                     stageStart = now;
@@ -600,8 +600,8 @@ public class AutoTotemOrder extends Module {
     }
 
     // Helper methods (unchanged)
-    private boolean isEndStone(ItemStack stack) {
-        return stack.getItem() == Items.END_STONE || stack.getName().getString().toLowerCase(Locale.ROOT).contains("end");
+    private boolean isTotemOfUndying(ItemStack stack) {
+        return stack.getItem() == Items.TOTEM_OF_UNDYING;
     }
 
     private boolean isShulkerBox(ItemStack stack) {
@@ -609,7 +609,7 @@ public class AutoTotemOrder extends Module {
     }
 
     private boolean isPurple(ItemStack stack) {
-        return stack.getItem() == Items.SHULKER_BOX;
+        return stack.getItem() == Items.TOTEM_OF_UNDYING;
     }
 
     private boolean isGreenGlass(ItemStack stack) {
