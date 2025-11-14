@@ -164,7 +164,7 @@ public class AutoTotemOrder extends Module {
             }
             case SHOP -> {
                 ChatUtils.sendPlayerMsg("/shop");
-                stage = Stage.SHOP_END;
+                stage = Stage.SHOP_GEAR;
                 stageStart = now;
             }
             case SHOP_GEAR -> {
