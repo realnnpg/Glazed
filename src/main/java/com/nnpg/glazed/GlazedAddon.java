@@ -121,6 +121,7 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new FreecamMining());
         Modules.get().add(new BedrockVoidESP());
         Modules.get().add(new UIHelper());
+        Modules.get().add(new LightESP());
 
 
         MeteorClient.EVENT_BUS.subscribe(this);
