@@ -103,8 +103,8 @@ public class LlamaESP extends Module {
         .connectTimeout(Duration.ofSeconds(10))
         .build();
 
-    public LamaESP() {
-        super(GlazedAddon.esp, "LamaESP", "Detects llamas in the world");
+    public LlamaESP() {
+        super(GlazedAddon.esp, "LlamaESP", "Detects llamas in the world");
     }
 
     @EventHandler
