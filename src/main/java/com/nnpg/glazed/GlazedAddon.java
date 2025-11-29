@@ -10,10 +10,8 @@ import meteordevelopment.orbit.EventHandler;
 
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
-import meteordevelopment.meteorclient.MeteorClient;
 import net.minecraft.item.Items;
 import net.minecraft.item.ItemStack;
-import meteordevelopment.meteorclient.systems.modules.Category;
 
 
 
@@ -34,18 +32,18 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
 
 
 
-        Modules.get().add(new SpawnerProtect()); //done
-        Modules.get().add(new AntiTrap()); //done
-        Modules.get().add(new CoordSnapper()); //done
-        Modules.get().add(new ElytraSwap()); //done
-        Modules.get().add(new PlayerDetection()); //done
-        Modules.get().add(new AHSniper()); //done
-        Modules.get().add(new RTPer()); //done
-        Modules.get().add(new ShulkerDropper()); //done
-        Modules.get().add(new AutoSell()); //done
-        Modules.get().add(new SpawnerDropper()); //done
-        Modules.get().add(new AutoShulkerOrder()); // done
-        Modules.get().add(new AutoOrder()); //done
+        Modules.get().add(new SpawnerProtect());
+        Modules.get().add(new AntiTrap());
+        Modules.get().add(new CoordSnapper());
+        Modules.get().add(new ElytraSwap());
+        Modules.get().add(new PlayerDetection());
+        Modules.get().add(new AHSniper());
+        Modules.get().add(new RTPer());
+        Modules.get().add(new ShulkerDropper());
+        Modules.get().add(new AutoSell());
+        Modules.get().add(new SpawnerDropper());
+        Modules.get().add(new AutoShulkerOrder());
+        Modules.get().add(new AutoOrder());
         Modules.get().add(new HideScoreboard());
         Modules.get().add(new LegitCrystalMacro());
         Modules.get().add(new AHSell());
@@ -61,12 +59,11 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new TpaMacro());
         Modules.get().add(new TabDetector());
         Modules.get().add(new OrderSniper());
-        Modules.get().add(new LamaESP());
+        Modules.get().add(new LlamaESP());
         Modules.get().add(new PillagerESP());
         Modules.get().add(new HoleTunnelStairsESP());
         Modules.get().add(new CoveredHole());
         Modules.get().add(new ClusterFinder());
-        Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new EmergencySeller());
         Modules.get().add(new RTPEndBaseFinder());
         Modules.get().add(new ShopBuyer());
@@ -77,10 +74,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new ChunkFinder());
         Modules.get().add(new BlockNotifier());
         Modules.get().add(new LegitAnchorMacro());
-        Modules.get().add(new SpawnerOrder());
-        Modules.get().add(new RegionMap());
-        Modules.get().add(new SpawnerOrder());
-        Modules.get().add(new RegionMap());
         Modules.get().add(new SpawnerOrder());
         Modules.get().add(new RegionMap());
         Modules.get().add(new AutoShulkerShellOrder());
