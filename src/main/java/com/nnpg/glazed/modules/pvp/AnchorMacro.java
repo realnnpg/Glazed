@@ -1,313 +1,196 @@
 package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
+import com.nnpg.glazed.VersionUtil;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.FindItemResult;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
+import com.nnpg.glazed.utils.glazed.KeyUtils;
+import com.nnpg.glazed.utils.glazed.BlockUtil;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.Items;
 import net.minecraft.item.ShieldItem;
 import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import com.nnpg.glazed.VersionUtil;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Hand;
-
-import java.util.Random;
+import org.lwjgl.glfw.GLFW;
 
 public class AnchorMacro extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<Boolean> whileUse = sgGeneral.add(new BoolSetting.Builder()
-        .name("while-use")
-        .description("If it should trigger while eating/using shield")
-        .defaultValue(true)
-        .build()
-    );
-    private final Setting<Boolean> stopOnKill = sgGeneral.add(new BoolSetting.Builder()
-        .name("stop-on-kill")
-        .description("Doesn't anchor if body nearby")
-        .defaultValue(false)
-        .build()
-    );
-    private final Setting<Boolean> clickSimulation = sgGeneral.add(new BoolSetting.Builder()
-        .name("click-simulation")
-        .description("Makes the CPS hud think you're legit")
-        .defaultValue(false)
-        .build()
-    );
-    private final Setting<Boolean> switchBackToAnchor = sgGeneral.add(new BoolSetting.Builder()
-        .name("switch-back-to-anchor")
-        .description("Switches back to respawn anchor after exploding")
-        .defaultValue(false)
-        .build()
-    );
-    private final Setting<Integer> switchDelay = sgGeneral.add(new IntSetting.Builder()
+    private final Setting<Double> switchDelay = sgGeneral.add(new DoubleSetting.Builder()
         .name("switch-delay")
-        .defaultValue(0)
-        .min(0)
-        .max(20)
-        .sliderMax(20)
+        .description("Delay in ticks before switching items.")
+        .defaultValue(0.0)
+        .min(0.0)
+        .max(20.0)
+        .sliderMax(20.0)
         .build()
     );
-    private final Setting<Integer> switchChance = sgGeneral.add(new IntSetting.Builder()
-        .name("switch-chance")
-        .defaultValue(100)
-        .min(0)
-        .max(100)
-        .sliderMax(100)
-        .build()
-    );
-    private final Setting<Integer> placeChance = sgGeneral.add(new IntSetting.Builder()
-        .name("place-chance")
-        .description("Randomization")
-        .defaultValue(100)
-        .min(0)
-        .max(100)
-        .sliderMax(100)
-        .build()
-    );
-    private final Setting<Integer> glowstoneDelay = sgGeneral.add(new IntSetting.Builder()
+
+    private final Setting<Double> glowstoneDelay = sgGeneral.add(new DoubleSetting.Builder()
         .name("glowstone-delay")
-        .defaultValue(0)
-        .min(0)
-        .max(20)
-        .sliderMax(20)
+        .description("Delay in ticks before placing glowstone.")
+        .defaultValue(0.0)
+        .min(0.0)
+        .max(20.0)
+        .sliderMax(20.0)
         .build()
     );
-    private final Setting<Integer> glowstoneChance = sgGeneral.add(new IntSetting.Builder()
-        .name("glowstone-chance")
-        .defaultValue(100)
-        .min(0)
-        .max(100)
-        .sliderMax(100)
-        .build()
-    );
-    private final Setting<Integer> explodeDelay = sgGeneral.add(new IntSetting.Builder()
+
+    private final Setting<Double> explodeDelay = sgGeneral.add(new DoubleSetting.Builder()
         .name("explode-delay")
-        .defaultValue(0)
-        .min(0)
-        .max(20)
-        .sliderMax(20)
+        .description("Delay in ticks before exploding the anchor.")
+        .defaultValue(0.0)
+        .min(0.0)
+        .max(20.0)
+        .sliderMax(20.0)
         .build()
     );
-    private final Setting<Integer> explodeChance = sgGeneral.add(new IntSetting.Builder()
-        .name("explode-chance")
-        .defaultValue(100)
-        .min(0)
-        .max(100)
-        .sliderMax(100)
-        .build()
-    );
-    private final Setting<Integer> explodeSlot = sgGeneral.add(new IntSetting.Builder()
-        .name("explode-slot")
+
+    private final Setting<Integer> totemSlot = sgGeneral.add(new IntSetting.Builder()
+        .name("totem-slot")
+        .description("Hotbar slot to switch to when exploding (1-9).")
         .defaultValue(1)
         .min(1)
         .max(9)
-        .sliderMax(9)
-        .build()
-    );
-    private final Setting<Boolean> onlyOwn = sgGeneral.add(new BoolSetting.Builder()
-        .name("only-own")
-        .defaultValue(false)
-        .build()
-    );
-    private final Setting<Boolean> onlyCharge = sgGeneral.add(new BoolSetting.Builder()
-        .name("only-charge")
-        .defaultValue(false)
         .build()
     );
 
-    private int switchClock = 0;
-    private int glowstoneClock = 0;
-    private int explodeClock = 0;
-    private boolean shouldSwitchBackToAnchor = false;
-
-    private final Set<BlockPos> ownedAnchors = new HashSet<>();
-    private final Random random = new Random();
+    private int keybindCounter;
+    private int glowstoneDelayCounter;
+    private int explodeDelayCounter;
+    private boolean hasPlacedGlowstone = false;
+    private boolean hasExplodedAnchor = false;
+    private BlockHitResult lastBlockHitResult = null;
 
     public AnchorMacro() {
-        super(GlazedAddon.pvp, "AnchorMacro", "Automatically blows up respawn anchors for you");
+        super(GlazedAddon.pvp, "AnchorMacro", "Automatically charges and explodes respawn anchors.");
     }
 
     @Override
     public void onActivate() {
-        switchClock = 0;
-        glowstoneClock = 0;
-        explodeClock = 0;
-        shouldSwitchBackToAnchor = false;
+        resetCounters();
+        hasPlacedGlowstone = false;
+        hasExplodedAnchor = false;
+        lastBlockHitResult = null;
     }
 
     @Override
     public void onDeactivate() {
-        // No event bus unregister needed, handled by Meteor
+        resetCounters();
+        hasPlacedGlowstone = false;
+        hasExplodedAnchor = false;
+        lastBlockHitResult = null;
     }
 
-    private boolean isAnchorCharged(BlockPos pos) {
-        // Respawn anchor is charged if its "charges" block state > 0
-        return mc.world.getBlockState(pos).contains(net.minecraft.state.property.Properties.CHARGES)
-            && mc.world.getBlockState(pos).get(net.minecraft.state.property.Properties.CHARGES) > 0;
-    }
-
-    private boolean isAnchorNotCharged(BlockPos pos) {
-        return mc.world.getBlockState(pos).contains(net.minecraft.state.property.Properties.CHARGES)
-            && mc.world.getBlockState(pos).get(net.minecraft.state.property.Properties.CHARGES) < 4;
-    }
-
-    private int findAnchorSlot() {
-        for (int i = 0; i < 9; i++) {
-            if (mc.player.getInventory().getStack(i).isOf(Items.RESPAWN_ANCHOR)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static final Set<net.minecraft.item.Item> FOOD_ITEMS = new HashSet<>(Arrays.asList(
-        Items.BREAD,
-        Items.APPLE,
-        Items.COOKED_BEEF,
-        Items.COOKED_PORKCHOP,
-        Items.COOKED_CHICKEN,
-        Items.COOKED_MUTTON,
-        Items.COOKED_RABBIT,
-        Items.COOKED_COD,
-        Items.COOKED_SALMON,
-        Items.CARROT,
-        Items.POTATO,
-        Items.BAKED_POTATO,
-        Items.GOLDEN_APPLE,
-        Items.ENCHANTED_GOLDEN_APPLE,
-        Items.BEETROOT,
-        Items.BEETROOT_SOUP,
-        Items.MELON_SLICE,
-        Items.PUMPKIN_PIE,
-        Items.MUSHROOM_STEW,
-        Items.SUSPICIOUS_STEW,
-        Items.SWEET_BERRIES,
-        Items.GLOW_BERRIES
-    ));
-
-    private boolean isFood(ItemStack stack) {
-        return FOOD_ITEMS.contains(stack.getItem());
+    private void resetCounters() {
+        keybindCounter = 0;
+        glowstoneDelayCounter = 0;
+        explodeDelayCounter = 0;
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
-        if (mc.currentScreen != null) return;
-
-        // Handle switching back to anchor after explosion
-        if (shouldSwitchBackToAnchor && switchBackToAnchor.get()) {
-            int anchorSlot = findAnchorSlot();
-            if (anchorSlot != -1) {
-                VersionUtil.setSelectedSlot(mc.player, anchorSlot);
-            }
-            shouldSwitchBackToAnchor = false;
+        if (mc.currentScreen != null) {
             return;
         }
-
-        // TODO: Implement stopOnKill logic if WorldUtils.isDeadBodyNearby() equivalent exists
-
-        boolean rightClick = mc.options.useKey.isPressed();
-        if (!rightClick) return;
-
-        if (!whileUse.get()) {
-            boolean isUsing = false;
-            ItemStack main = mc.player.getMainHandStack();
-            ItemStack off = mc.player.getOffHandStack();
-            if (main.getItem() instanceof ShieldItem || off.getItem() instanceof ShieldItem || isFood(main) || isFood(off)) {
-                isUsing = true;
-            }
-            if (isUsing) return;
+        if (isShieldOrFoodActive()) {
+            return;
         }
-
-        if (!(mc.crosshairTarget instanceof BlockHitResult hit)) return;
-        BlockPos pos = hit.getBlockPos();
-
-        if (mc.world.getBlockState(pos).getBlock() == Blocks.RESPAWN_ANCHOR) {
-            if (onlyOwn.get() && !ownedAnchors.contains(pos)) return;
-
-            // Place glowstone if anchor is not fully charged
-            if (isAnchorNotCharged(pos)) {
-                int rand = random.nextInt(100) + 1;
-                if (rand > placeChance.get()) return;
-
-                if (!mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
-                    if (switchClock != switchDelay.get()) {
-                        switchClock++;
-                        return;
-                    }
-                    rand = random.nextInt(100) + 1;
-                    if (rand > switchChance.get()) return;
-                    switchClock = 0;
-                    // Switch to glowstone in hotbar
-                    for (int i = 0; i < 9; i++) {
-                        if (mc.player.getInventory().getStack(i).isOf(Items.GLOWSTONE)) {
-                            VersionUtil.setSelectedSlot(mc.player, i);
-                            break;
-                        }
-                    }
-                }
-                if (mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
-                    if (glowstoneClock != glowstoneDelay.get()) {
-                        glowstoneClock++;
-                        return;
-                    }
-                    rand = random.nextInt(100) + 1;
-                    if (rand > glowstoneChance.get()) return;
-                    glowstoneClock = 0;
-                    if (clickSimulation.get()) {
-                        // Simulate right click
-                        mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
-                    } else {
-                        // Place block
-                        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
-                    }
-                }
-            }
-            // Explode anchor if charged
-            if (isAnchorCharged(pos)) {
-                int slot = explodeSlot.get() - 1;
-                if (VersionUtil.getSelectedSlot(mc.player) != slot) {
-                    if (switchClock != switchDelay.get()) {
-                        switchClock++;
-                        return;
-                    }
-                    int rand = random.nextInt(100) + 1;
-                    if (rand > switchChance.get()) return;
-                    switchClock = 0;
-                    VersionUtil.setSelectedSlot(mc.player, slot);
-                }
-                if (VersionUtil.getSelectedSlot(mc.player) == slot) {
-                    if (explodeClock != explodeDelay.get()) {
-                        explodeClock++;
-                        return;
-                    }
-                    int rand = random.nextInt(100) + 1;
-                    if (rand > explodeChance.get()) return;
-                    explodeClock = 0;
-                    if (!onlyCharge.get()) {
-                        if (clickSimulation.get()) {
-                            mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
-                        } else {
-                            mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
-                        }
-                        ownedAnchors.remove(pos);
-
-                        // Set flag to switch back to anchor on next tick
-                        if (switchBackToAnchor.get()) {
-                            shouldSwitchBackToAnchor = true;
-                        }
-                    }
-                }
-            }
+        if (KeyUtils.isKeyPressed(1)) { // Right mouse button
+            handleAnchorInteraction();
+        } else {
+            // Reset state when key is released
+            hasPlacedGlowstone = false;
+            hasExplodedAnchor = false;
+            lastBlockHitResult = null;
         }
     }
 
+    private boolean isShieldOrFoodActive() {
+        final boolean isFood = mc.player.getMainHandStack().getItem().getComponents().contains(DataComponentTypes.FOOD) ||
+            mc.player.getOffHandStack().getItem().getComponents().contains(DataComponentTypes.FOOD);
+        final boolean isShield = mc.player.getMainHandStack().getItem() instanceof ShieldItem ||
+            mc.player.getOffHandStack().getItem() instanceof ShieldItem;
+        final boolean isRightClickPressed = GLFW.glfwGetMouseButton(mc.getWindow().getHandle(), 1) == 1;
+        return (isFood || isShield) && isRightClickPressed;
+    }
+
+    private void handleAnchorInteraction() {
+        if (!(mc.crosshairTarget instanceof BlockHitResult blockHitResult)) {
+            return;
+        }
+
+        lastBlockHitResult = blockHitResult;
+
+        if (!BlockUtil.isBlockAtPosition(blockHitResult.getBlockPos(), Blocks.RESPAWN_ANCHOR)) {
+            return;
+        }
+
+        mc.options.useKey.setPressed(false);
+
+        if (BlockUtil.isRespawnAnchorUncharged(blockHitResult.getBlockPos()) && !hasPlacedGlowstone) {
+            placeGlowstone(blockHitResult);
+        }
+        else if (BlockUtil.isRespawnAnchorCharged(blockHitResult.getBlockPos()) && !hasExplodedAnchor) {
+            explodeAnchor(blockHitResult);
+        }
+    }
+
+    private void placeGlowstone(final BlockHitResult blockHitResult) {
+        if (!mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
+            if (keybindCounter < switchDelay.get().intValue()) {
+                ++keybindCounter;
+                return;
+            }
+            keybindCounter = 0;
+            swapToItem(Items.GLOWSTONE);
+            return;
+        }
+
+        if (mc.player.getMainHandStack().isOf(Items.GLOWSTONE)) {
+            if (glowstoneDelayCounter < glowstoneDelay.get().intValue()) {
+                ++glowstoneDelayCounter;
+                return;
+            }
+            glowstoneDelayCounter = 0;
+            BlockUtil.interactWithBlock(blockHitResult, true);
+            hasPlacedGlowstone = true;
+        }
+    }
+
+    private void explodeAnchor(final BlockHitResult blockHitResult) {
+        final int selectedSlot = totemSlot.get() - 1;
+
+        if (VersionUtil.getSelectedSlot(mc.player) != selectedSlot) {
+            if (keybindCounter < switchDelay.get().intValue()) {
+                ++keybindCounter;
+                return;
+            }
+            keybindCounter = 0;
+
+            VersionUtil.setSelectedSlot(mc.player, selectedSlot);
+            return;
+        }
+
+        if (VersionUtil.getSelectedSlot(mc.player) == selectedSlot) {
+            if (explodeDelayCounter < explodeDelay.get().intValue()) {
+                ++explodeDelayCounter;
+                return;
+            }
+            explodeDelayCounter = 0;
+            BlockUtil.interactWithBlock(blockHitResult, true);
+            hasExplodedAnchor = true;
+        }
+    }
+
+    private void swapToItem(net.minecraft.item.Item item) {
+        FindItemResult result = InvUtils.findInHotbar(item);
+        if (result.found()) {
+            mc.player.getInventory().setSelectedSlot(result.slot());
+        }
+    }
 }

@@ -20,7 +20,7 @@ public class SwordPlaceObsidian extends Module {
     private int previousSlot = -1;
 
     public SwordPlaceObsidian() {
-        super(GlazedAddon.pvp, "sword-place-obsidian", "Right-click with sword to place obsidian, then switch back.");
+        super(GlazedAddon.pvp, "Sword Obi Place", "Right-click with sword to place obsidian, then switch back.");
     }
 
     @EventHandler

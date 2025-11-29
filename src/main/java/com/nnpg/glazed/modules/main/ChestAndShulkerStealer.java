@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules.pvp;
+package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -28,9 +28,9 @@ public class ChestAndShulkerStealer extends Module {
     private int currentSlot = 0;
 
     public ChestAndShulkerStealer() {
-        super(GlazedAddon.pvp, "chest-and-shulker-stealer", "Steals items from chests and shulkers.");
+        super(GlazedAddon.CATEGORY, "Storage Stealer", "Steals items from chests and shulkers.");
     }
-
+    
     @Override
     public void onActivate() {
         tickCounter = 0;

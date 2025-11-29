@@ -8,12 +8,12 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 
-public class HoldHotbarTotem extends Module {
+public class AutoDoubleHand extends Module {
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private boolean wasHoldingTotem = true;
 
-    public HoldHotbarTotem() {
-        super(GlazedAddon.pvp, "hold-hotbar-totem", "After pop, switches held slot to first hotbar totem.");
+    public AutoDoubleHand() {
+        super(GlazedAddon.pvp, "AutoDoubleHand", "After pop, switches to totem");
     }
 
     @Override

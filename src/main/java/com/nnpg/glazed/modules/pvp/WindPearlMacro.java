@@ -19,7 +19,7 @@ public class WindPearlMacro extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Integer> delayTicks = sgGeneral.add(new IntSetting.Builder()
-        .name("wind-delay")
+        .name("Delay")
         .description("Delay between pearl throw and wind charge.")
         .defaultValue(8)
         .min(1)
@@ -27,11 +27,6 @@ public class WindPearlMacro extends Module {
         .sliderMax(20)
         .build());
 
-    private final Setting<Boolean> autoRotate = sgGeneral.add(new BoolSetting.Builder()
-        .name("auto-rotate")
-        .description("Rotate toward movement direction before using wind charge.")
-        .defaultValue(true)
-        .build());
 
     private int tickCounter = 0;
     private boolean throwingPearl = false;
@@ -56,7 +51,6 @@ public class WindPearlMacro extends Module {
         }
 
         previousSlot = getSelectedSlotReflectively();
-        if (autoRotate.get()) rotateTowardMovement();
 
         InvUtils.swap(pearlSlot, true);
         throwPearl();
@@ -121,11 +115,5 @@ public class WindPearlMacro extends Module {
         }
     }
 
-    private void rotateTowardMovement() {
-        Vec3d vel = mc.player.getVelocity();
-        if (vel.lengthSquared() < 0.01) return;
 
-        float yaw = (float) Math.toDegrees(Math.atan2(vel.z, vel.x)) - 90f;
-        mc.player.setYaw(yaw);
-    }
 }

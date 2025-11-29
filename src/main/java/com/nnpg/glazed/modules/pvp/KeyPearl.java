@@ -13,7 +13,6 @@ import org.lwjgl.glfw.GLFW;
 public class KeyPearl extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // Activation key
     private final Setting<Keybind> activateKey = sgGeneral.add(new KeybindSetting.Builder()
         .name("activate-key")
         .description("The key to throw the pearl.")
@@ -62,14 +61,12 @@ public class KeyPearl extends Module {
 
         boolean keyCurrentlyPressed = activateKey.get().isPressed();
 
-        // Trigger pearl throw on key press
         if (keyCurrentlyPressed && !keyPressedLastTick) {
             throwPearl();
         }
 
         keyPressedLastTick = keyCurrentlyPressed;
 
-        // Handle throwing process
         if (throwing) {
             if (delayCounter < delay.get()) {
                 delayCounter++;
@@ -100,7 +97,6 @@ public class KeyPearl extends Module {
 
         prevSlot = mc.player.getInventory().selectedSlot;
 
-        // Find pearl in hotbar
         for (int i = 0; i < 9; i++) {
             if (mc.player.getInventory().getStack(i).getItem() == Items.ENDER_PEARL) {
                 mc.player.getInventory().setSelectedSlot(i);

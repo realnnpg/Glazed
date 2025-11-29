@@ -54,7 +54,7 @@ public class DoubleAnchorMacro extends Module {
     private boolean wasPressed = false;
 
     public DoubleAnchorMacro() {
-        super(GlazedAddon.pvp, "double-anchor-macro", "Automatically places and charges 2 anchors.");
+        super(GlazedAddon.pvp, "DoubleAnchor", "Automatically places and charges 2 anchors.");
     }
 
     @EventHandler

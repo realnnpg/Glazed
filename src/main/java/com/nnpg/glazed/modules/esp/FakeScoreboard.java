@@ -1,8 +1,10 @@
 package com.nnpg.glazed.modules.esp;
 
 import com.nnpg.glazed.GlazedAddon;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.*;
@@ -22,6 +24,13 @@ public class FakeScoreboard extends Module {
     private ScoreboardObjective originalObjective;
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private final List<String> teamNames = new ArrayList<>();
+
+    private long keyallStartTime = 0;
+    private long keyallInitialTime = 0; // Initial countdown time in milliseconds
+    private long lastMsUpdate = 0;
+    private int displayMs = 0;
+    private int msChangeDirection = 1; // 1 for up, -1 for down
+    private long lastScoreboardUpdate = 0;
 
     private final SettingGroup sgStats = settings.getDefaultGroup();
 
@@ -89,12 +98,30 @@ public class FakeScoreboard extends Module {
         }
     }
 
+    @EventHandler
+    private void onTick(TickEvent.Post event) {
+        if (!isActive() || mc.world == null || mc.player == null) return;
+        
+        // Update scoreboard every second to refresh timer and ping
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastScoreboardUpdate >= 1000) {
+            updateScoreboard();
+            lastScoreboardUpdate = currentTime;
+        }
+    }
+
     @Override
     public void onActivate() {
         if (mc.world == null || mc.player == null) return;
         Scoreboard scoreboard = mc.world.getScoreboard();
 
         originalObjective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        keyallStartTime = System.currentTimeMillis();
+        // Initialize countdown to 59 minutes 59 seconds (3599 seconds)
+        keyallInitialTime = 59 * 60 + 59; // 3599 seconds in total
+        lastMsUpdate = System.currentTimeMillis();
+        displayMs = 50 + (int) (Math.random() * 50); // Start between 50-100ms
+        msChangeDirection = (Math.random() < 0.5) ? 1 : -1; // Random initial direction
         updateScoreboard();
     }
 
@@ -197,6 +224,55 @@ public class FakeScoreboard extends Module {
         return entry != null ? entry.getLatency() : 0;
     }
 
+    private String getKeyallTimer() {
+        long elapsed = System.currentTimeMillis() - keyallStartTime;
+        long elapsedSeconds = elapsed / 1000;
+        long remainingSeconds = Math.max(0, keyallInitialTime - elapsedSeconds);
+
+        long minutes = remainingSeconds / 60;
+        long seconds = remainingSeconds % 60;
+
+        return String.format("%dm %ds", minutes, seconds);
+    }
+
+    private String getFooterWithMs() {
+        long currentTime = System.currentTimeMillis();
+        
+        // Update ping every 2-4 seconds with small changes
+        if (currentTime - lastMsUpdate > 2000 + (long)(Math.random() * 2000)) {
+            // Change ping by 1-5ms in current direction
+            int change = 1 + (int)(Math.random() * 5);
+            displayMs += msChangeDirection * change;
+            
+            // Keep ping in reasonable range (20-150ms)
+            if (displayMs < 20) {
+                displayMs = 20;
+                msChangeDirection = 1; // Change direction to go up
+            } else if (displayMs > 150) {
+                displayMs = 150;
+                msChangeDirection = -1; // Change direction to go down
+            }
+            
+            // Occasionally change direction randomly (10% chance)
+            if (Math.random() < 0.1) {
+                msChangeDirection *= -1;
+            }
+            
+            lastMsUpdate = currentTime;
+        }
+
+        String raw = footer.get();
+        int start = raw.indexOf('(');
+        int end = raw.indexOf(')');
+
+        if (start == -1 || end == -1 || end <= start) {
+            return raw;
+        }
+
+        String region = raw.substring(0, start).trim();
+        return region + "(" + displayMs + "ms)";
+    }
+
     private List<MutableText> generateEntriesText() {
         return List.of(
                 text(" "),
@@ -204,7 +280,7 @@ public class FakeScoreboard extends Module {
                 colored("★ ", 0xA503FC).append(colored("Shards: ", 0xFFFFFF)).append(colored(shards.get(), 0xA503FC)),
                 colored("🗡 ", 0xFF0000).append(colored("Kills: ", 0xFFFFFF)).append(colored(kills.get(), 0xFF0000)),
                 colored("☠ ", 0xFC7703).append(colored("Deaths: ", 0xFFFFFF)).append(colored(deaths.get(), 0xFC7703)),
-                colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(keyall.get(), 0x00A2FF)),
+                colored("⌛ ", 0x00A2FF).append(colored("Keyall: ", 0xFFFFFF)).append(colored(getKeyallTimer(), 0x00A2FF)),
                 colored("⌚ ", 0xFFE600).append(colored("Playtime: ", 0xFFFFFF)).append(colored(playtime.get(), 0xFFE600)),
                 colored("🪓 ", 0x00A2FF).append(colored("Team: ", 0xFFFFFF)).append(colored(team.get(), 0x00A2FF)),
                 text(" "),
@@ -213,7 +289,7 @@ public class FakeScoreboard extends Module {
     }
 
     private MutableText footerText() {
-        String raw = footer.get();
+        String raw = getFooterWithMs();
 
         int start = raw.indexOf('(');
         int end = raw.indexOf(')');

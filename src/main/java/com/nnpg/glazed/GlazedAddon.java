@@ -27,7 +27,7 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
 
 
 
-    public static int MyScreenVERSION = 14;
+    public static int MyScreenVERSION = 15;
 
     @Override
     public void onInitialize() {
@@ -37,7 +37,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new SpawnerProtect()); //done
         Modules.get().add(new AntiTrap()); //done
         Modules.get().add(new CoordSnapper()); //done
-        Modules.get().add(new ElytraSwap()); //done
         Modules.get().add(new PlayerDetection()); //done
         Modules.get().add(new AHSniper()); //done
         Modules.get().add(new RTPer()); //done
@@ -47,7 +46,7 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new AutoShulkerOrder()); // done
         Modules.get().add(new AutoOrder()); //done
         Modules.get().add(new HideScoreboard());
-        Modules.get().add(new LegitCrystalMacro());
+        Modules.get().add(new CrystalMacro());
         Modules.get().add(new AHSell());
         Modules.get().add(new AnchorMacro());
         Modules.get().add(new OneByOneHoles());
@@ -76,26 +75,20 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new VineESP());
         Modules.get().add(new ChunkFinder());
         Modules.get().add(new BlockNotifier());
-        Modules.get().add(new LegitAnchorMacro());
+        Modules.get().add(new AnchorMacro());
         Modules.get().add(new SpawnerOrder());
         Modules.get().add(new RegionMap());
         Modules.get().add(new SpawnerOrder());
-        Modules.get().add(new RegionMap());
         Modules.get().add(new SpawnerOrder());
-        Modules.get().add(new RegionMap());
         Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new NoBlockInteract());
         Modules.get().add(new BeehiveESP());
         Modules.get().add(new WindPearlMacro());
-        Modules.get().add(new QuickShieldBreaker());
-        Modules.get().add(new UDTriggerBot());
         Modules.get().add(new SwordPlaceObsidian());
         Modules.get().add(new ChestAndShulkerStealer());
         Modules.get().add(new DoubleAnchorMacro());
-        Modules.get().add(new StunMace());
-        Modules.get().add(new HoldHotbarTotem());
+        Modules.get().add(new AutoDoubleHand());
         Modules.get().add(new SweetBerryESP());
-        Modules.get().add(new ElytraFirework());
         Modules.get().add(new PistonESP());
         Modules.get().add(new TpaAllMacro());
         Modules.get().add(new RTPNetherBaseFinder());
@@ -104,16 +97,12 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new DrownedTridentESP());
         Modules.get().add(new RTPBaseFinder());
         Modules.get().add(new HoverTotem());
-        Modules.get().add(new TapResetMacro());
-        Modules.get().add(new JumpResetMacro());
         Modules.get().add(new TunnelBaseFinder());
         Modules.get().add(new AimAssist());
-        Modules.get().add(new HumanTriggerBot());
         Modules.get().add(new SkeletonESP());
         Modules.get().add(new RainNoti());
         Modules.get().add(new AutoPearlChain());
         Modules.get().add(new AutoBlazeRodOrder());
-        Modules.get().add(new SwordAxePlaceCobweb());
         Modules.get().add(new BlazeRodDropper());
         Modules.get().add(new BreachSwap());
         Modules.get().add(new FakeScoreboard());
@@ -124,6 +113,8 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new ShieldBreaker());
         Modules.get().add(new InvisESP());
         Modules.get().add(new AutoTotemOrder());
+        Modules.get().add(new LightESP());
+        Modules.get().add(new FreecamV2());
     }
 
     @EventHandler

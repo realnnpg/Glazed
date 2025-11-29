@@ -25,7 +25,7 @@ import net.minecraft.util.math.Box;
 import java.util.HashSet;
 import java.util.Set;
 
-public class LegitCrystalMacro extends Module {
+public class CrystalMacro extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Integer> activateKey = sgGeneral.add(new IntSetting.Builder()
@@ -78,8 +78,8 @@ public class LegitCrystalMacro extends Module {
     private boolean paused = false;
     private long resumeTime = 0;
 
-    public LegitCrystalMacro() {
-        super(GlazedAddon.pvp, "LegitCrystalMacro", "Automatically crystals fast for you");
+    public CrystalMacro() {
+        super(GlazedAddon.pvp, "CrystalMacro", "Automatically crystals fast for you");
     }
 
     @Override
