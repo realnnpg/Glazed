@@ -26,10 +26,10 @@ public class FakeScoreboard extends Module {
     private final List<String> teamNames = new ArrayList<>();
 
     private long keyallStartTime = 0;
-    private long keyallInitialTime = 0; // Initial countdown time in milliseconds
+    private long keyallInitialTime = 0;
     private long lastMsUpdate = 0;
     private int displayMs = 0;
-    private int msChangeDirection = 1; // 1 for up, -1 for down
+    private int msChangeDirection = 1;
     private long lastScoreboardUpdate = 0;
 
     private final SettingGroup sgStats = settings.getDefaultGroup();
@@ -102,7 +102,6 @@ public class FakeScoreboard extends Module {
     private void onTick(TickEvent.Post event) {
         if (!isActive() || mc.world == null || mc.player == null) return;
         
-        // Update scoreboard every second to refresh timer and ping
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastScoreboardUpdate >= 1000) {
             updateScoreboard();
@@ -117,11 +116,10 @@ public class FakeScoreboard extends Module {
 
         originalObjective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
         keyallStartTime = System.currentTimeMillis();
-        // Initialize countdown to 59 minutes 59 seconds (3599 seconds)
-        keyallInitialTime = 59 * 60 + 59; // 3599 seconds in total
+        keyallInitialTime = 59 * 60 + 59; // 3599 seconds
         lastMsUpdate = System.currentTimeMillis();
-        displayMs = 50 + (int) (Math.random() * 50); // Start between 50-100ms
-        msChangeDirection = (Math.random() < 0.5) ? 1 : -1; // Random initial direction
+        displayMs = 50 + (int) (Math.random() * 50);
+        msChangeDirection = (Math.random() < 0.5) ? 1 : -1;
         updateScoreboard();
     }
 
@@ -238,22 +236,18 @@ public class FakeScoreboard extends Module {
     private String getFooterWithMs() {
         long currentTime = System.currentTimeMillis();
         
-        // Update ping every 2-4 seconds with small changes
         if (currentTime - lastMsUpdate > 2000 + (long)(Math.random() * 2000)) {
-            // Change ping by 1-5ms in current direction
             int change = 1 + (int)(Math.random() * 5);
             displayMs += msChangeDirection * change;
             
-            // Keep ping in reasonable range (20-150ms)
             if (displayMs < 20) {
                 displayMs = 20;
-                msChangeDirection = 1; // Change direction to go up
+                msChangeDirection = 1;
             } else if (displayMs > 150) {
                 displayMs = 150;
-                msChangeDirection = -1; // Change direction to go down
+                msChangeDirection = -1;
             }
             
-            // Occasionally change direction randomly (10% chance)
             if (Math.random() < 0.1) {
                 msChangeDirection *= -1;
             }
