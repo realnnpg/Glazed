@@ -65,6 +65,16 @@ public class LightESP extends Module {
         .build()
     );
 
+    private final Setting<Integer> maxLightLevel = sgGeneral.add(new IntSetting.Builder()
+        .name("max-light-level")
+        .description("Maximum light level to display.")
+        .defaultValue(15)
+        .min(0)
+        .max(15)
+        .sliderMax(15)
+        .build()
+    );
+
     private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
         .name("shape-mode")
         .description("How the shapes are rendered.")
@@ -91,7 +101,15 @@ public class LightESP extends Module {
     );
 
     private final Set<BlockPos> lightPositions = ConcurrentHashMap.newKeySet();
+    private final Set<ChunkPos> scannedChunks = ConcurrentHashMap.newKeySet();
     private ExecutorService threadPool;
+    private int lastMinLightLevel = -1;
+    private int lastMaxLightLevel = -1;
+    private int lastChunkRadius = -1;
+    private int lastMinY = -1;
+    private int lastMaxY = -1;
+    private int refreshCounter = 0;
+    private static final int REFRESH_RATE = 10; // 10 ticks = ~0.5 seconds at 20 TPS = 2 times per second
 
     public LightESP() {
         super(GlazedAddon.esp, "LightESP", "Highlights blocks with light levels above a threshold.");
@@ -103,6 +121,7 @@ public class LightESP extends Module {
             threadPool = Executors.newFixedThreadPool(threadPoolSize.get());
         }
         lightPositions.clear();
+        scannedChunks.clear();
     }
 
     @Override
@@ -112,24 +131,53 @@ public class LightESP extends Module {
             threadPool = null;
         }
         lightPositions.clear();
+        scannedChunks.clear();
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (mc.world == null || mc.player == null) return;
 
-        ChunkPos playerChunkPos = mc.player.getChunkPos();
-        int radius = chunkRadius.get();
+        refreshCounter++;
 
-        for (int chunkX = playerChunkPos.x - radius; chunkX <= playerChunkPos.x + radius; chunkX++) {
-            for (int chunkZ = playerChunkPos.z - radius; chunkZ <= playerChunkPos.z + radius; chunkZ++) {
-                final int finalChunkX = chunkX;
-                final int finalChunkZ = chunkZ;
-                
-                if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
-                    threadPool.submit(() -> scanChunkForLights(finalChunkX, finalChunkZ));
-                } else {
-                    scanChunkForLights(chunkX, chunkZ);
+        // Check if settings have changed and refresh if needed
+        if (lastMinLightLevel != minLightLevel.get() ||
+            lastMaxLightLevel != maxLightLevel.get() ||
+            lastChunkRadius != chunkRadius.get() ||
+            lastMinY != minY.get() ||
+            lastMaxY != maxY.get()) {
+            lightPositions.clear();
+            scannedChunks.clear();
+            lastMinLightLevel = minLightLevel.get();
+            lastMaxLightLevel = maxLightLevel.get();
+            lastChunkRadius = chunkRadius.get();
+            lastMinY = minY.get();
+            lastMaxY = maxY.get();
+            refreshCounter = 0;
+        }
+
+        // Only refresh every REFRESH_RATE ticks
+        if (refreshCounter >= REFRESH_RATE) {
+            refreshCounter = 0;
+
+            ChunkPos playerChunkPos = mc.player.getChunkPos();
+            int radius = chunkRadius.get();
+
+            for (int chunkX = playerChunkPos.x - radius; chunkX <= playerChunkPos.x + radius; chunkX++) {
+                for (int chunkZ = playerChunkPos.z - radius; chunkZ <= playerChunkPos.z + radius; chunkZ++) {
+                    ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+
+                    // Only scan if not already scanned
+                    if (!scannedChunks.contains(chunkPos)) {
+                        final int finalChunkX = chunkX;
+                        final int finalChunkZ = chunkZ;
+
+                        if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
+                            threadPool.submit(() -> scanChunkForLights(finalChunkX, finalChunkZ, chunkPos));
+                        } else {
+                            scanChunkForLights(chunkX, chunkZ, chunkPos);
+                        }
+                    }
                 }
             }
         }
@@ -137,52 +185,49 @@ public class LightESP extends Module {
         renderLights(event);
     }
 
-    private void scanChunkForLights(int chunkX, int chunkZ) {
+    private void scanChunkForLights(int chunkX, int chunkZ, ChunkPos chunkPos) {
         if (mc.world == null) return;
 
         Chunk chunk = mc.world.getChunk(chunkX, chunkZ);
         if (chunk == null || !chunk.getStatus().isAtLeast(ChunkStatus.FULL)) return;
 
-        ChunkPos cpos = new ChunkPos(chunkX, chunkZ);
         Set<BlockPos> chunkLights = new HashSet<>();
 
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 for (int y = minY.get(); y <= maxY.get(); y++) {
                     BlockPos pos = new BlockPos(chunkX * 16 + x, y, chunkZ * 16 + z);
-                    
+
                     int blockLight = mc.world.getLightLevel(LightType.BLOCK, pos);
                     int skyLight = mc.world.getLightLevel(LightType.SKY, pos);
-                    
-                    if (blockLight >= minLightLevel.get() && blockLight > skyLight) {
+
+                    if (blockLight >= minLightLevel.get() && blockLight <= maxLightLevel.get() && blockLight > skyLight) {
                         chunkLights.add(pos);
                     }
                 }
             }
         }
 
-        lightPositions.removeIf(pos -> {
-            ChunkPos blockChunk = new ChunkPos(pos);
-            return blockChunk.equals(cpos) && !chunkLights.contains(pos);
-        });
-
         lightPositions.addAll(chunkLights);
+        scannedChunks.add(chunkPos);
     }
 
     private void renderLights(Render3DEvent event) {
         Set<BlockPos> allLightPositions = new HashSet<>(lightPositions);
-        
+
         for (BlockPos pos : allLightPositions) {
             if (mc.world == null) return;
-            
+
             int lightLevel = mc.world.getLightLevel(LightType.BLOCK, pos);
-            
-            if (lightLevel < 15 && !shouldRenderBlock(pos, allLightPositions)) continue;
+
+            // Filter by current min/max light level settings and check if should render
+            if ((lightLevel < minLightLevel.get() || lightLevel > maxLightLevel.get()) ||
+                (lightLevel < 15 && !shouldRenderBlock(pos, allLightPositions))) continue;
 
             float[] thermal = getThermalColor(lightLevel);
-            SettingColor sColor = new SettingColor((int)(thermal[0] * 255), (int)(thermal[1] * 255), 
+            SettingColor sColor = new SettingColor((int)(thermal[0] * 255), (int)(thermal[1] * 255),
                                       (int)(thermal[2] * 255), (int)(thermal[3] * 255));
-            SettingColor lColor = new SettingColor((int)(thermal[0] * 255), (int)(thermal[1] * 255), 
+            SettingColor lColor = new SettingColor((int)(thermal[0] * 255), (int)(thermal[1] * 255),
                                       (int)(thermal[2] * 255), 255);
 
             event.renderer.box(pos, sColor, lColor, shapeMode.get(), 0);
@@ -200,7 +245,7 @@ public class LightESP extends Module {
 
     private float[] getThermalColor(int lightLevel) {
         float[] color = new float[4];
-        
+
         if (lightLevel <= 5) {
             color[3] = 0.25f + (lightLevel / 5.0f) * 0.25f;
         } else if (lightLevel <= 10) {
