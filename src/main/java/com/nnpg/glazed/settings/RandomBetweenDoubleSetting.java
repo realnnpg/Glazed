@@ -59,8 +59,8 @@ public class RandomBetweenDoubleSetting extends Setting<RandomBetweenDouble> {
 
     @Override
     public RandomBetweenDouble load(NbtCompound tag) {
-        double min = tag.contains("min") ? tag.getDouble("min").doubleValue() : defaultValue.min;
-        double max = tag.contains("max") ? tag.getDouble("max").doubleValue() : defaultValue.max;
+        double min = tag.contains("min") ? tag.getDouble("min") : defaultValue.min;
+        double max = tag.contains("max") ? tag.getDouble("max") : defaultValue.max;
         return new RandomBetweenDouble(min, max);
     }
 

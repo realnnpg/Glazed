@@ -1,4 +1,4 @@
-﻿ckage com.nnpg.glazed.modules.main;
+﻿package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
 import com.nnpg.glazed.settings.RandomBetweenIntSetting;

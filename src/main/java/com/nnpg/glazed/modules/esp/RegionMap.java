@@ -200,7 +200,7 @@ public class RegionMap extends Module {
                 int legendY = legendStartY + i * 16;
                 Renderer2D.COLOR.quad(ctx.mapX, legendY, 14, 14, regionTypeColors[i]);
             }
-            Renderer2D.COLOR.render((Consumer<RenderPass>) null);
+            Renderer2D.COLOR.render(null);
 
             TextRenderer textRenderer = TextRenderer.get();
             if (textRenderer == null) return;
@@ -450,7 +450,7 @@ public class RegionMap extends Module {
                     Renderer2D.COLOR.quad(ctx.mapX, lineY, ctx.getMapWidth(), 1, lineColor);
                 }
 
-                Renderer2D.COLOR.render((Consumer<RenderPass>) null);
+                Renderer2D.COLOR.render(null);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -536,7 +536,7 @@ public class RegionMap extends Module {
                 int rightBaseY = centerY - (int)(Math.sin(rightBaseAngle) * arrowSize);
 
                 drawTriangleFilled(tipX, tipY, leftBaseX, leftBaseY, rightBaseX, rightBaseY, indicatorCol);
-                Renderer2D.COLOR.render((Consumer<RenderPass>) null);
+                Renderer2D.COLOR.render(null);
             } catch (Exception e) {
                 e.printStackTrace();
             }

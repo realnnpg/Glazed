@@ -59,8 +59,8 @@ public class RandomBetweenIntSetting extends Setting<RandomBetweenInt> {
 
     @Override
     public RandomBetweenInt load(NbtCompound tag) {
-        int min = tag.contains("min") ? tag.getInt("min").intValue() : defaultValue.min;
-        int max = tag.contains("max") ? tag.getInt("max").intValue() : defaultValue.max;
+        int min = tag.contains("min") ? tag.getInt("min") : defaultValue.min;
+        int max = tag.contains("max") ? tag.getInt("max") : defaultValue.max;
         return new RandomBetweenInt(min, max);
     }
 
