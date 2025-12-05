@@ -16,7 +16,7 @@ public class VersionUtil {
     }
 
     public static int getSelectedSlot(ClientPlayerEntity player) {
-    return player.getInventory().getSelectedSlot();
+    return player.getInventory().selectedSlot;
     }
 
     public static void setSelectedSlot(ClientPlayerEntity player, int slot) {

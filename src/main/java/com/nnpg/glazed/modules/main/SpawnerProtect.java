@@ -273,6 +273,8 @@ public class SpawnerProtect extends Module {
     }
 
     private boolean checkEmergencyDisconnect() {
+        // If there are too many other players online (e.g., spawn crowded during restart),
+        // skip emergency disconnect logic to avoid false positives.
         long otherPlayers = mc.world.getPlayers().stream().filter(p -> p != mc.player).count();
         if (otherPlayers >= PLAYER_COUNT_THRESHOLD) return false;
 
@@ -312,7 +314,7 @@ public class SpawnerProtect extends Module {
     }
 
     private void checkForPlayers() {
-        // nigga
+        // If there are many other players (spawn crowd / server restart), don't activate protection
         long otherPlayers = mc.world.getPlayers().stream().filter(p -> p != mc.player).count();
         if (otherPlayers >= PLAYER_COUNT_THRESHOLD) return;
 
@@ -355,45 +357,52 @@ public class SpawnerProtect extends Module {
         setSneaking(true);
 
         if (currentTarget == null) {
-            BlockPos found = findNearestSpawner();
+            currentTarget = findNearestSpawner();
 
-            if (found == null) {
-                // No spawners left: stop breaking and proceed
+            if (currentTarget == null && !waiting) {
+                waiting = true;
+                recheckDelay = 0;
+                confirmDelay = 0;
                 stopBreaking();
-                spawnersMinedSuccessfully = true;
-                setSneaking(false);
-                currentTarget = null;
-                currentState = State.GOING_TO_CHEST;
-                info("All spawners mined successfully. Looking for ender chest...");
-                tickCounter = 0;
-                return;
-            }
-
-            // Start holding on the newly found spawner
-            currentTarget = found;
-            isMiningCycle = true; // using isMiningCycle to indicate "holding"
-            miningCycleTimer = 0;
-            info("Starting to mine spawner at " + currentTarget);
-        }
-
-        if (isMiningCycle) {
-            // Holding attack towards the current target
-            lookAtBlock(currentTarget);
-            breakBlock(currentTarget);
-
-            // If the block is gone, release the click and start 
-            if (mc.world.getBlockState(currentTarget).isAir()) {
-                info("Spawner at " + currentTarget + " broken! Releasing click...");
-                stopBreaking();
-                isMiningCycle = false; // enter pause state
+                info("No more spawners found, waiting to confirm...");
+            } else if (currentTarget != null) {
+                isMiningCycle = true;
                 miningCycleTimer = 0;
-                currentTarget = null;
-                transferDelayCounter = 5;
+                info("Starting to mine spawner at " + currentTarget);
             }
         } else {
             miningCycleTimer++;
-            if (miningCycleTimer >= PAUSE_DURATION) {
+            
+            if (isMiningCycle) {
+                if (miningCycleTimer >= MINING_DURATION) {
+                    isMiningCycle = false;
+                    miningCycleTimer = 0;
+                    stopBreaking();
+                    info("Pausing mining for 1 second...");
+                } else {
+                    lookAtBlock(currentTarget);
+                    breakBlock(currentTarget);
+                }
+            } else {
+                if (miningCycleTimer >= PAUSE_DURATION) {
+                    isMiningCycle = true;
+                    miningCycleTimer = 0;
+                    info("Resuming mining...");
+                }
             }
+
+            if (mc.world.getBlockState(currentTarget).isAir()) {
+                info("Spawner at " + currentTarget + " broken! Looking for next spawner...");
+                currentTarget = null;
+                stopBreaking();
+                isMiningCycle = true;
+                miningCycleTimer = 0;
+                transferDelayCounter = 5;
+            }
+        }
+
+        if (waiting) {
+            handleWaitingForSpawners();
         }
     }
 
