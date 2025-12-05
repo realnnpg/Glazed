@@ -95,7 +95,7 @@ public class KeyPearl extends Module {
     private void throwPearl() {
         if (mc.player == null) return;
 
-        prevSlot = mc.player.getInventory().selectedSlot;
+        prevSlot = mc.player.getInventory().getSelectedSlot();
 
         for (int i = 0; i < 9; i++) {
             if (mc.player.getInventory().getStack(i).getItem() == Items.ENDER_PEARL) {

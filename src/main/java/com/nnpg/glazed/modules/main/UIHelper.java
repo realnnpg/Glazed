@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules.main;
+﻿package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
 import com.nnpg.glazed.settings.RandomBetweenIntSetting;
@@ -473,9 +473,16 @@ public class UIHelper extends Module {
             // Check if the packet is a slot click packet (when player clicks items in GUI)
             if (event.packet instanceof ClickSlotC2SPacket packet) {
                 // Detect if the slot clicked contained a dropper
-                if (StringUtils.convertUnicodeToAscii(packet.getStack().getName().getString()).equals("drop loot")) {
-                    // Start timer after dropping loot (delay is already in milliseconds)
-                    aaTimer = System.currentTimeMillis() + aaRandomDelay.get().getRandom();
+                if (mc.player != null && mc.player.currentScreenHandler != null) {
+                    try {
+                        net.minecraft.screen.slot.Slot slot = mc.player.currentScreenHandler.getSlot(packet.getSlot());
+                        if (slot != null && slot.getStack() != null && StringUtils.convertUnicodeToAscii(slot.getStack().getName().getString()).equals("drop loot")) {
+                            // Start timer after dropping loot (delay is already in milliseconds)
+                            aaTimer = System.currentTimeMillis() + aaRandomDelay.get().getRandom();
+                        }
+                    } catch (Exception e) {
+                        // Silently ignore errors
+                    }
                 }
             }
         }
