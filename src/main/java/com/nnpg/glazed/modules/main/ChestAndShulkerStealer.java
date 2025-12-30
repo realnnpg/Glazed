@@ -28,7 +28,7 @@ public class ChestAndShulkerStealer extends Module {
     private int currentSlot = 0;
 
     public ChestAndShulkerStealer() {
-        super(GlazedAddon.CATEGORY, "Storage Stealer", "Steals items from chests and shulkers.");
+        super(GlazedAddon.CATEGORY, "storage-stealer", "Steals items from chests and shulkers.");
     }
     
     @Override

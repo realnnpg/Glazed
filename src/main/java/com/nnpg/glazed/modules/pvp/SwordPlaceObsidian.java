@@ -1,8 +1,8 @@
 package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
-import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.ItemStack;
@@ -11,7 +11,6 @@ import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 public class SwordPlaceObsidian extends Module {
@@ -20,7 +19,7 @@ public class SwordPlaceObsidian extends Module {
     private int previousSlot = -1;
 
     public SwordPlaceObsidian() {
-        super(GlazedAddon.pvp, "Sword Obi Place", "Right-click with sword to place obsidian, then switch back.");
+        super(GlazedAddon.pvp, "sword-obi-place", "Right-click with sword to place obsidian, then switch back.");
     }
 
     @EventHandler

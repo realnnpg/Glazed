@@ -131,7 +131,7 @@ public class VineESP extends Module {
     private ExecutorService threadPool;
 
     public VineESP() {
-        super(GlazedAddon.esp, "Vine ESP", "ESP for vines that touch the ground.");
+        super(GlazedAddon.esp, "vine-esp", "ESP for vines that touch the ground.");
     }
 
     @Override

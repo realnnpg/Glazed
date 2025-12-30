@@ -3,11 +3,10 @@ package com.nnpg.glazed.modules.esp;
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.ChunkDataEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
-import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
@@ -19,7 +18,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.chunk.WorldChunk;
 
 import java.io.IOException;
 import java.net.URI;
@@ -27,7 +25,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 public class SpawnerNotifier extends Module {
@@ -160,7 +161,7 @@ public class SpawnerNotifier extends Module {
     private int total_spawners_found = 0;
 
     public SpawnerNotifier() {
-        super(GlazedAddon.esp, "Spawner Notifier", "Notifies when spawners are detected with multiple notification options and visual ESP");
+        super(GlazedAddon.esp, "spawner-notifier", "Notifies when spawners are detected with multiple notification options and visual ESP");
     }
 
     @Override

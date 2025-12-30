@@ -107,7 +107,7 @@ public class RegionMap extends Module {
     private final PlayerTracker playerTracker;
 
     public RegionMap() {
-        super(GlazedAddon.esp, "Region Map",
+        super(GlazedAddon.esp, "region-map",
                 "DonutSMP region map and shows you your location");
 
         this.mapData = new MapDataManager();
