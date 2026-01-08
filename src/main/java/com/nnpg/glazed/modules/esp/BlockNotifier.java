@@ -3,7 +3,6 @@ package com.nnpg.glazed.modules.esp;
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.ChunkDataEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -12,14 +11,12 @@ import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.chunk.WorldChunk;
 
 import java.io.IOException;
 import java.net.URI;
@@ -156,7 +153,7 @@ public class BlockNotifier extends Module {
     private int total_blocks_found = 0;
 
     public BlockNotifier() {
-        super(GlazedAddon.esp, "Block Notifier", "Notifies when specific blocks are detected with multiple notification options and visual ESP.");
+        super(GlazedAddon.esp, "block-notifier", "Notifies when specific blocks are detected with multiple notification options and visual ESP.");
     }
 
     @Override

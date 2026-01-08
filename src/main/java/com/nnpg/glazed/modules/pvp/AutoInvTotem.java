@@ -1,11 +1,14 @@
 package com.nnpg.glazed.modules.pvp;
 
 import com.nnpg.glazed.GlazedAddon;
-import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
+import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.settings.BoolSetting;
+import meteordevelopment.meteorclient.settings.IntSetting;
+import meteordevelopment.meteorclient.settings.Setting;
+import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
@@ -83,7 +86,7 @@ public class AutoInvTotem extends Module {
     private boolean invAutoOpened = false;
 
     public AutoInvTotem() {
-        super(GlazedAddon.pvp, "Auto Inv Totem", "Automatically moves totems to offhand when inventory is opened after totem pop.");
+        super(GlazedAddon.pvp, "auto-inv-totem", "Automatically moves totems to offhand when inventory is opened after totem pop.");
     }
 
     @Override
