@@ -101,6 +101,7 @@ public class LightESP extends Module {
     );
 
     private final Set<BlockPos> lightPositions = ConcurrentHashMap.newKeySet();
+    private final Set<ChunkPos> scannedChunks = ConcurrentHashMap.newKeySet();
     private ExecutorService threadPool;
     private int lastMinLightLevel = -1;
     private int lastMaxLightLevel = -1;
@@ -120,6 +121,7 @@ public class LightESP extends Module {
             threadPool = Executors.newFixedThreadPool(threadPoolSize.get());
         }
         lightPositions.clear();
+        scannedChunks.clear();
     }
 
     @Override
@@ -129,6 +131,7 @@ public class LightESP extends Module {
             threadPool = null;
         }
         lightPositions.clear();
+        scannedChunks.clear();
     }
 
     @EventHandler
@@ -144,6 +147,7 @@ public class LightESP extends Module {
             lastMinY != minY.get() ||
             lastMaxY != maxY.get()) {
             lightPositions.clear();
+            scannedChunks.clear();
             lastMinLightLevel = minLightLevel.get();
             lastMaxLightLevel = maxLightLevel.get();
             lastChunkRadius = chunkRadius.get();
@@ -159,18 +163,20 @@ public class LightESP extends Module {
             ChunkPos playerChunkPos = mc.player.getChunkPos();
             int radius = chunkRadius.get();
 
-            // Clear and rescan all chunks to detect new lights
-            lightPositions.clear();
-
             for (int chunkX = playerChunkPos.x - radius; chunkX <= playerChunkPos.x + radius; chunkX++) {
                 for (int chunkZ = playerChunkPos.z - radius; chunkZ <= playerChunkPos.z + radius; chunkZ++) {
-                    final int finalChunkX = chunkX;
-                    final int finalChunkZ = chunkZ;
+                    ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
 
-                    if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
-                        threadPool.submit(() -> scanChunkForLights(finalChunkX, finalChunkZ));
-                    } else {
-                        scanChunkForLights(chunkX, chunkZ);
+                    // Only scan if not already scanned
+                    if (!scannedChunks.contains(chunkPos)) {
+                        final int finalChunkX = chunkX;
+                        final int finalChunkZ = chunkZ;
+
+                        if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
+                            threadPool.submit(() -> scanChunkForLights(finalChunkX, finalChunkZ, chunkPos));
+                        } else {
+                            scanChunkForLights(chunkX, chunkZ, chunkPos);
+                        }
                     }
                 }
             }
@@ -179,7 +185,7 @@ public class LightESP extends Module {
         renderLights(event);
     }
 
-    private void scanChunkForLights(int chunkX, int chunkZ) {
+    private void scanChunkForLights(int chunkX, int chunkZ, ChunkPos chunkPos) {
         if (mc.world == null) return;
 
         Chunk chunk = mc.world.getChunk(chunkX, chunkZ);
@@ -203,6 +209,7 @@ public class LightESP extends Module {
         }
 
         lightPositions.addAll(chunkLights);
+        scannedChunks.add(chunkPos);
     }
 
     private void renderLights(Render3DEvent event) {
