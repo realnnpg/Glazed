@@ -1,6 +1,7 @@
 package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
+import meteordevelopment.meteorclient.events.game.ReceiveMessageEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -10,17 +11,24 @@ import net.minecraft.block.Block;
 import net.minecraft.block.SpawnerBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Items;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.item.Items;
 import net.minecraft.util.math.Vec3d;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.OptionalLong;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SpawnerOrder extends Module {
     private final MinecraftClient mc = MinecraftClient.getInstance();
@@ -40,6 +48,11 @@ public class SpawnerOrder extends Module {
         WAITING_CONFIRM_GUI,
         CONFIRMING_SALE,
         CLOSING_ORDER,
+        WAITING_ORDER_CHECK,
+        WAITING_SPAWNER_CONFIRM,
+        BALANCE_COMMAND,
+        WAITING_BALANCE,
+        PAY_COMMAND,
         WAITING_CYCLE
     }
 
@@ -50,16 +63,28 @@ public class SpawnerOrder extends Module {
     private BlockPos targetSpawner = null;
     private final List<BlockPos> spawners = new ArrayList<>();
     private int spawnerIndex = 0;
-    private int itemIndex = 0;
-    private final List<String> itemsToSellReference = Arrays.asList("bones", "arrows");
     private int currentSpawnerPageCounter = 0;
+    private int stacksDepositedForSpawner = 0;
+    private int depositDelayCounter = 0;
+    private int orderCheckDelayCounter = 0;
+    private int stacksPulledThisOpen = 0;
+    private int spawnerConfirmAttempt = 0;
+    private boolean awaitingBalance = false;
+    private long pendingBalance = 0;
+    private boolean pendingPayAfterOrder = false;
+    private int balanceWaitTicks = 0;
+    private boolean previousPauseOnLostFocus = true;
+    private static final int BONE_ORDER_THRESHOLD = 35;
+    private static final int MAX_STACKS_PER_PULL = 35;
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<String> dropDelayMinutes = sgGeneral.add(new StringSetting.Builder()
-        .name("drop-delay-minutes")
-        .description("Minutes between cycles.")
-        .defaultValue("5")
+    private final Setting<Integer> cycleDelayHours = sgGeneral.add(new IntSetting.Builder()
+        .name("cycle-delay-hours")
+        .description("Hours between spawner cycles.")
+        .defaultValue(3)
+        .min(1)
+        .max(24)
         .build());
 
     private final Setting<Integer> actionDelaySetting = sgGeneral.add(new IntSetting.Builder()
@@ -84,10 +109,103 @@ public class SpawnerOrder extends Module {
         .max(10)
         .build());
 
+    private final Setting<Integer> spawnersPerCycle = sgGeneral.add(new IntSetting.Builder()
+        .name("spawners-per-cycle")
+        .description("How many spawners to process per cycle.")
+        .defaultValue(3)
+        .min(1)
+        .max(10)
+        .build());
+
+    private final Setting<Integer> stacksPerSpawner = sgGeneral.add(new IntSetting.Builder()
+        .name("stacks-per-spawner")
+        .description("How many bone stacks to deposit per spawner.")
+        .defaultValue(4)
+        .min(1)
+        .max(10)
+        .build());
+
+    private final Setting<Integer> depositDelayTicks = sgGeneral.add(new IntSetting.Builder()
+        .name("deposit-delay-ticks")
+        .description("Delay between bone stack deposits (ticks).")
+        .defaultValue(2)
+        .min(1)
+        .max(40)
+        .build());
+
+    private final Setting<Integer> orderCheckDelayTicks = sgGeneral.add(new IntSetting.Builder()
+        .name("order-check-delay-ticks")
+        .description("Delay before reopening spawner GUI after a sale.")
+        .defaultValue(2)
+        .min(1)
+        .max(100)
+        .build());
+
+    private final Setting<Integer> maxStacksPerPull = sgGeneral.add(new IntSetting.Builder()
+        .name("max-stacks-per-pull")
+        .description("Maximum bone stacks to pull from the spawner GUI before selling.")
+        .defaultValue(MAX_STACKS_PER_PULL)
+        .min(MAX_STACKS_PER_PULL)
+        .max(MAX_STACKS_PER_PULL)
+        .build());
+
+    private final Setting<Integer> orderMenuSlot = sgGeneral.add(new IntSetting.Builder()
+        .name("order-menu-slot")
+        .description("Slot to click in the /order bones menu.")
+        .defaultValue(0)
+        .min(0)
+        .max(53)
+        .build());
+
+    private final Setting<Integer> playerDetectRange = sgGeneral.add(new IntSetting.Builder()
+        .name("player-detect-range")
+        .description("Disable SpawnerOrder when a player gets too close.")
+        .defaultValue(10)
+        .min(1)
+        .max(50)
+        .build());
+
+    private final Setting<String> payTarget = sgGeneral.add(new StringSetting.Builder()
+        .name("pay-target")
+        .description("Player to pay after each cycle.")
+        .defaultValue("igniusmc")
+        .build());
+
     private long lastDropTime = 0;
 
     public SpawnerOrder() {
         super(GlazedAddon.CATEGORY, "Spawner-Order", "Order All Spawner Loot.");
+        keybind.set(meteordevelopment.meteorclient.utils.misc.Keybind.fromKey(GLFW.GLFW_KEY_I));
+    }
+
+    private int getDropDelayMinutes() {
+        return cycleDelayHours.get() * 60;
+    }
+
+    private boolean isOrderState(State state) {
+        return state == State.ORDER_COMMAND ||
+            state == State.OPENING_ORDER ||
+            state == State.CLICKING_SLOT0 ||
+            state == State.DEPOSITING_ITEMS ||
+            state == State.WAITING_CONFIRM_GUI ||
+            state == State.CONFIRMING_SALE ||
+            state == State.CLOSING_ORDER ||
+            state == State.WAITING_ORDER_CHECK;
+    }
+
+    private boolean isBalanceState(State state) {
+        return state == State.BALANCE_COMMAND ||
+            state == State.WAITING_BALANCE ||
+            state == State.PAY_COMMAND;
+    }
+
+    private boolean isSpawnerState(State state) {
+        return state == State.SCANNING ||
+            state == State.MOVING ||
+            state == State.OPENING ||
+            state == State.DROPPING ||
+            state == State.WAITING_CLOSE ||
+            state == State.CLOSING_GUI;
     }
 
     private boolean isGreenGlass(net.minecraft.item.ItemStack stack) {
@@ -95,39 +213,19 @@ public class SpawnerOrder extends Module {
             stack.getItem() == Items.GREEN_STAINED_GLASS_PANE;
     }
 
-    private int getDropDelayMinutes() {
-        try {
-            return Integer.parseInt(dropDelayMinutes.get());
-        } catch (NumberFormatException e) {
-            return 5;
-        }
+    private boolean isBoneStack(net.minecraft.item.ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem().getName().getString().toLowerCase().contains("bone");
     }
 
-    private List<String> getAvailableItemsToSell() {
-        List<String> availableItems = new ArrayList<>();
-        boolean hasBones = false;
-        boolean hasArrows = false;
-
-        for (int i = 0; i < mc.player.getInventory().size(); i++) {
-            var stack = mc.player.getInventory().getStack(i);
-            if (!stack.isEmpty()) {
-                String itemName = stack.getItem().getName().getString().toLowerCase();
-                if (itemName.contains("bone")) {
-                    hasBones = true;
-                }
-                if (itemName.contains("arrow")) {
-                    hasArrows = true;
-                }
+    private boolean hasNearbyPlayer() {
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player == mc.player) continue;
+            if (!(player instanceof AbstractClientPlayerEntity)) continue;
+            if (mc.player.distanceTo(player) <= playerDetectRange.get()) {
+                return true;
             }
         }
-
-        if (hasBones) {
-            availableItems.add("bones");
-        }
-        if (hasArrows) {
-            availableItems.add("arrows");
-        }
-        return availableItems;
+        return false;
     }
 
     @Override
@@ -137,9 +235,21 @@ public class SpawnerOrder extends Module {
         lastDropTime = System.currentTimeMillis();
         spawners.clear();
         spawnerIndex = 0;
-        itemIndex = 0;
         targetSpawner = null;
         currentSpawnerPageCounter = 0;
+        stacksDepositedForSpawner = 0;
+        depositDelayCounter = 0;
+        orderCheckDelayCounter = 0;
+        stacksPulledThisOpen = 0;
+        awaitingBalance = false;
+        pendingBalance = 0;
+        balanceWaitTicks = 0;
+        spawnerConfirmAttempt = 0;
+        pendingPayAfterOrder = false;
+        if (mc.options != null) {
+            previousPauseOnLostFocus = mc.options.pauseOnLostFocus;
+            mc.options.pauseOnLostFocus = false;
+        }
 
         if (notifications.get()) {
             ChatUtils.info("SpawnerOrder activated");
@@ -150,6 +260,9 @@ public class SpawnerOrder extends Module {
     public void onDeactivate() {
         if (mc.currentScreen != null) {
             mc.player.closeHandledScreen();
+        }
+        if (mc.options != null) {
+            mc.options.pauseOnLostFocus = previousPauseOnLostFocus;
         }
         mc.player.setPitch(0f);
         if (notifications.get()) {
@@ -164,28 +277,39 @@ public class SpawnerOrder extends Module {
         tickCounter++;
         waitCounter++;
 
-        if (tickCounter >= actionDelaySetting.get()) {
-            if (hasItemsToSell() &&
-                currentState != State.ORDER_COMMAND &&
-                currentState != State.OPENING_ORDER &&
-                currentState != State.CLICKING_SLOT0 &&
-                currentState != State.DEPOSITING_ITEMS &&
-                currentState != State.WAITING_CONFIRM_GUI &&
-                currentState != State.CONFIRMING_SALE &&
-                currentState != State.CLOSING_ORDER) {
-
-                if (notifications.get()) {
-                    ChatUtils.info("");
-                }
-                currentState = State.ORDER_COMMAND;
-                itemIndex = 0;
-                tickCounter = 0;
-                return;
+        if (hasNearbyPlayer()) {
+            if (notifications.get()) {
+                ChatUtils.warning("SpawnerOrder paused: player nearby.");
             }
+            toggle();
+            return;
+        }
+
+        if (tickCounter >= actionDelaySetting.get() &&
+            shouldOrderBones() &&
+            !isOrderState(currentState) &&
+            !isBalanceState(currentState) &&
+            !isSpawnerState(currentState)) {
+            currentState = State.ORDER_COMMAND;
+            tickCounter = 0;
+            return;
         }
 
         if (shouldStartNewCycle()) {
             startNewCycle();
+            return;
+        }
+
+        if (currentState == State.WAITING_BALANCE && awaitingBalance) {
+            balanceWaitTicks++;
+            if (balanceWaitTicks > 200) {
+                awaitingBalance = false;
+                currentState = State.WAITING_CYCLE;
+            }
+        }
+
+        if (currentState == State.DROPPING) {
+            handleDropping();
             return;
         }
 
@@ -211,10 +335,18 @@ public class SpawnerOrder extends Module {
         waitCounter = 0;
         spawners.clear();
         spawnerIndex = 0;
-        itemIndex = 0;
         targetSpawner = null;
         lastDropTime = System.currentTimeMillis();
         currentSpawnerPageCounter = 0;
+        stacksDepositedForSpawner = 0;
+        depositDelayCounter = 0;
+        orderCheckDelayCounter = 0;
+        stacksPulledThisOpen = 0;
+        awaitingBalance = false;
+        pendingBalance = 0;
+        balanceWaitTicks = 0;
+        spawnerConfirmAttempt = 0;
+        pendingPayAfterOrder = false;
 
         if (notifications.get()) {
             ChatUtils.info("Starting new spawner cycle...");
@@ -237,32 +369,66 @@ public class SpawnerOrder extends Module {
             case WAITING_CONFIRM_GUI -> handleWaitingConfirmGui();
             case CONFIRMING_SALE -> handleConfirmingSale();
             case CLOSING_ORDER -> handleClosingOrder();
+            case WAITING_ORDER_CHECK -> handleWaitingOrderCheck();
+            case WAITING_SPAWNER_CONFIRM -> handleWaitingSpawnerConfirm();
+            case BALANCE_COMMAND -> handleBalanceCommand();
+            case WAITING_BALANCE -> handleWaitingBalance();
+            case PAY_COMMAND -> handlePayCommand();
             case WAITING_CYCLE -> handleWaitingCycle();
         }
     }
 
     private void handleInventoryCheck() {
-        if (hasItemsToSell()) {
+        if (shouldOrderBones()) {
             currentState = State.ORDER_COMMAND;
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
-        } else {
-            currentState = State.SCANNING;
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
+            return;
         }
+        currentState = State.SCANNING;
     }
 
-    private boolean hasItemsToSell() {
+    private boolean hasBonesInInventory() {
         for (int i = 0; i < mc.player.getInventory().size(); i++) {
             var stack = mc.player.getInventory().getStack(i);
-            if (!stack.isEmpty()) {
-                String itemName = stack.getItem().getName().getString().toLowerCase();
-                if (itemName.contains("bone") || itemName.contains("arrow")) {
-                    return true;
-                }
+            if (isBoneStack(stack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int countBoneStacksInInventory() {
+        int count = 0;
+        for (int i = 0; i < mc.player.getInventory().size(); i++) {
+            var stack = mc.player.getInventory().getStack(i);
+            if (isBoneStack(stack)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean hasBonesInContainer(ScreenHandler handler) {
+        for (int i = 0; i < handler.slots.size(); i++) {
+            var stack = handler.getSlot(i).getStack();
+            if (handler.getSlot(i).inventory == mc.player.getInventory()) {
+                continue;
+            }
+            if (isBoneStack(stack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasInventorySpaceForBones() {
+        for (int i = 0; i < mc.player.getInventory().size(); i++) {
+            var stack = mc.player.getInventory().getStack(i);
+            if (stack.isEmpty()) {
+                return true;
+            }
+            if (isBoneStack(stack) &&
+                stack.getCount() < stack.getMaxCount()) {
+                return true;
             }
         }
         return false;
@@ -275,17 +441,14 @@ public class SpawnerOrder extends Module {
             if (notifications.get()) {
                 ChatUtils.error("No spawners found.");
             }
-            if (hasItemsToSell()) {
-                currentState = State.ORDER_COMMAND;
-            } else {
-                currentState = State.WAITING_CYCLE;
-            }
+            currentState = State.WAITING_CYCLE;
             return;
         }
 
         targetSpawner = spawners.get(0);
         spawnerIndex = 0;
         currentState = State.MOVING;
+        stacksDepositedForSpawner = 0;
 
         if (notifications.get()) {
             ChatUtils.info("");
@@ -312,6 +475,9 @@ public class SpawnerOrder extends Module {
         if (mc.currentScreen instanceof GenericContainerScreen) {
             currentState = State.DROPPING;
             currentSpawnerPageCounter = 0;
+            stacksDepositedForSpawner = 0;
+            depositDelayCounter = 20;
+            stacksPulledThisOpen = 0;
             if (notifications.get()) {
                 ChatUtils.info("");
             }
@@ -329,62 +495,81 @@ public class SpawnerOrder extends Module {
             return;
         }
 
-        mc.player.setPitch(90f);
-
         ScreenHandler handler = screen.getScreenHandler();
 
-
-        if (handler.slots.size() > 50) {
-            mc.interactionManager.clickSlot(
-                handler.syncId,
-                50,
-                0,
-                SlotActionType.PICKUP,
-                mc.player
-            );
-
-            currentSpawnerPageCounter++;
-
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
-
-
-            if (currentSpawnerPageCounter < spawnerPagesToProcess.get()) {
-                if (handler.slots.size() > 53) {
-                    mc.interactionManager.clickSlot(
-                        handler.syncId,
-                        53,
-                        0,
-                        SlotActionType.PICKUP,
-                        mc.player
-                    );
-                    if (notifications.get()) {
-                        ChatUtils.info("");
-                    }
-                    currentState = State.DROPPING;
-                    waitCounter = 0;
-                } else {
-                    if (notifications.get()) {
-                        ChatUtils.warning("");
-                    }
-                    currentState = State.CLOSING_GUI;
-                    waitCounter = 0;
-                }
-            } else {
-                if (notifications.get()) {
-                    ChatUtils.info("");
-                }
-                currentState = State.WAITING_CLOSE;
-                waitCounter = 0;
-            }
-        } else {
-            if (notifications.get()) {
-                ChatUtils.warning("");
-            }
-            currentState = State.CLOSING_GUI;
-            waitCounter = 0;
+        if (depositDelayCounter > 0) {
+            depositDelayCounter--;
+            return;
         }
+
+        if (shouldOrderBones()) {
+            currentState = State.ORDER_COMMAND;
+            return;
+        }
+
+        if (hasBonesInInventory() &&
+            (stacksPulledThisOpen >= maxStacksPerPull.get() || !hasInventorySpaceForBones())) {
+            currentState = State.ORDER_COMMAND;
+            return;
+        }
+
+        boolean movedStack = false;
+        int movedThisTick = 0;
+        for (int i = 0; i < handler.slots.size(); i++) {
+            var slot = handler.slots.get(i);
+            if (slot.inventory == mc.player.getInventory()) {
+                continue;
+            }
+            if (isBoneStack(slot.getStack())) {
+                mc.interactionManager.clickSlot(
+                    handler.syncId,
+                    i,
+                    0,
+                    SlotActionType.QUICK_MOVE,
+                    mc.player
+                );
+                movedStack = true;
+                movedThisTick++;
+                stacksDepositedForSpawner++;
+                stacksPulledThisOpen++;
+            }
+            if (movedThisTick >= 4) {
+                break;
+            }
+        }
+
+        if (movedStack) {
+            if (stacksDepositedForSpawner >= stacksPerSpawner.get()) {
+                stacksDepositedForSpawner = 0;
+                depositDelayCounter = depositDelayTicks.get();
+            }
+            if (stacksPulledThisOpen >= maxStacksPerPull.get() || !hasInventorySpaceForBones()) {
+                currentState = State.ORDER_COMMAND;
+            }
+            return;
+        }
+
+        if (!hasBonesInContainer(handler)) {
+            if (handler.slots.size() > 48) {
+                mc.interactionManager.clickSlot(
+                    handler.syncId,
+                    48,
+                    0,
+                    SlotActionType.PICKUP,
+                    mc.player
+                );
+                spawnerConfirmAttempt = 0;
+                currentState = State.WAITING_SPAWNER_CONFIRM;
+                waitCounter = 0;
+                return;
+            }
+            currentState = State.WAITING_CLOSE;
+            waitCounter = 0;
+            return;
+        }
+
+        currentState = State.WAITING_CLOSE;
+        waitCounter = 0;
     }
 
     private void handleWaitingClose() {
@@ -405,11 +590,16 @@ public class SpawnerOrder extends Module {
             targetSpawner = spawners.get(spawnerIndex);
             currentState = State.MOVING;
             waitCounter = 0;
+            stacksDepositedForSpawner = 0;
+            stacksPulledThisOpen = 0;
             if (notifications.get()) {
                 ChatUtils.info("");
             }
         } else {
-            currentState = State.ORDER_COMMAND;
+            if (notifications.get()) {
+                ChatUtils.error("No more spawners found.");
+            }
+            currentState = State.BALANCE_COMMAND;
             waitCounter = 0;
             if (notifications.get()) {
                 ChatUtils.info("");
@@ -418,38 +608,17 @@ public class SpawnerOrder extends Module {
     }
 
     private void handleOrderCommand() {
-        List<String> currentItemsToSell = getAvailableItemsToSell();
-
-        if (itemIndex >= currentItemsToSell.size()) {
-            if (hasItemsToSell()) {
-                itemIndex = 0;
-                ChatUtils.info("");
-            } else {
-                currentState = State.WAITING_CYCLE;
-                if (notifications.get()) {
-                    ChatUtils.info("Cycle completed! Next cycle in " + dropDelayMinutes.get() + " minutes");
-                }
-            }
-            return;
+        if (mc.currentScreen != null) {
+            mc.player.closeHandledScreen();
         }
-
-        String item = currentItemsToSell.get(itemIndex);
-        ChatUtils.sendPlayerMsg("/order " + item);
-
+        ChatUtils.sendPlayerMsg("/order bones");
         currentState = State.OPENING_ORDER;
         waitCounter = 0;
-
-        if (notifications.get()) {
-            ChatUtils.info("");
-        }
     }
 
     private void handleOpeningOrder() {
         if (mc.currentScreen instanceof GenericContainerScreen) {
             currentState = State.CLICKING_SLOT0;
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
         }
     }
 
@@ -460,22 +629,17 @@ public class SpawnerOrder extends Module {
         }
 
         ScreenHandler handler = screen.getScreenHandler();
-
-        if (handler.slots.size() > 0) {
+        int slotIndex = orderMenuSlot.get();
+        if (slotIndex >= 0 && slotIndex < handler.slots.size()) {
             mc.interactionManager.clickSlot(
                 handler.syncId,
-                0,
+                slotIndex,
                 0,
                 SlotActionType.PICKUP,
                 mc.player
             );
-
             currentState = State.DEPOSITING_ITEMS;
             waitCounter = 0;
-
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
         }
     }
 
@@ -488,18 +652,13 @@ public class SpawnerOrder extends Module {
         }
 
         ScreenHandler handler = screen.getScreenHandler();
-        List<String> currentItemsToSell = getAvailableItemsToSell();
-        String item = currentItemsToSell.get(itemIndex);
-        String itemSingular = item.replace("s", "");
-
         boolean depositedItems = false;
-        int itemsDeposited = 0;
 
         for (int i = 0; i < handler.slots.size(); i++) {
             var slot = handler.slots.get(i);
             if (slot.inventory == mc.player.getInventory() &&
                 !slot.getStack().isEmpty() &&
-                slot.getStack().getItem().getName().getString().toLowerCase().contains(itemSingular)) {
+                slot.getStack().getItem().getName().getString().toLowerCase().contains("bone")) {
 
                 mc.interactionManager.clickSlot(
                     handler.syncId,
@@ -509,21 +668,10 @@ public class SpawnerOrder extends Module {
                     mc.player
                 );
                 depositedItems = true;
-                itemsDeposited++;
             }
         }
 
-        if (depositedItems) {
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
-            mc.player.closeHandledScreen();
-            currentState = State.WAITING_CONFIRM_GUI;
-            waitCounter = 0;
-        } else if (waitCounter > 40) {
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
+        if (depositedItems || waitCounter > 40) {
             mc.player.closeHandledScreen();
             currentState = State.WAITING_CONFIRM_GUI;
             waitCounter = 0;
@@ -538,18 +686,12 @@ public class SpawnerOrder extends Module {
                 var stack = handler.getSlot(15).getStack();
                 if (isGreenGlass(stack)) {
                     currentState = State.CONFIRMING_SALE;
-                    if (notifications.get()) {
-                        ChatUtils.info("");
-                    }
                     return;
                 }
             }
         }
 
         if (waitCounter > 100) {
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
             currentState = State.CLOSING_ORDER;
         }
     }
@@ -561,7 +703,6 @@ public class SpawnerOrder extends Module {
         }
 
         ScreenHandler handler = screen.getScreenHandler();
-
         if (handler.slots.size() > 15) {
             var stack = handler.getSlot(15).getStack();
             if (isGreenGlass(stack)) {
@@ -572,63 +713,116 @@ public class SpawnerOrder extends Module {
                     SlotActionType.PICKUP,
                     mc.player
                 );
-
-                if (notifications.get()) {
-                    ChatUtils.info("");
-                }
-
+                mc.player.closeHandledScreen();
+                mc.player.closeHandledScreen();
                 currentState = State.CLOSING_ORDER;
                 waitCounter = 0;
                 return;
             }
         }
 
-        if (notifications.get()) {
-            ChatUtils.warning("");
-        }
         currentState = State.CLOSING_ORDER;
     }
 
     private void handleClosingOrder() {
         if (mc.currentScreen != null) {
             mc.player.closeHandledScreen();
+            mc.player.closeHandledScreen();
         }
-
-        List<String> currentItemsToSell = getAvailableItemsToSell();
-
-        if (itemIndex < currentItemsToSell.size()) {
-            String completedItem = currentItemsToSell.get(itemIndex);
-            ChatUtils.info("");
-        }
-
-        itemIndex++;
-
-        if (itemIndex < currentItemsToSell.size()) {
+        if (hasBonesInInventory()) {
             currentState = State.ORDER_COMMAND;
-            if (notifications.get()) {
-                ChatUtils.info("");
-            }
+        } else if (pendingPayAfterOrder) {
+            currentState = State.PAY_COMMAND;
         } else {
-            if (hasItemsToSell()) {
-                itemIndex = 0;
+            currentState = State.OPENING;
+        }
+        orderCheckDelayCounter = 0;
+    }
+
+    private void handleWaitingOrderCheck() {
+        orderCheckDelayCounter++;
+        if (orderCheckDelayCounter >= orderCheckDelayTicks.get()) {
+            if (shouldOrderBones()) {
                 currentState = State.ORDER_COMMAND;
-                if (notifications.get()) {
-                    ChatUtils.info("");
-                }
             } else {
-                currentState = State.WAITING_CYCLE;
-                if (notifications.get()) {
-                    ChatUtils.info("Cycle completed! Next cycle in " + dropDelayMinutes.get() + " minutes");
-                }
-                if (mc.currentScreen != null) {
-                    mc.player.closeHandledScreen();
-                    mc.player.closeHandledScreen();
-                    if (notifications.get()) {
-                        ChatUtils.info("");
-                    }
-                }
+                currentState = targetSpawner != null ? State.OPENING : State.SCANNING;
             }
         }
+    }
+
+    private void handleWaitingSpawnerConfirm() {
+        if (!(mc.currentScreen instanceof GenericContainerScreen screen)) {
+            currentState = State.WAITING_CLOSE;
+            waitCounter = 0;
+            return;
+        }
+
+        if (waitCounter < 2) return;
+
+        ScreenHandler handler = screen.getScreenHandler();
+        if (handler.slots.size() <= 15) {
+            currentState = State.WAITING_CLOSE;
+            waitCounter = 0;
+            return;
+        }
+
+        if (!isGreenGlass(handler.getSlot(15).getStack())) {
+            if (waitCounter > 40) {
+                currentState = State.WAITING_CLOSE;
+                waitCounter = 0;
+            }
+            return;
+        }
+
+        switch (spawnerConfirmAttempt) {
+            case 0 -> mc.interactionManager.clickSlot(handler.syncId, 15, 0, SlotActionType.PICKUP, mc.player);
+            case 1 -> mc.interactionManager.clickSlot(handler.syncId, 15, 0, SlotActionType.QUICK_MOVE, mc.player);
+            case 2 -> mc.interactionManager.clickSlot(handler.syncId, 15, 0, SlotActionType.SWAP, mc.player);
+            case 3 -> mc.interactionManager.clickSlot(handler.syncId, 15, 0, SlotActionType.THROW, mc.player);
+            default -> mc.interactionManager.clickSlot(handler.syncId, 15, 0, SlotActionType.PICKUP_ALL, mc.player);
+        }
+
+        spawnerConfirmAttempt++;
+        waitCounter = 0;
+
+        if (spawnerConfirmAttempt >= 5) {
+            currentState = State.WAITING_CLOSE;
+        }
+    }
+
+    private void handleBalanceCommand() {
+        if (mc.currentScreen != null) {
+            mc.player.closeHandledScreen();
+        }
+        awaitingBalance = true;
+        pendingBalance = 0;
+        balanceWaitTicks = 0;
+        ChatUtils.sendPlayerMsg("/bal");
+        currentState = State.WAITING_BALANCE;
+    }
+
+    private void handleWaitingBalance() {
+        if (!awaitingBalance) {
+            currentState = State.PAY_COMMAND;
+        }
+    }
+
+    private void handlePayCommand() {
+        if (hasBonesInInventory() || shouldOrderBones()) {
+            pendingPayAfterOrder = true;
+            currentState = State.ORDER_COMMAND;
+            return;
+        }
+
+        if (pendingBalance <= 0 || payTarget.get().trim().isEmpty()) {
+            currentState = State.WAITING_CYCLE;
+            return;
+        }
+
+        ChatUtils.sendPlayerMsg("/pay " + payTarget.get().trim() + " " + pendingBalance);
+        pendingBalance = 0;
+        pendingPayAfterOrder = false;
+        currentState = State.WAITING_CYCLE;
     }
 
     private void handleWaitingCycle() {
@@ -643,6 +837,7 @@ public class SpawnerOrder extends Module {
 
     private void scanForSpawners() {
         spawners.clear();
+        Set<BlockPos> uniqueSpawners = new LinkedHashSet<>();
         BlockPos playerPos = mc.player.getBlockPos();
         int radius = 5;
 
@@ -652,10 +847,14 @@ public class SpawnerOrder extends Module {
                     BlockPos pos = playerPos.add(x, y, z);
                     Block block = mc.world.getBlockState(pos).getBlock();
                     if (block instanceof SpawnerBlock) {
-                        spawners.add(pos);
+                        uniqueSpawners.add(pos.toImmutable());
                     }
                 }
             }
+        }
+        spawners.addAll(uniqueSpawners);
+        if (spawners.size() > spawnersPerCycle.get()) {
+            spawners.subList(spawnersPerCycle.get(), spawners.size()).clear();
         }
     }
 
@@ -670,6 +869,10 @@ public class SpawnerOrder extends Module {
             mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
         } catch (Exception e) {
         }
+    }
+
+    private boolean shouldOrderBones() {
+        return countBoneStacksInInventory() >= BONE_ORDER_THRESHOLD;
     }
 
     @Override
@@ -688,4 +891,48 @@ public class SpawnerOrder extends Module {
             spawnerInfo +
             " | Next cycle in: " + timeRemainingSeconds + "s";
     }
+
+    @EventHandler
+    private void onChatMessage(ReceiveMessageEvent event) {
+        if (!awaitingBalance) return;
+
+        OptionalLong balance = parseBalanceFromMessage(event.getMessage().getString());
+        if (balance.isPresent()) {
+            pendingBalance = balance.getAsLong();
+            awaitingBalance = false;
+        }
+    }
+
+    private OptionalLong parseBalanceFromMessage(String message) {
+        if (message == null) return OptionalLong.empty();
+
+        String lower = message.toLowerCase();
+        if (!lower.contains("you have") || !lower.contains("$")) {
+            return OptionalLong.empty();
+        }
+
+        Matcher matcher = Pattern.compile("\\$([\\d,.]+)\\s*([kKmMbB]?)").matcher(message);
+        if (!matcher.find()) return OptionalLong.empty();
+
+        String raw = matcher.group(1);
+        String suffix = matcher.group(2);
+        String normalized = raw.replace(",", "");
+        int dotIndex = normalized.indexOf('.');
+        if (dotIndex >= 0) {
+            normalized = normalized.substring(0, dotIndex);
+        }
+        try {
+            long base = Long.parseLong(normalized);
+            long multiplier = switch (suffix.toLowerCase()) {
+                case "k" -> 1_000L;
+                case "m" -> 1_000_000L;
+                case "b" -> 1_000_000_000L;
+                default -> 1L;
+            };
+            return OptionalLong.of(base * multiplier);
+        } catch (NumberFormatException e) {
+            return OptionalLong.empty();
+        }
+    }
+
 }

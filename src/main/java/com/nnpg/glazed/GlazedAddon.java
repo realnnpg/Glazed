@@ -4,28 +4,32 @@ import com.nnpg.glazed.modules.esp.*;
 import com.nnpg.glazed.modules.main.*;
 import com.nnpg.glazed.modules.pvp.*;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
-import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.Category;
-import meteordevelopment.orbit.EventHandler;
-
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
-import meteordevelopment.meteorclient.MeteorClient;
-import net.minecraft.item.Items;
-import net.minecraft.item.ItemStack;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.modules.Category;
-
-
-
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
+import meteordevelopment.orbit.EventHandler;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.DisconnectedScreen;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.util.math.Vec3d;
 
 public class GlazedAddon extends MeteorAddon {
 
 public static final Category CATEGORY = new Category("Glazed", new ItemStack(Items.CAKE));
 public static final Category esp = new Category("Glazed ESP ", new ItemStack(Items.VINE));
 public static final Category pvp = new Category("Glazed PVP", new ItemStack(Items.DIAMOND_SWORD));
-
-
-
+    private static boolean reconnectEnableModules = false;
+    private static final double ORIGIN_RADIUS = 10.0;
+    private static final double RETURN_RADIUS = 3.0;
+    private static final double PLAYER_DETECT_RANGE = 10.0;
+    private Vec3d lastNonOriginPosition = null;
+    private Vec3d pendingReturnPosition = null;
+    private boolean waitingForReturn = false;
 
     public static int MyScreenVERSION = 15;
 
@@ -115,16 +119,124 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new AutoTotemOrder());
         Modules.get().add(new LightESP());
         Modules.get().add(new FreecamV2());
+
+        ensureAutoReconnectEnabled();
+        applyFocusFix();
     }
 
     @EventHandler
     private void onGameJoined(GameJoinedEvent event) {
         MyScreen.checkVersionOnServerJoin();
+        ensureAutoReconnectEnabled();
+        applyFocusFix();
+        if (reconnectEnableModules) {
+            reconnectEnableModules = false;
+            enableModuleOnReconnect(SpawnerProtect.class);
+            enableModuleOnReconnect(SpawnerOrder.class);
+        }
     }
 
     @EventHandler
     private void onGameLeft(GameLeftEvent event) {
         MyScreen.resetSessionCheck();
+        reconnectEnableModules = shouldAutoEnableAfterDisconnect();
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Post event) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        applyFocusFix();
+        if (mc.player == null || mc.world == null) return;
+
+        Vec3d position = mc.player.getPos();
+        boolean atOrigin = isNearOrigin(position);
+
+        if (waitingForReturn) {
+            if (!atOrigin && pendingReturnPosition != null &&
+                position.squaredDistanceTo(pendingReturnPosition) <= RETURN_RADIUS * RETURN_RADIUS) {
+                enableSpawnerOrderIfSafe(mc);
+                waitingForReturn = false;
+                pendingReturnPosition = null;
+            }
+            return;
+        }
+
+        if (atOrigin) {
+            if (lastNonOriginPosition != null) {
+                pendingReturnPosition = lastNonOriginPosition;
+                waitingForReturn = true;
+            }
+            return;
+        }
+
+        lastNonOriginPosition = position;
+    }
+
+    private boolean shouldAutoEnableAfterDisconnect() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (!(mc.currentScreen instanceof DisconnectedScreen screen)) return false;
+
+        String reason = extractDisconnectReason(screen).toLowerCase();
+        return reason.contains("java.net.socketexception") || reason.contains("connection reset");
+    }
+
+    private String extractDisconnectReason(DisconnectedScreen screen) {
+        try {
+            var field = DisconnectedScreen.class.getDeclaredField("reason");
+            field.setAccessible(true);
+            Object value = field.get(screen);
+            if (value instanceof net.minecraft.text.Text text) {
+                return text.getString();
+            }
+        } catch (Exception ignored) {
+        }
+        return screen.getTitle().getString();
+    }
+
+    private <T extends meteordevelopment.meteorclient.systems.modules.Module> void enableModuleOnReconnect(Class<T> moduleClass) {
+        var module = Modules.get().get(moduleClass);
+        if (module != null && !module.isActive()) {
+            module.toggle();
+        }
+    }
+
+    private boolean isNearOrigin(Vec3d position) {
+        return Math.abs(position.x) <= ORIGIN_RADIUS &&
+            Math.abs(position.z) <= ORIGIN_RADIUS;
+    }
+
+    private void enableSpawnerOrderIfSafe(MinecraftClient mc) {
+        if (hasNearbyPlayer(mc)) {
+            return;
+        }
+        var module = Modules.get().get(com.nnpg.glazed.modules.main.SpawnerOrder.class);
+        if (module != null && !module.isActive()) {
+            module.toggle();
+        }
+    }
+
+    private boolean hasNearbyPlayer(MinecraftClient mc) {
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player == mc.player) continue;
+            if (mc.player.distanceTo(player) <= PLAYER_DETECT_RANGE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void ensureAutoReconnectEnabled() {
+        var autoReconnect = Modules.get().get(AutoReconnect.class);
+        if (autoReconnect != null && !autoReconnect.isActive()) {
+            autoReconnect.toggle();
+        }
+    }
+
+    private void applyFocusFix() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.options != null && mc.options.pauseOnLostFocus) {
+            mc.options.pauseOnLostFocus = false;
+        }
     }
 
     @Override
