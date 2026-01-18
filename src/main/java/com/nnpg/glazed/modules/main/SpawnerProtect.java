@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class SpawnerProtect extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -104,6 +105,13 @@ public class SpawnerProtect extends Module {
             .name("natural-rotation")
             .description("Rotate smoothly toward targets instead of snapping")
             .defaultValue(true)
+            .build()
+    );
+
+    private final Setting<RandomMovementMode> randomMovementMode = sgGeneral.add(new EnumSetting.Builder<RandomMovementMode>()
+            .name("random-movement-mode")
+            .description("Random WASD movement mode while protection is active")
+            .defaultValue(RandomMovementMode.BEFORE_BREAK)
             .build()
     );
 
@@ -209,6 +217,11 @@ public class SpawnerProtect extends Module {
         WORLD_CHANGED_TWICE
     }
 
+    private enum RandomMovementMode {
+        BEFORE_BREAK,
+        ALWAYS
+    }
+
     private State currentState = State.IDLE;
     private String detectedPlayer = "";
     private long detectionTime = 0;
@@ -284,6 +297,14 @@ public class SpawnerProtect extends Module {
     private static final int LOBBY_RANGE = 10;
     private static final double CLOSE_THREAT_DISTANCE = 5.0;
     private static final int MOVE_NUDGE_DURATION_TICKS = 10;
+    private static final int RANDOM_MOVE_MIN_TICKS = 4;
+    private static final int RANDOM_MOVE_MAX_TICKS = 8;
+    private static final int RANDOM_MOVE_MIN_COOLDOWN = 8;
+    private static final int RANDOM_MOVE_MAX_COOLDOWN = 14;
+
+    private int randomMoveTicks = 0;
+    private int randomMoveCooldownTicks = 0;
+    private int randomMoveDirectionIndex = 0;
 
     public SpawnerProtect() {
         super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
@@ -368,6 +389,9 @@ public class SpawnerProtect extends Module {
         confirmWaitTicks = 0;
         retryBackoffTicks = 0;
         retryCount = 0;
+        randomMoveTicks = 0;
+        randomMoveCooldownTicks = 0;
+        randomMoveDirectionIndex = 0;
         commitWaitTicks = 0;
         moveNudgeTicks = 0;
         moveDirectionIndex = 0;
@@ -447,6 +471,9 @@ public class SpawnerProtect extends Module {
         }
         if (chestInteractionCooldown > 0) {
             chestInteractionCooldown--;
+        }
+        if (randomMoveCooldownTicks > 0) {
+            randomMoveCooldownTicks--;
         }
         if (miningSwingCooldownTicks > 0) {
             miningSwingCooldownTicks--;
@@ -704,7 +731,7 @@ public class SpawnerProtect extends Module {
         failedMineAttempts = 0;
         miningPauseTicks = 0;
         miningSwingCooldownTicks = 0;
-        miningStartDelayTicks = 2;
+        miningStartDelayTicks = 0;
         chunkReadyTicks = 0;
         lastMiningTarget = null;
         miningTicks = 0;
@@ -726,7 +753,7 @@ public class SpawnerProtect extends Module {
             sellExitDone = false;
         } else {
             currentState = State.PREPARE_FOR_MINING;
-            prepareDelayTicks = 10;
+            prepareDelayTicks = 2;
             closeWindowAttempts = 3;
             closeWindowCooldown = 0;
         }
@@ -742,7 +769,7 @@ public class SpawnerProtect extends Module {
                 mc.getNetworkHandler().sendChatCommand("sell");
             }
             sellCommandSent = true;
-            sellCommandWaitTicks = 10;
+            sellCommandWaitTicks = 4;
             debugAction("Sent /sell command");
             return;
         }
@@ -770,10 +797,10 @@ public class SpawnerProtect extends Module {
 
             currentState = State.PREPARE_FOR_MINING;
             prepareDelayTicks = 5;
-            postSellDelayCounter = spawnerOrderWasActive ? 100 : 0;
+            postSellDelayCounter = spawnerOrderWasActive ? 20 : 0;
             closeWindowAttempts = 1;
             closeWindowCooldown = 0;
-            miningStartDelayTicks = 2;
+            miningStartDelayTicks = 0;
             debugAction("Scheduled post-sell delay: " + postSellDelayCounter + " ticks");
         }
     }
@@ -843,6 +870,15 @@ public class SpawnerProtect extends Module {
         }
 
         if (isMiningCycle) {
+            if (handleRandomMovement()) {
+                return;
+            }
+
+            if (shouldStartRandomMovement()) {
+                startRandomMovement();
+                return;
+            }
+
             if (ghostRefreshStage > 0) {
                 handleGhostRefresh();
                 return;
@@ -999,7 +1035,7 @@ public class SpawnerProtect extends Module {
             if (moveCheckPending && lastMoveCheckPos != null && mc.player != null) {
                 double moved = mc.player.getPos().distanceTo(lastMoveCheckPos);
                 if (moved < 0.15) {
-                    moveDirectionIndex = (moveDirectionIndex + 1) % 4;
+                    moveDirectionIndex = nextRandomDirection();
                 }
                 lastMoveCheckPos = null;
                 moveCheckPending = false;
@@ -1014,8 +1050,46 @@ public class SpawnerProtect extends Module {
         startedMining = false;
         miningTicks = 0;
         moveNudgeTicks = MOVE_NUDGE_DURATION_TICKS;
+        moveDirectionIndex = nextRandomDirection();
         lastMoveCheckPos = mc.player.getPos();
         moveCheckPending = true;
+    }
+
+    private boolean handleRandomMovement() {
+        if (randomMoveTicks <= 0) return false;
+
+        pressMovementKey(randomMoveDirectionIndex);
+        randomMoveTicks--;
+        if (randomMoveTicks <= 0) {
+            releaseMovementKeys();
+        }
+        return true;
+    }
+
+    private boolean shouldStartRandomMovement() {
+        if (!protectionActive || currentTarget == null) return false;
+        if (randomMoveTicks > 0 || randomMoveCooldownTicks > 0) return false;
+        if (randomMovementMode.get() == RandomMovementMode.ALWAYS) return true;
+        return miningLookCooldownTicks == 0
+                && miningPauseTicks == 0
+                && miningActionDelayTicks == 0
+                && miningStartDelayTicks == 0
+                && chunkReadyTicks >= 2;
+    }
+
+    private void startRandomMovement() {
+        randomMoveDirectionIndex = nextRandomDirection();
+        randomMoveTicks = randomBetween(RANDOM_MOVE_MIN_TICKS, RANDOM_MOVE_MAX_TICKS);
+        randomMoveCooldownTicks = randomBetween(RANDOM_MOVE_MIN_COOLDOWN, RANDOM_MOVE_MAX_COOLDOWN);
+    }
+
+    private int nextRandomDirection() {
+        return ThreadLocalRandom.current().nextInt(4);
+    }
+
+    private int randomBetween(int min, int max) {
+        if (max <= min) return min;
+        return min + ThreadLocalRandom.current().nextInt(max - min + 1);
     }
 
     private void pressMovementKey(int index) {
