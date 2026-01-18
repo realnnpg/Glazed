@@ -27,14 +27,21 @@ public class BlazeRodDropper extends Module {
     private int bulkBuyCount = 0;
     private static final int MAX_BULK_BUY = 5;
 
+    // Humanized drop fields
+    private int dropIndex = 0;
+    private long lastDropTime = 0;
+    private static final long MIN_DROP_DELAY = 120;
+    private static final long MAX_DROP_DELAY = 280;
+    private java.util.Random dropRandom = new java.util.Random();
+
     // Settings
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
-        .name("notifications")
-        .description("Show detailed notifications.")
-        .defaultValue(true)
-        .build()
+            .name("notifications")
+            .description("Show detailed notifications.")
+            .defaultValue(true)
+            .build()
     );
 
     public BlazeRodDropper() {
@@ -46,7 +53,8 @@ public class BlazeRodDropper extends Module {
         stage = Stage.SHOP;
         stageStart = System.currentTimeMillis();
         bulkBuyCount = 0;
-
+        dropIndex = 0;
+        lastDropTime = 0;
         if (notifications.get()) {
             info("🚀 BlazeRodDropper activated! Buying and dropping blaze rods...");
         }
@@ -60,6 +68,7 @@ public class BlazeRodDropper extends Module {
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (mc.player == null || mc.world == null) return;
+
         long now = System.currentTimeMillis();
 
         switch (stage) {
@@ -68,6 +77,7 @@ public class BlazeRodDropper extends Module {
                 stage = Stage.SHOP_END;
                 stageStart = now;
             }
+
             case SHOP_END -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
@@ -81,13 +91,15 @@ public class BlazeRodDropper extends Module {
                             return;
                         }
                     }
-                    if (now - stageStart > 3000) {
-                        mc.player.closeHandledScreen();
-                        stage = Stage.SHOP;
-                        stageStart = now;
-                    }
+                }
+
+                if (now - stageStart > 3000) {
+                    mc.player.closeHandledScreen();
+                    stage = Stage.SHOP;
+                    stageStart = now;
                 }
             }
+
             case SHOP_SHULKER -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
@@ -111,17 +123,20 @@ public class BlazeRodDropper extends Module {
                         stageStart = now;
                         return;
                     }
-                    if (now - stageStart > 1500) {
-                        mc.player.closeHandledScreen();
-                        stage = Stage.SHOP;
-                        stageStart = now;
-                    }
+                }
+
+                if (now - stageStart > 1500) {
+                    mc.player.closeHandledScreen();
+                    stage = Stage.SHOP;
+                    stageStart = now;
                 }
             }
+
             case SHOP_CONFIRM -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
                     boolean foundGreen = false;
+
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isGreenGlass(stack)) {
@@ -132,17 +147,20 @@ public class BlazeRodDropper extends Module {
                             break;
                         }
                     }
+
                     if (foundGreen) {
                         stage = Stage.SHOP_CHECK_FULL;
                         stageStart = now;
                         return;
                     }
-                    if (now - stageStart > 800) {
-                        stage = Stage.SHOP_SHULKER;
-                        stageStart = now;
-                    }
+                }
+
+                if (now - stageStart > 800) {
+                    stage = Stage.SHOP_SHULKER;
+                    stageStart = now;
                 }
             }
+
             case SHOP_CHECK_FULL -> {
                 if (now - stageStart > 200) {
                     if (isInventoryFull() || bulkBuyCount >= MAX_BULK_BUY) {
@@ -157,47 +175,64 @@ public class BlazeRodDropper extends Module {
                     }
                 }
             }
+
             case SHOP_EXIT -> {
                 if (mc.currentScreen == null) {
                     stage = Stage.DROP_ITEMS;
                     stageStart = now;
                 }
+
                 if (now - stageStart > 5000) {
                     mc.player.closeHandledScreen();
                     stage = Stage.SHOP;
                     stageStart = now;
                 }
             }
-            case DROP_ITEMS -> {
-                if (now - stageStart > 200) {
-                    boolean dropped = false;
-                    // Only check main inventory and hotbar thanks claude
-                    for (int i = 0; i < 36; i++) {
-                        ItemStack stack = mc.player.getInventory().getStack(i);
-                        if (!stack.isEmpty() && isBlazeRod(stack)) {
-                            // Map inventory slot to screen handler slot
-                            // Inventory slots
-                            // Screen handler slots
-                            int screenSlot = (i < 9) ? (36 + i) : i;
-                            mc.interactionManager.clickSlot(
-                                mc.player.playerScreenHandler.syncId,
-                                screenSlot,
-                                1,
-                                SlotActionType.THROW,
-                                mc.player
-                            );
-                            dropped = true;
-                        }
-                    }
 
-                    if (dropped && notifications.get()) {
+            case DROP_ITEMS -> {
+                // Wait for initial delay before starting drops
+                if (now - stageStart < 250) return;
+
+                // Calculate next drop delay with randomization
+                long nextDropDelay = MIN_DROP_DELAY + dropRandom.nextInt((int)(MAX_DROP_DELAY - MIN_DROP_DELAY));
+
+                // Check if enough time has passed since last drop
+                if (now - lastDropTime < nextDropDelay) return;
+
+                // Find next blaze rod to drop
+                boolean foundItem = false;
+                for (int i = dropIndex; i < 36; i++) {
+                    ItemStack stack = mc.player.getInventory().getStack(i);
+                    if (!stack.isEmpty() && isBlazeRod(stack)) {
+                        int screenSlot = (i < 9) ? (36 + i) : i;
+
+                        // Drop full stack (button 1)
+                        mc.interactionManager.clickSlot(
+                            mc.player.playerScreenHandler.syncId,
+                            screenSlot,
+                            1,
+                            SlotActionType.THROW,
+                            mc.player
+                        );
+
+                        dropIndex = i + 1;
+                        lastDropTime = now;
+                        foundItem = true;
+                        break;
+                    }
+                }
+
+                // If no more items found, reset and move to next stage
+                if (!foundItem || dropIndex >= 36) {
+                    dropIndex = 0;
+                    if (notifications.get()) {
                         info("📦 Dropped all blaze rods!");
                     }
-
                     stage = Stage.SHOP;
                     stageStart = now;
                 }
             }
+
             case NONE -> {
             }
         }
