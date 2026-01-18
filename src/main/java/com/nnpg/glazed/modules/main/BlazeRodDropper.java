@@ -171,17 +171,29 @@ public class BlazeRodDropper extends Module {
             case DROP_ITEMS -> {
                 if (now - stageStart > 200) {
                     boolean dropped = false;
+                    // Only check main inventory and hotbar thanks claude
                     for (int i = 0; i < 36; i++) {
                         ItemStack stack = mc.player.getInventory().getStack(i);
-                        if (isBlazeRod(stack)) {
-                            // Drop the entire stack by using THROW action
-                            mc.interactionManager.clickSlot(0, i, 1, SlotActionType.THROW, mc.player);
+                        if (!stack.isEmpty() && isBlazeRod(stack)) {
+                            // Map inventory slot to screen handler slot
+                            // Inventory slots
+                            // Screen handler slots
+                            int screenSlot = (i < 9) ? (36 + i) : i;
+                            mc.interactionManager.clickSlot(
+                                mc.player.playerScreenHandler.syncId,
+                                screenSlot,
+                                1,
+                                SlotActionType.THROW,
+                                mc.player
+                            );
                             dropped = true;
                         }
                     }
+
                     if (dropped && notifications.get()) {
                         info("📦 Dropped all blaze rods!");
                     }
+
                     stage = Stage.SHOP;
                     stageStart = now;
                 }
