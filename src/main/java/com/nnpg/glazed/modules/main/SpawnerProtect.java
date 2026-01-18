@@ -96,6 +96,26 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Integer> spawnerCheckDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("spawner-check-delay-ms")
+        .description("Delay in milliseconds before confirming all spawners are gone")
+        .defaultValue(3000)
+        .min(1000)
+        .max(10000)
+        .sliderMax(10000)
+        .build()
+    );
+
+    private final Setting<Integer> manualSpawnerCount = sgGeneral.add(new IntSetting.Builder()
+        .name("manual-spawner-count")
+        .description("Manually set expected spawner stack size (256, 512, 1024, etc). Used when auto-detection fails.")
+        .defaultValue(256)
+        .min(64)
+        .max(5000)
+        .sliderMax(5000)
+        .build()
+    );
+
     private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
         .name("enable-whitelist")
         .description("Enable player whitelist (whitelisted players won't trigger protection)")
@@ -142,6 +162,11 @@ public class SpawnerProtect extends Module {
     private int miningCycleTimer = 0;
     private final int MINING_DURATION = 80;
     private final int PAUSE_DURATION = 20;
+    private long noSpawnerDetectedTime = 0;
+    private boolean waitingForSpawnerConfirm = false;
+    private int expectedSpawnersAtPosition = 0;
+    private int initialInventoryCount = 0;
+    private BlockPos lastMiningPosition = null;
 
     private BlockPos targetChest = null;
     private int chestOpenAttempts = 0;
@@ -189,6 +214,11 @@ public class SpawnerProtect extends Module {
         waiting = false;
         isMiningCycle = true;
         miningCycleTimer = 0;
+        noSpawnerDetectedTime = 0;
+        waitingForSpawnerConfirm = false;
+        expectedSpawnersAtPosition = 0;
+        initialInventoryCount = 0;
+        lastMiningPosition = null;
         targetChest = null;
         chestOpenAttempts = 0;
         emergencyDisconnect = false;
@@ -211,6 +241,14 @@ public class SpawnerProtect extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
+        
+        // Keep sneak pressed ONLY during spawner mining
+        if (sneaking && currentState == State.GOING_TO_SPAWNERS) {
+            mc.options.sneakKey.setPressed(true);
+        } else if (currentState != State.GOING_TO_SPAWNERS) {
+            mc.options.sneakKey.setPressed(false);
+        }
+        
         tickCounter++;
 
         if (mc.world != trackedWorld) {
@@ -351,53 +389,107 @@ public class SpawnerProtect extends Module {
             .anyMatch(whitelistedName -> whitelistedName.equalsIgnoreCase(playerName));
     }
 
+    private int countSpawnersInInventory() {
+        int count = 0;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = mc.player.getInventory().getStack(i);
+            if (stack.getItem() == Items.SPAWNER) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
     private void handleGoingToSpawners() {
         setSneaking(true);
 
         if (currentTarget == null) {
             BlockPos found = findNearestSpawner();
-
             if (found == null) {
-                // No spawners left: stop breaking and proceed
-                stopBreaking();
-                spawnersMinedSuccessfully = true;
-                setSneaking(false);
-                currentTarget = null;
-                currentState = State.GOING_TO_CHEST;
-                info("All spawners mined successfully. Looking for ender chest...");
-                tickCounter = 0;
-                return;
-            }
+                if (!waitingForSpawnerConfirm) {
+                    noSpawnerDetectedTime = System.currentTimeMillis();
+                    waitingForSpawnerConfirm = true;
+                    info("No spawners detected, waiting " + spawnerCheckDelay.get() + "ms...");
+                    return;
+                } else {
+                    long elapsed = System.currentTimeMillis() - noSpawnerDetectedTime;
+                    if (elapsed < spawnerCheckDelay.get()) {
+                        return;
+                    }
+                    info("Confirmed: No spawners found.");
+                    stopBreaking();
+                    spawnersMinedSuccessfully = true;
+                    setSneaking(false);
+                    currentTarget = null;
+                    currentState = State.GOING_TO_CHEST;
+                    info("All spawners mined! Total collected: " + countSpawnersInInventory());
+                    tickCounter = 0;
+                    waitingForSpawnerConfirm = false;
+                    noSpawnerDetectedTime = 0;
+                    return;
+                }
+            } else {
+                waitingForSpawnerConfirm = false;
+                noSpawnerDetectedTime = 0;
 
-            // Start holding on the newly found spawner
-            currentTarget = found;
-            isMiningCycle = true; // using isMiningCycle to indicate "holding"
-            miningCycleTimer = 0;
-            info("Starting to mine spawner at " + currentTarget);
+                // Check if new position - use manual count
+                if (lastMiningPosition == null || !lastMiningPosition.equals(found)) {
+                    lastMiningPosition = found;
+                    currentTarget = found;
+                    expectedSpawnersAtPosition = manualSpawnerCount.get();
+                    initialInventoryCount = countSpawnersInInventory();
+                    info("New spawner at " + found + " - expecting " + manualSpawnerCount.get() + " spawners");
+                }
+
+                currentTarget = found;
+                isMiningCycle = true;
+                miningCycleTimer = 0;
+            }
         }
 
         if (isMiningCycle) {
-            // Holding attack towards the current target
             lookAtBlock(currentTarget);
             breakBlock(currentTarget);
 
-            // If the block is gone, release the click and start 
-            if (mc.world.getBlockState(currentTarget).isAir()) {
-                info("Spawner at " + currentTarget + " broken! Releasing click...");
-                stopBreaking();
-                isMiningCycle = false; // enter pause state
-                miningCycleTimer = 0;
-                currentTarget = null;
-                transferDelayCounter = 5;
+            if (mc.world.getBlockState(currentTarget).getBlock() != Blocks.SPAWNER) {
+                if (mc.world.getBlockState(currentTarget).isAir()) {
+                    info("Spawner broken! Waiting for pickup...");
+                    stopBreaking();
+                    isMiningCycle = false;
+                    miningCycleTimer = 0;
+                    transferDelayCounter = 40;
+                }
             }
+
         } else {
             miningCycleTimer++;
             if (miningCycleTimer >= PAUSE_DURATION) {
+                int currentCount = countSpawnersInInventory();
+                int collected = currentCount - initialInventoryCount;
+
+                info("Progress: " + collected + "/" + expectedSpawnersAtPosition + " spawners collected");
+
+                if (collected >= expectedSpawnersAtPosition) {
+                    info("Stack complete! Moving to next spawner...");
+                    currentTarget = null;
+                    lastMiningPosition = null;
+                    expectedSpawnersAtPosition = 0;
+                    miningCycleTimer = 0;
+                } else {
+                    if (mc.world.getBlockState(lastMiningPosition).getBlock() == Blocks.SPAWNER) {
+                        info("Spawner respawned! Continuing...");
+                        currentTarget = lastMiningPosition;
+                        isMiningCycle = true;
+                        miningCycleTimer = 0;
+                    } else {
+                        miningCycleTimer = 0;
+                    }
+                }
             }
         }
     }
 
-    private void handleWaitingForSpawners() {
+        private void handleWaitingForSpawners() {
         recheckDelay++;
         if (recheckDelay == delaySeconds.get() * 20) {
             BlockPos foundSpawner = findNearestSpawner();
@@ -488,6 +580,9 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleGoingToChest() {
+        if (sneaking) {
+            setSneaking(false);
+        }
         if (targetChest == null) {
             targetChest = findNearestEnderChest();
             if (targetChest == null) {
@@ -550,6 +645,11 @@ public class SpawnerProtect extends Module {
             return;
         }
 
+        if (sneaking) {
+            setSneaking(false);
+        }
+        mc.options.sneakKey.setPressed(false);
+
         KeyBinding.setKeyPressed(mc.options.forwardKey.getDefaultKey(), false);
         KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), true);
 
@@ -592,6 +692,11 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleDepositingItems() {
+        if (sneaking) {
+            setSneaking(false);
+        }
+        mc.options.sneakKey.setPressed(false);
+
         if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler) {
             GenericContainerScreenHandler handler = (GenericContainerScreenHandler) mc.player.currentScreenHandler;
 
