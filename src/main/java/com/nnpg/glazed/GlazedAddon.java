@@ -59,7 +59,7 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new AdvancedStashFinder());
         Modules.get().add(new TpaMacro());
         Modules.get().add(new TabDetector());
-        Modules.get().add(new OrderSniper());
+        Modules.get().add(new OrderSniperv2());
         Modules.get().add(new LamaESP());
         Modules.get().add(new PillagerESP());
         Modules.get().add(new HoleTunnelStairsESP());

@@ -36,7 +36,10 @@ public class VersionUtil {
     }
 
     public static DefaultedList<ItemStack> getMainInventory(ClientPlayerEntity player) {
-    // If main is not available, you may need to loop over getStack(i) for 0-35
-    return null; // Placeholder, update as needed for your use case
-    } //whos the nigga that wrote the above?
+        if (player == null) return DefaultedList.of();
+
+        // Get the player's main inventory (slots 0-35, excludes armor/offhand)
+        return player.getInventory().main;
+    }
+    // YALL HAVE TO BE FUCKING SPED AS SHIT
 }
