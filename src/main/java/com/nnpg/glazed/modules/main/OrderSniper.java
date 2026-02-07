@@ -63,7 +63,7 @@ public class OrderSniper extends Module {
 
     private final Setting<Boolean> shulkerSupport = sgGeneral.add(new BoolSetting.Builder()
         .name("shulker-support")
-        .description("Enable slower but safer shulker box support.")
+        .description("Enable slower but safer shulker box support.") // the fuck you mean slower but safer
         .defaultValue(false)
         .build());
 
@@ -77,8 +77,9 @@ public class OrderSniper extends Module {
         .build());
 
     public OrderSniper() {
-        super(GlazedAddon.CATEGORY, "Order-Sniper", "Sniping Orders and sell for your price.");
+        super(GlazedAddon.CATEGORY, "Order-Sniper", "Snipe Orders and sell for your price.");
     }
+    // shitty ass english appearently
 
     @Override
     public void onActivate() {
@@ -162,8 +163,6 @@ public class OrderSniper extends Module {
                     }
                 }
                 if (now - stageStart > 2000) {
-                    mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
-                    mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
                     mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
                     stage = Stage.OPEN_ORDERS;
                     stageStart = now;
