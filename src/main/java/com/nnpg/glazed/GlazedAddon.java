@@ -114,7 +114,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new InvisESP());
         Modules.get().add(new AutoTotemOrder());
         Modules.get().add(new LightESP());
-        Modules.get().add(new FreecamV2());
     }
 
     @EventHandler
@@ -134,7 +133,6 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.registerCategory(pvp);
 
 
-        //mc.setScreen(new MyScreen(GuiThemes.get()));
     }
 
     @Override

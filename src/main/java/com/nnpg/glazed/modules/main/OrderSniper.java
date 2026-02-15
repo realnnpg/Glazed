@@ -24,7 +24,7 @@ public class OrderSniper extends Module {
 
     private enum Stage {
         NONE, REFRESH, OPEN_ORDERS, WAIT_ORDERS_GUI, SELECT_ORDER,
-        TRANSFER_ITEMS, WAIT_CONFIRM_GUI, CONFIRM_SALE,
+        WAIT_DEPOSIT_GUI, TRANSFER_ITEMS, WAIT_CONFIRM_GUI, CONFIRM_SALE,
         FINAL_EXIT, CYCLE_PAUSE
     }
 
@@ -33,6 +33,7 @@ public class OrderSniper extends Module {
     private int transferIndex = 0;
     private long lastTransferTime = 0;
     private int ticksSinceStageStart = 0;
+    private int savedSyncId = -1;
 
     // Settings
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -153,10 +154,10 @@ public class OrderSniper extends Module {
                 for (Slot slot : handler.slots) {
                     ItemStack stack = slot.getStack();
                     if (!stack.isEmpty() && isMatchingOrder(stack)) {
+                        savedSyncId = handler.syncId;
                         mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
-                        stage = Stage.TRANSFER_ITEMS;
-                        transferIndex = 0;
-                        lastTransferTime = now;
+                        stage = Stage.WAIT_DEPOSIT_GUI;
+                        stageStart = now;
                         ticksSinceStageStart = 0;
                         return;
                     }
@@ -165,6 +166,24 @@ public class OrderSniper extends Module {
                     mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
                     mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
                     mc.interactionManager.clickSlot(handler.syncId, 49, 1, SlotActionType.QUICK_MOVE, mc.player);
+                    stage = Stage.OPEN_ORDERS;
+                    stageStart = now;
+                    ticksSinceStageStart = 0;
+                }
+            }
+
+            case WAIT_DEPOSIT_GUI -> {
+                if (mc.currentScreen instanceof GenericContainerScreen screen) {
+                    if (screen.getScreenHandler().syncId != savedSyncId) {
+                        stage = Stage.TRANSFER_ITEMS;
+                        transferIndex = 0;
+                        lastTransferTime = now;
+                        ticksSinceStageStart = 0;
+                        return;
+                    }
+                }
+                if (now - stageStart > 3000) {
+                    if (mc.currentScreen != null) mc.player.closeHandledScreen();
                     stage = Stage.OPEN_ORDERS;
                     stageStart = now;
                     ticksSinceStageStart = 0;

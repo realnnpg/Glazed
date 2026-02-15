@@ -36,7 +36,6 @@ public class VersionUtil {
     }
 
     public static DefaultedList<ItemStack> getMainInventory(ClientPlayerEntity player) {
-    // If main is not available, you may need to loop over getStack(i) for 0-35
-    return null; // Placeholder, update as needed for your use case
-    } //whos the nigga that wrote the above?
+    return player.getInventory().main;
+    }
 }
