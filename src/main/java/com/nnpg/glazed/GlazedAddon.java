@@ -27,7 +27,7 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
 
 
 
-    public static int MyScreenVERSION = 15;
+    public static int MyScreenVERSION = 16;
 
     @Override
     public void onInitialize() {
