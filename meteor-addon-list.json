@@ -1,0 +1,29 @@
+{
+  "description": "A Meteor addon made for DonutSMP",
+  "tags": [
+    "PvP",
+    "Utility",
+    "Automation",
+    "Render",
+    "Misc"
+  ],
+  "supported_versions": [
+    "1.21.1",
+    "1.21.4",
+    "1.21.5",
+    "1.21.8",
+    "1.21.10",
+    "1.21.11"
+  ],
+  "icon": "https://i.imgur.com/OL2y1cr.png",
+  "discord": "https://discord.gg/glazedclient",
+  "homepage": "https://glazedclient.com",
+  "feature_directories": {
+    "modules": [
+      "modules/main",
+      "modules/esp",
+      "modules/pvp"
+    ]
+  }
+}
+
