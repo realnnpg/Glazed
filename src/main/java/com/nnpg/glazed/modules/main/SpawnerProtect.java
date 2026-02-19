@@ -99,10 +99,10 @@ public class SpawnerProtect extends Module {
     private final Setting<Integer> spawnerCheckDelay = sgGeneral.add(new IntSetting.Builder()
         .name("spawner-check-delay-ms")
         .description("Delay in milliseconds before confirming all spawners are gone")
-        .defaultValue(3000)
-        .min(1000)
-        .max(10000)
-        .sliderMax(10000)
+        .defaultValue(1000)
+        .min(10)
+        .max(1000)
+        .sliderMax(1000)
         .build()
     );
 
@@ -175,7 +175,7 @@ public class SpawnerProtect extends Module {
 
     private World trackedWorld = null;
     private int worldChangeCount = 0;
-    // If there are this many or more other players online, do not activate protection
+    private int sneakInitDelay = 0;
     private final int PLAYER_COUNT_THRESHOLD = 3;
 
     public SpawnerProtect() {
@@ -223,6 +223,7 @@ public class SpawnerProtect extends Module {
         chestOpenAttempts = 0;
         emergencyDisconnect = false;
         emergencyReason = "";
+        sneakInitDelay = 0;
     }
 
     private void configureLegitMining() {
@@ -241,11 +242,12 @@ public class SpawnerProtect extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        
-        // Keep sneak pressed ONLY during spawner mining
-        if (sneaking && currentState == State.GOING_TO_SPAWNERS) {
+        if (currentState == State.GOING_TO_SPAWNERS) {
             mc.options.sneakKey.setPressed(true);
-        } else if (currentState != State.GOING_TO_SPAWNERS) {
+            if (!mc.player.isSneaking()) {
+                mc.player.setSneaking(true);
+            }
+        } else {
             mc.options.sneakKey.setPressed(false);
         }
         
@@ -350,7 +352,6 @@ public class SpawnerProtect extends Module {
     }
 
     private void checkForPlayers() {
-        // nigga
         long otherPlayers = mc.world.getPlayers().stream().filter(p -> p != mc.player).count();
         if (otherPlayers >= PLAYER_COUNT_THRESHOLD) return;
 
@@ -403,7 +404,12 @@ public class SpawnerProtect extends Module {
     private void handleGoingToSpawners() {
         setSneaking(true);
 
-        if (currentTarget == null) {
+        if (sneakInitDelay < 5) {
+            sneakInitDelay++;
+            return;
+        }
+
+        if (currentTarget == null || (currentTarget != null && !isMiningCycle && miningCycleTimer == 0)) {
             BlockPos found = findNearestSpawner();
             if (found == null) {
                 if (!waitingForSpawnerConfirm) {
@@ -432,7 +438,6 @@ public class SpawnerProtect extends Module {
                 waitingForSpawnerConfirm = false;
                 noSpawnerDetectedTime = 0;
 
-                // Check if new position - use manual count
                 if (lastMiningPosition == null || !lastMiningPosition.equals(found)) {
                     lastMiningPosition = found;
                     currentTarget = found;
@@ -448,16 +453,29 @@ public class SpawnerProtect extends Module {
         }
 
         if (isMiningCycle) {
+            if (currentTarget == null) {
+                isMiningCycle = false;
+                miningCycleTimer = 0;
+                return;
+            }
+
             lookAtBlock(currentTarget);
             breakBlock(currentTarget);
 
+            // TODO make faster
             if (mc.world.getBlockState(currentTarget).getBlock() != Blocks.SPAWNER) {
                 if (mc.world.getBlockState(currentTarget).isAir()) {
                     info("Spawner broken! Waiting for pickup...");
                     stopBreaking();
                     isMiningCycle = false;
                     miningCycleTimer = 0;
-                    transferDelayCounter = 40;
+                    transferDelayCounter = 5; // WAS 40
+                } else {
+                    info("Target block is not a spawner, searching for new target...");
+                    stopBreaking();
+                    currentTarget = null;
+                    isMiningCycle = false;
+                    miningCycleTimer = 0;
                 }
             }
 
@@ -474,45 +492,27 @@ public class SpawnerProtect extends Module {
                     currentTarget = null;
                     lastMiningPosition = null;
                     expectedSpawnersAtPosition = 0;
+                    isMiningCycle = true;
                     miningCycleTimer = 0;
                 } else {
-                    if (mc.world.getBlockState(lastMiningPosition).getBlock() == Blocks.SPAWNER) {
+                    if (lastMiningPosition != null && mc.world.getBlockState(lastMiningPosition).getBlock() == Blocks.SPAWNER) {
                         info("Spawner respawned! Continuing...");
                         currentTarget = lastMiningPosition;
                         isMiningCycle = true;
                         miningCycleTimer = 0;
                     } else {
-                        miningCycleTimer = 0;
+                        BlockPos anySpawner = findNearestSpawner();
+                        if (anySpawner != null) {
+                            info("Found spawner at different position, resuming mining...");
+                            currentTarget = anySpawner;
+                            lastMiningPosition = anySpawner;
+                            isMiningCycle = true;
+                            miningCycleTimer = 0;
+                        } else {
+                            miningCycleTimer = 0;
+                        }
                     }
                 }
-            }
-        }
-    }
-
-        private void handleWaitingForSpawners() {
-        recheckDelay++;
-        if (recheckDelay == delaySeconds.get() * 20) {
-            BlockPos foundSpawner = findNearestSpawner();
-
-            if (foundSpawner != null) {
-                waiting = false;
-                currentTarget = foundSpawner;
-                isMiningCycle = true;
-                miningCycleTimer = 0;
-                info("Found additional spawner at " + foundSpawner);
-                return;
-            }
-        }
-
-        if (recheckDelay > delaySeconds.get() * 20) {
-            confirmDelay++;
-            if (confirmDelay >= 5) {
-                stopBreaking();
-                spawnersMinedSuccessfully = true;
-                setSneaking(false);
-                currentState = State.GOING_TO_CHEST;
-                info("All spawners mined successfully. Looking for ender chest...");
-                tickCounter = 0;
             }
         }
     }
@@ -568,12 +568,16 @@ public class SpawnerProtect extends Module {
     private void setSneaking(boolean sneak) {
         if (mc.player == null || mc.getNetworkHandler() == null) return;
 
-        if (sneak && !sneaking) {
-            mc.player.setSneaking(true);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
-            sneaking = true;
-        } else if (!sneak && sneaking) {
+        if (sneak) {
+            if (!sneaking || !mc.player.isSneaking()) {
+                mc.player.setSneaking(true);
+                mc.options.sneakKey.setPressed(true);
+                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
+                sneaking = true;
+            }
+        } else if (sneaking) {
             mc.player.setSneaking(false);
+            mc.options.sneakKey.setPressed(false);
             mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
             sneaking = false;
         }
@@ -653,9 +657,7 @@ public class SpawnerProtect extends Module {
         KeyBinding.setKeyPressed(mc.options.forwardKey.getDefaultKey(), false);
         KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), true);
 
-        if (chestOpenAttempts < 20) {
-            lookAtBlock(targetChest);
-        }
+        lookAtBlock(targetChest);
 
         if (chestOpenAttempts % 5 == 0) {
             if (mc.interactionManager != null && mc.player != null) {
@@ -760,7 +762,7 @@ public class SpawnerProtect extends Module {
             }
 
             lastProcessedSlot = slotId;
-            transferDelayCounter = 2;
+            transferDelayCounter = 1; // WAS 2
             return;
         }
 
