@@ -7,44 +7,32 @@ import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.orbit.EventHandler;
-
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
-import meteordevelopment.meteorclient.MeteorClient;
 import net.minecraft.item.Items;
 import net.minecraft.item.ItemStack;
-import meteordevelopment.meteorclient.systems.modules.Category;
-
-
-
 
 public class GlazedAddon extends MeteorAddon {
 
-public static final Category CATEGORY = new Category("Glazed", new ItemStack(Items.CAKE));
-public static final Category esp = new Category("Glazed ESP ", new ItemStack(Items.VINE));
-public static final Category pvp = new Category("Glazed PVP", new ItemStack(Items.DIAMOND_SWORD));
-
-
-
+    public static final Category CATEGORY = new Category("Glazed", new ItemStack(Items.CAKE));
+    public static final Category esp = new Category("Glazed ESP ", new ItemStack(Items.VINE));
+    public static final Category pvp = new Category("Glazed PVP", new ItemStack(Items.DIAMOND_SWORD));
 
     public static int MyScreenVERSION = 16;
 
     @Override
     public void onInitialize() {
-
-
-
-        Modules.get().add(new SpawnerProtect()); //done
-        Modules.get().add(new AntiTrap()); //done
-        Modules.get().add(new CoordSnapper()); //done
-        Modules.get().add(new PlayerDetection()); //done
-        Modules.get().add(new AHSniper()); //done
-        Modules.get().add(new RTPer()); //done
-        Modules.get().add(new ShulkerDropper()); //done
-        Modules.get().add(new AutoSell()); //done
-        Modules.get().add(new SpawnerDropper()); //done
-        Modules.get().add(new AutoShulkerOrder()); // done
-        Modules.get().add(new AutoOrder()); //done
+        Modules.get().add(new SpawnerProtect());
+        Modules.get().add(new AntiTrap());
+        Modules.get().add(new CoordSnapper());
+        Modules.get().add(new PlayerDetection());
+        Modules.get().add(new AHSniper());
+        Modules.get().add(new RTPer());
+        Modules.get().add(new ShulkerDropper());
+        Modules.get().add(new AutoSell());
+        Modules.get().add(new SpawnerDropper());
+        Modules.get().add(new AutoShulkerOrder());
+        Modules.get().add(new AutoOrder());
         Modules.get().add(new HideScoreboard());
         Modules.get().add(new CrystalMacro());
         Modules.get().add(new AHSell());
@@ -75,12 +63,8 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.get().add(new VineESP());
         Modules.get().add(new ChunkFinder());
         Modules.get().add(new BlockNotifier());
-        Modules.get().add(new AnchorMacro());
         Modules.get().add(new SpawnerOrder());
         Modules.get().add(new RegionMap());
-        Modules.get().add(new SpawnerOrder());
-        Modules.get().add(new SpawnerOrder());
-        Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new NoBlockInteract());
         Modules.get().add(new BeehiveESP());
         Modules.get().add(new WindPearlMacro());
@@ -132,14 +116,10 @@ public static final Category pvp = new Category("Glazed PVP", new ItemStack(Item
         Modules.registerCategory(CATEGORY);
         Modules.registerCategory(esp);
         Modules.registerCategory(pvp);
-
-
     }
 
     @Override
     public String getPackage() {
         return "com.nnpg.glazed";
     }
-
-
 }

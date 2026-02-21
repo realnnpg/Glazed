@@ -4,9 +4,6 @@ import net.minecraft.entity.player.PlayerInventory;
 
 import java.lang.reflect.Field;
 
-/**
- * Reflection helpers for accessing private inventory fields across mappings.
- */
 public final class InventoryUtils {
     private static Field selectedSlotField;
 

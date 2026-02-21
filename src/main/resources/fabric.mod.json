@@ -11,7 +11,6 @@
     "homepage": "https://glazedclient.com",
     "repo": "https://github.com/realnnpg/",
     "discord": "https://discord.gg/TCQDpG8ByY"
-
   },
   "license": "All Rights Reserved",
   "icon": "assets/template/icon.png",
@@ -24,8 +23,6 @@
   "mixins": [
     "mixins.json"
   ],
-
-
   "custom": {
     "meteor-client:color": "225,25,25",
     "modmenu": {
@@ -37,8 +34,7 @@
   },
   "depends": {
     "java": ">=21",
-    "minecraft": [ "${mc_version}" ],
+    "minecraft": ["${mc_version}"],
     "meteor-client": "*"
   }
-
 }

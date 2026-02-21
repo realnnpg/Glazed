@@ -1,19 +1,12 @@
 package com.nnpg.glazed;
 
-import meteordevelopment.meteorclient.addons.GithubRepo;
-import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.WindowScreen;
 import meteordevelopment.meteorclient.gui.widgets.containers.WHorizontalList;
-import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.utils.network.Http;
 import meteordevelopment.meteorclient.utils.network.MeteorExecutor;
 import net.minecraft.util.Util;
-
-import java.net.http.HttpResponse;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 
 public class MyScreen extends WindowScreen {
     private int latestVersion = -1;
@@ -89,7 +82,6 @@ public class MyScreen extends WindowScreen {
             addMessage("Latest Version: Checking...");
         }
 
-        // Always add separator and update message area to maintain consistent height
         add(theme.horizontalSeparator()).padVertical(theme.scale(8)).expandX();
 
         if (isVersionFetched && latestVersion > GlazedAddon.MyScreenVERSION) {
@@ -102,16 +94,13 @@ public class MyScreen extends WindowScreen {
 
         add(theme.horizontalSeparator()).padVertical(theme.scale(8)).expandX();
 
-        // Buttons
         WHorizontalList buttonsContainer = add(theme.horizontalList()).expandX().widget();
 
-        // GitHub button
         WButton githubButton = buttonsContainer.add(theme.button("GitHub")).expandX().widget();
         githubButton.action = () -> {
             Util.getOperatingSystem().open("https://github.com/realnnpg/glazed");
         };
 
-        // Website button
         WButton websiteButton = buttonsContainer.add(theme.button("Website")).expandX().widget();
         websiteButton.action = () -> {
             Util.getOperatingSystem().open("https://glazedclient.com");

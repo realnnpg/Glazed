@@ -92,7 +92,6 @@ public class AutoSpawnerSell extends Module {
 
         GenericContainerScreenHandler container = (GenericContainerScreenHandler) handler;
 
-        // Example 6-row shop container
         if (container.getRows() == 6) {
             ItemStack stack = container.getSlot(47).getStack();
             if (stack.isEmpty()) {
@@ -106,14 +105,12 @@ public class AutoSpawnerSell extends Module {
             return;
         }
 
-        // Default fallback
         mc.player.closeHandledScreen();
         delayCounter = 20;
     }
 
     private void handleDropping(ScreenHandler handler) {
         if (!(handler instanceof GenericContainerScreenHandler)) {
-            // Right-click to start dropping
             KeyBinding.onKeyPressed(InputUtil.Type.MOUSE.createFromCode(1));
             delayCounter = 20;
             return;

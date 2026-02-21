@@ -13,7 +13,6 @@ import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.renderer.GuiRenderer;
 import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
-import meteordevelopment.meteorclient.gui.widgets.WLabel;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -88,7 +87,6 @@ public class DefaultSettingsWidgetFactoryMixin {
     private void textDisplayW(WTable table, TextDisplaySetting setting, GuiTheme theme) {
         WTextBox textBox = new WTextBox(theme, setting.get());
         table.add(textBox).expandCellX();
-        // Add empty cell for reset column
         table.add(theme.label(""));
     }
 }

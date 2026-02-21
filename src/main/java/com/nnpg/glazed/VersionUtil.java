@@ -1,6 +1,5 @@
 package com.nnpg.glazed;
 
-import net.minecraft.SharedConstants;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.collection.DefaultedList;

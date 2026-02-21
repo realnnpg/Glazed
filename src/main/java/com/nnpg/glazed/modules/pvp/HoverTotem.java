@@ -4,7 +4,6 @@ import com.nnpg.glazed.GlazedAddon;
 import com.nnpg.glazed.mixins.HandledScreenMixin;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.Screen;

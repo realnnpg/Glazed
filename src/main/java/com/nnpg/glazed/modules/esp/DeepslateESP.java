@@ -106,7 +106,6 @@ public class DeepslateESP extends Module {
 
     private final Set<BlockPos> deepslatePositions = ConcurrentHashMap.newKeySet();
 
-    // Threading
     private ExecutorService threadPool;
 
     public DeepslateESP() {

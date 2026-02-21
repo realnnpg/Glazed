@@ -12,7 +12,6 @@ public class TextDisplaySetting extends Setting<String> {
     }
 
     public String getTitle() {
-        // Return empty string so no title is shown
         return "";
     }
 

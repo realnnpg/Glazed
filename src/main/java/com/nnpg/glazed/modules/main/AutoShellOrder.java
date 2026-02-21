@@ -18,7 +18,6 @@ import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,11 +35,9 @@ public class AutoShellOrder extends Module {
     private int finalExitCount = 0;
     private long finalExitStart = 0;
 
-    // Player targeting variables
     private String targetPlayer = "";
     private boolean isTargetingActive = false;
 
-    // Settings
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgTargeting = settings.createGroup("Player Targeting");
 
@@ -65,7 +62,6 @@ public class AutoShellOrder extends Module {
         .build()
     );
 
-    // Targeting settings
     private final Setting<Boolean> enableTargeting = sgTargeting.add(new BoolSetting.Builder()
         .name("enable-targeting")
         .description("Enable targeting a specific player (ignores minimum price).")

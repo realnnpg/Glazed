@@ -33,7 +33,6 @@ public class StringUtils {
                 case 'ʏ', 'у', 'Υ', 'ｙ', 'У', 'Ｙ' -> result.append('y');
                 case 'ᴢ', 'ｚ', 'Ζ', 'Ｚ' -> result.append('z');
 
-                // Numbers
                 case '０' -> result.append('0');
                 case '１' -> result.append('1');
                 case '２' -> result.append('2');
@@ -45,8 +44,7 @@ public class StringUtils {
                 case '８' -> result.append('8');
                 case '９' -> result.append('9');
 
-                // Special characters
-                case '　' -> result.append(' '); // Full-width space
+                case '　' -> result.append(' ');
                 case '－' -> result.append('-');
                 case '＿' -> result.append('_');
                 case '．' -> result.append('.');
