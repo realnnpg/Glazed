@@ -85,6 +85,13 @@ public class AutoShellOrder extends Module {
         .build()
     );
 
+    private final Setting<List<String>> blacklistedPlayers = sgTargeting.add(new StringListSetting.Builder()
+        .name("blacklisted-players")
+        .description("Players whose orders will be ignored.")
+        .defaultValue(List.of())
+        .build()
+    );
+
     public AutoShellOrder() {
         super(GlazedAddon.CATEGORY, "auto-shell-order", "Automatically buys shulker shells and sells them in orders with player targeting");
     }
@@ -178,6 +185,7 @@ public class AutoShellOrder extends Module {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && isShell(stack)) {
+                            if (isBlacklisted(getOrderPlayerName(stack))) continue;
                             double orderPrice = getOrderPrice(stack);
                             if (orderPrice >= parsePrice(minPrice.get())) {
                                 mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
@@ -192,6 +200,34 @@ public class AutoShellOrder extends Module {
             }
             default -> {}
         }
+    }
+
+    private boolean isBlacklisted(String playerName) {
+        if (playerName == null || blacklistedPlayers.get().isEmpty()) return false;
+        return blacklistedPlayers.get().stream().anyMatch(p -> p.equalsIgnoreCase(playerName));
+    }
+
+    private String getOrderPlayerName(ItemStack stack) {
+        if (stack.isEmpty()) return null;
+        List<Text> tooltip = stack.getTooltip(Item.TooltipContext.create(mc.world), mc.player, TooltipType.BASIC);
+        Pattern[] patterns = {
+            Pattern.compile("(?i)player\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)from\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)by\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)seller\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)owner\\s*:\\s*([a-zA-Z0-9_]+)")
+        };
+        for (Text line : tooltip) {
+            String text = line.getString();
+            for (Pattern p : patterns) {
+                Matcher m = p.matcher(text);
+                if (m.find()) {
+                    String name = m.group(1);
+                    if (name.length() >= 3 && name.length() <= 16) return name;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean isShell(ItemStack stack) {

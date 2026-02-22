@@ -37,6 +37,7 @@ public class AutoShulkerShellOrder extends Module {
     private long final_exit_start = 0;
 
     private final SettingGroup sg_general = settings.getDefaultGroup();
+    private final SettingGroup sg_blacklist = settings.createGroup("Blacklist");
 
     private final Setting<String> min_price = sg_general.add(new StringSetting.Builder()
         .name("min-price")
@@ -56,6 +57,13 @@ public class AutoShulkerShellOrder extends Module {
         .name("speed-mode")
         .description("Maximum speed mode - removes most delays (may be unstable).")
         .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<List<String>> blacklisted_players = sg_blacklist.add(new StringListSetting.Builder()
+        .name("blacklisted-players")
+        .description("Players whose orders will be ignored.")
+        .defaultValue(List.of())
         .build()
     );
 
@@ -218,6 +226,7 @@ public class AutoShulkerShellOrder extends Module {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
                         if (!stack.isEmpty() && is_shulker_shell(stack)) {
+                            if (is_blacklisted(get_order_player_name(stack))) continue;
                             double order_price = get_order_price(stack);
                             double min_price_value = parse_price(min_price.get());
 
@@ -349,6 +358,35 @@ public class AutoShulkerShellOrder extends Module {
             case NONE -> {
             }
         }
+    }
+
+    private boolean is_blacklisted(String playerName) {
+        if (playerName == null || blacklisted_players.get().isEmpty()) return false;
+        return blacklisted_players.get().stream().anyMatch(p -> p.equalsIgnoreCase(playerName));
+    }
+
+    private String get_order_player_name(ItemStack stack) {
+        if (stack.isEmpty()) return null;
+        Item.TooltipContext ctx = Item.TooltipContext.create(mc.world);
+        List<Text> tooltip = stack.getTooltip(ctx, mc.player, TooltipType.BASIC);
+        Pattern[] patterns = {
+            Pattern.compile("(?i)player\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)from\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)by\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)seller\\s*:\\s*([a-zA-Z0-9_]+)"),
+            Pattern.compile("(?i)owner\\s*:\\s*([a-zA-Z0-9_]+)")
+        };
+        for (Text line : tooltip) {
+            String text = line.getString();
+            for (Pattern p : patterns) {
+                Matcher m = p.matcher(text);
+                if (m.find()) {
+                    String name = m.group(1);
+                    if (name.length() >= 3 && name.length() <= 16) return name;
+                }
+            }
+        }
+        return null;
     }
 
     private double get_order_price(ItemStack stack) {

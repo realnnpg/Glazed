@@ -91,6 +91,13 @@ public class AutoShulkerOrder extends Module {
         .build()
     );
 
+    private final Setting<List<String>> blacklistedPlayers = sgTargeting.add(new StringListSetting.Builder()
+        .name("blacklisted-players")
+        .description("Players whose orders will be ignored.")
+        .defaultValue(List.of())
+        .build()
+    );
+
     public AutoShulkerOrder() {
         super(GlazedAddon.CATEGORY, "auto-shulker-order", "Automatically buys shulkers and sells them in orders for profit with player targeting");
     }
@@ -300,7 +307,8 @@ public class AutoShulkerOrder extends Module {
                             boolean shouldTakeOrder = false;
                             String orderPlayer = getOrderPlayerName(stack);
 
-                            // Check if this is a targeted order
+                            if (isBlacklisted(orderPlayer)) continue;
+
                             boolean isTargetedOrder = isTargetingActive &&
                                 orderPlayer != null &&
                                 orderPlayer.equalsIgnoreCase(targetPlayer);
@@ -600,6 +608,11 @@ public class AutoShulkerOrder extends Module {
     }
 
     // Helper methods (unchanged)
+    private boolean isBlacklisted(String playerName) {
+        if (playerName == null || blacklistedPlayers.get().isEmpty()) return false;
+        return blacklistedPlayers.get().stream().anyMatch(p -> p.equalsIgnoreCase(playerName));
+    }
+
     private boolean isEndStone(ItemStack stack) {
         return stack.getItem() == Items.END_STONE || stack.getName().getString().toLowerCase(Locale.ROOT).contains("end");
     }
