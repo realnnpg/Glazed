@@ -123,6 +123,13 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Boolean> depositToEChest = sgGeneral.add(new BoolSetting.Builder()
+            .name("deposit-to-echest")
+            .description("Deposit spawners into ender chest after mining.")
+            .defaultValue(true)
+            .build()
+    );
+
     private final Setting<Boolean> enableWhitelist = sgWhitelist.add(new BoolSetting.Builder()
         .name("enable-whitelist")
         .description("Enable player whitelist (whitelisted players won't trigger protection)")
@@ -587,9 +594,12 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleGoingToChest() {
-        if (sneaking) {
-            setSneaking(false);
+        if (!depositToEChest.get()) {
+            currentState = State.DISCONNECTING;
+            if (notifications.get()) info("Deposit to ender chest disabled, disconnecting...");
+            return;
         }
+
         if (targetChest == null) {
             targetChest = findNearestEnderChest();
             if (targetChest == null) {
@@ -699,9 +709,13 @@ public class SpawnerProtect extends Module {
     }
 
     private void handleDepositingItems() {
-        if (sneaking) {
-            setSneaking(false);
+        if (!depositToEChest.get()) {
+            currentState = State.DISCONNECTING;
+            if (notifications.get()) info("Deposit to ender chest disabled, skipping deposit.");
+            return;
         }
+
+        if (sneaking) setSneaking(false);
         mc.options.sneakKey.setPressed(false);
 
         if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler) {
@@ -733,7 +747,7 @@ public class SpawnerProtect extends Module {
     private boolean hasItemsToDeposit() {
         for (int i = 0; i < 36; i++) {
             ItemStack stack = mc.player.getInventory().getStack(i);
-            if (!stack.isEmpty() && stack.getItem() != Items.AIR) {
+            if (!stack.isEmpty() && stack.getItem() == Items.SPAWNER) {
                 return true;
             }
         }
