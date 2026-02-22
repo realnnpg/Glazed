@@ -59,7 +59,7 @@ public class TpaAllMacro extends Module {
     }
 
     public TpaAllMacro() {
-        super(GlazedAddon.CATEGORY, "TpaAllMacro", "Cycles through all online players and sends /tpa or /tpahere with optional GUI confirmation.");
+        super(GlazedAddon.CATEGORY, "tpa-all-macro", "Cycles through all online players and sends /tpa or /tpahere with optional GUI confirmation.");
     }
 
     @Override

@@ -92,7 +92,7 @@ public class AutoShulkerOrder extends Module {
     );
 
     public AutoShulkerOrder() {
-        super(GlazedAddon.CATEGORY, "AutoShulkerOrder", "Automatically buys shulkers and sells them in orders for profit with player targeting");
+        super(GlazedAddon.CATEGORY, "auto-shulker-order", "Automatically buys shulkers and sells them in orders for profit with player targeting");
     }
 
     @Override

@@ -29,7 +29,7 @@ public class ShulkerDropper extends Module {
     private int delayCounter = 0;
 
     public ShulkerDropper() {
-        super(GlazedAddon.CATEGORY, "ShulkerDropper", "Automatically buys shulkers from shop and drops them.");
+        super(GlazedAddon.CATEGORY, "shulker-dropper", "Automatically buys shulkers from shop and drops them.");
     }
 
     @Override

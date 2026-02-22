@@ -24,7 +24,7 @@ public class UIHelper extends Module {
 
     public UIHelper() {
         super(GlazedAddon.CATEGORY,
-                "UI Helper",
+                "ui-helper",
                 "Helps perform various UI tasks automatically."
         );
     }

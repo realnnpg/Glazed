@@ -60,7 +60,7 @@ public class AutoBlazeRodOrder extends Module {
     );
 
     public AutoBlazeRodOrder() {
-        super(GlazedAddon.CATEGORY, "AutoBlazeRodOrder", "Automatically buys and sells blaze rods in orders for profit (FAST MODE)");
+        super(GlazedAddon.CATEGORY, "auto-blaze-rod-order", "Automatically buys and sells blaze rods in orders for profit (FAST MODE)");
     }
 
     @Override

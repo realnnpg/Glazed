@@ -39,7 +39,7 @@ public class TabDetector extends Module {
     private final Set<String> previousTargetPlayers = new HashSet<>();
 
     public TabDetector() {
-        super(GlazedAddon.CATEGORY, "TabDetector", "Detects when specific players join or leave the server");
+        super(GlazedAddon.CATEGORY, "tab-detector", "Detects when specific players join or leave the server");
     }
 
     @EventHandler

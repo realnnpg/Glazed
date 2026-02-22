@@ -144,7 +144,7 @@ public class RTPEndBaseFinder extends Module {
         .build();
 
     public RTPEndBaseFinder() {
-        super(GlazedAddon.CATEGORY, "RTPEndBaseFinder", "Continuously RTPs to the End and searches for stashes.");
+        super(GlazedAddon.CATEGORY, "rtp-end-base-finder", "Continuously RTPs to the End and searches for stashes.");
     }
 
     @Override

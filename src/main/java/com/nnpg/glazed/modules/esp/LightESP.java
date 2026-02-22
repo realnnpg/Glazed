@@ -162,7 +162,7 @@ public class LightESP extends Module {
     private static final long SCAN_INTERVAL = 500; // Scan every 500ms
 
     public LightESP() {
-        super(GlazedAddon.esp, "LightESP", "Improved light source detection");
+        super(GlazedAddon.esp, "light-esp", "Improved light source detection");
     }
 
     @Override

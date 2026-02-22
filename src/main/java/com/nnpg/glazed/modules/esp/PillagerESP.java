@@ -154,7 +154,7 @@ public class PillagerESP extends Module {
     }
 
     public PillagerESP() {
-        super(GlazedAddon.esp, "PillagerESP", "ESP for pillagers with tracers, webhook notifications and info display");
+        super(GlazedAddon.esp, "pillager-esp", "ESP for pillagers with tracers, webhook notifications and info display");
     }
 
     @Override

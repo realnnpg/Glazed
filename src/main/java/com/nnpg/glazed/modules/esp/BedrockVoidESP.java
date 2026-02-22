@@ -114,7 +114,7 @@ public class BedrockVoidESP extends Module {
 
     public BedrockVoidESP() {
         super(GlazedAddon.esp,
-            "BedrockVoidESP",
+            "bedrock-void-esp",
             "Finds voids in bedrock layers. Useful for indicating places" +
                 "where spawners may be un-raidable if located there."
         );

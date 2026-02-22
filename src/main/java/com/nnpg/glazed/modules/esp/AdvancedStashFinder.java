@@ -134,7 +134,7 @@ public class AdvancedStashFinder extends Module {
         .build();
 
     public AdvancedStashFinder() {
-        super(GlazedAddon.esp, "AdvancedStashFinder", "Advanced stash finder with webhook support and auto-disconnect.");
+        super(GlazedAddon.esp, "advanced-stash-finder", "Advanced stash finder with webhook support and auto-disconnect.");
     }
 
     @Override

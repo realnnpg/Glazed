@@ -47,7 +47,7 @@ public class OrderDropper extends Module {
     private boolean foundTargetItem = false;
 
     public OrderDropper() {
-        super(GlazedAddon.CATEGORY, "OrderDropper", "Automatically processes orders and drops specified items.");
+        super(GlazedAddon.CATEGORY, "order-dropper", "Automatically processes orders and drops specified items.");
     }
 
     @Override

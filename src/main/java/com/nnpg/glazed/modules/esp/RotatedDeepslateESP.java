@@ -145,7 +145,7 @@ public class RotatedDeepslateESP extends Module {
     private ExecutorService threadPool;
 
     public RotatedDeepslateESP() {
-        super(GlazedAddon.esp, "RotatedDeepslateESP", "ESP for rotated deepslate blocks with threading and tracer support.");
+        super(GlazedAddon.esp, "rotated-deepslate-esp", "ESP for rotated deepslate blocks with threading and tracer support.");
     }
 
     @Override

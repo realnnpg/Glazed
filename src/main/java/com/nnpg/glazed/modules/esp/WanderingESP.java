@@ -104,7 +104,7 @@ public class WanderingESP extends Module {
         .build();
 
     public WanderingESP() {
-        super(GlazedAddon.esp, "WanderingESP", "Detects wandering traders in the world");
+        super(GlazedAddon.esp, "wandering-esp", "Detects wandering traders in the world");
     }
 
     @EventHandler

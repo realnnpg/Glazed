@@ -54,7 +54,7 @@ public class CoordSnapper extends Module {
     );
 
     public CoordSnapper() {
-        super(GlazedAddon.CATEGORY, "CoordSnapper", "Copies your coordinates to clipboard and optionally sends them via webhook.");
+        super(GlazedAddon.CATEGORY, "coord-snapper", "Copies your coordinates to clipboard and optionally sends them via webhook.");
     }
 
     @Override

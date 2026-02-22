@@ -92,7 +92,7 @@ public class AutoTotemOrder extends Module {
     );
 
     public AutoTotemOrder() {
-        super(GlazedAddon.CATEGORY, "AutoTotemOrder", "Automatically buys totems and sells them in orders for profit with player targeting");
+        super(GlazedAddon.CATEGORY, "auto-totem-order", "Automatically buys totems and sells them in orders for profit with player targeting");
     }
 
     @Override

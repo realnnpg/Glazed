@@ -53,7 +53,7 @@ public class TpaMacro extends Module {
     }
 
     public TpaMacro() {
-        super(GlazedAddon.CATEGORY, "TpaMacro", "Spams /tpa or /tpahere and clicks the confirmation.");
+        super(GlazedAddon.CATEGORY, "tpa-macro", "Spams /tpa or /tpahere and clicks the confirmation.");
     }
 
     @Override

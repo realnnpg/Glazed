@@ -122,7 +122,7 @@ public class AHSniper extends Module {
     private final HttpClient httpClient;
 
     public AHSniper() {
-        super(GlazedAddon.CATEGORY, "AH-Sniper", "Automatically snipes items from auction house for cheap prices.");
+        super(GlazedAddon.CATEGORY, "ah-sniper", "Automatically snipes items from auction house for cheap prices.");
         this.sgGeneral = this.settings.getDefaultGroup();
         this.sgMultiSnipe = this.settings.createGroup("Multi-Snipe Items");
         this.sgEnchantments = this.settings.createGroup("Enchantments");

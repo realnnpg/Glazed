@@ -89,7 +89,7 @@ public class FakeScoreboard extends Module {
             .build());
 
     public FakeScoreboard() {
-        super(GlazedAddon.esp, "FakeScoreboard", "Custom scoreboard overlay for Glazed.");
+        super(GlazedAddon.esp, "fake-scoreboard", "Custom scoreboard overlay for Glazed.");
     }
 
     private void safeUpdate() {

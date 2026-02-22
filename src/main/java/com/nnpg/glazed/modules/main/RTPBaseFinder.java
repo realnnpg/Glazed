@@ -14,7 +14,7 @@ public class RTPBaseFinder extends Module {
     private long lastTeleportTime = 0;
 
     public RTPBaseFinder() {
-        super(GlazedAddon.CATEGORY, "RTPBaseFinder", "Aimbots downward, holds left click to mine to Y=-58, then runs /rtp east.");
+        super(GlazedAddon.CATEGORY, "rtp-base-finder", "Aimbots downward, holds left click to mine to Y=-58, then runs /rtp east.");
     }
 
     @Override

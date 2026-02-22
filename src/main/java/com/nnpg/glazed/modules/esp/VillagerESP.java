@@ -120,7 +120,7 @@ public class VillagerESP extends Module {
         .build();
 
     public VillagerESP() {
-        super(GlazedAddon.esp, "VillagerESP", "Detects villagers and zombie villagers in the world");
+        super(GlazedAddon.esp, "villager-esp", "Detects villagers and zombie villagers in the world");
     }
 
     @EventHandler

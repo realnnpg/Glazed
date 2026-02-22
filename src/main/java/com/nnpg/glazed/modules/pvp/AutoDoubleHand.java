@@ -13,7 +13,7 @@ public class AutoDoubleHand extends Module {
     private boolean wasHoldingTotem = true;
 
     public AutoDoubleHand() {
-        super(GlazedAddon.pvp, "AutoDoubleHand", "After pop, switches to totem");
+        super(GlazedAddon.pvp, "auto-double-hand", "After pop, switches to totem");
     }
 
     @Override

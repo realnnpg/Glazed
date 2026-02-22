@@ -189,7 +189,7 @@ public class CollectibleESP extends Module {
     );
 
     public CollectibleESP() {
-        super(GlazedAddon.esp,"CollectibleESP", "Highlights collectible items in item frames and banners!");
+        super(GlazedAddon.esp,"collectible-esp", "Highlights collectible items in item frames and banners!");
     }
 
     @EventHandler

@@ -57,7 +57,7 @@ public class ShopBuyer extends Module {
     private boolean inBuyingScreen = false;
 
     public ShopBuyer() {
-        super(GlazedAddon.CATEGORY, "ShopBuyer", "Automatically buys selected items from PVP shop category.");
+        super(GlazedAddon.CATEGORY, "shop-buyer", "Automatically buys selected items from PVP shop category.");
     }
 
     @Override

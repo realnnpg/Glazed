@@ -179,7 +179,7 @@ public class SpawnerProtect extends Module {
     private final int PLAYER_COUNT_THRESHOLD = 3;
 
     public SpawnerProtect() {
-        super(GlazedAddon.CATEGORY, "SpawnerProtect", "Breaks spawners and puts them in your inv when a player is detected");
+        super(GlazedAddon.CATEGORY, "spawner-protect", "Breaks spawners and puts them in your inv when a player is detected");
     }
 
     @Override

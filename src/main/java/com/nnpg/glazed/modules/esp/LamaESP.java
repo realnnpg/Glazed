@@ -104,7 +104,7 @@ public class LamaESP extends Module {
         .build();
 
     public LamaESP() {
-        super(GlazedAddon.esp, "LamaESP", "Detects llamas in the world");
+        super(GlazedAddon.esp, "lama-esp", "Detects llamas in the world");
     }
 
     @EventHandler

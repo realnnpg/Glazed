@@ -138,7 +138,7 @@ public class SweetBerryESP extends Module {
     private ExecutorService threadPool;
 
     public SweetBerryESP() {
-        super(GlazedAddon.esp, "SweetBerryESP", "ESP for sweet berry bushes at specific growth ages with threading and tracer support.");
+        super(GlazedAddon.esp, "sweet-berry-esp", "ESP for sweet berry bushes at specific growth ages with threading and tracer support.");
     }
 
     @Override

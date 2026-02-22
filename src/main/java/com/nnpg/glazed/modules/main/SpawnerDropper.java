@@ -58,7 +58,7 @@ public class SpawnerDropper extends Module {
     private static final int CHECK_DELAY = 3;
 
     public SpawnerDropper() {
-        super(GlazedAddon.CATEGORY, "SpawnerDropper", "Drops all items from spawners");
+        super(GlazedAddon.CATEGORY, "spawner-dropper", "Drops all items from spawners");
     }
 
     private boolean hasArrowsInInventory(HandledScreen<?> screen) {

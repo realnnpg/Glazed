@@ -87,7 +87,7 @@ public class SpawnerOrder extends Module {
     private long lastDropTime = 0;
 
     public SpawnerOrder() {
-        super(GlazedAddon.CATEGORY, "Spawner-Order", "Order All Spawner Loot.");
+        super(GlazedAddon.CATEGORY, "spawner-order", "Order All Spawner Loot.");
     }
 
     private boolean isGreenGlass(net.minecraft.item.ItemStack stack) {

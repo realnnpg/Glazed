@@ -127,7 +127,7 @@ public class PlayerDetection extends Module {
         .build();
 
     public PlayerDetection() {
-        super(GlazedAddon.CATEGORY, "PlayerDetection", "Detects when players are in the world");
+        super(GlazedAddon.CATEGORY, "player-detection", "Detects when players are in the world");
     }
 
     @EventHandler

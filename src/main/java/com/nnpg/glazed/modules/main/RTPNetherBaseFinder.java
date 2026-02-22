@@ -124,7 +124,7 @@ public class RTPNetherBaseFinder extends Module {
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RTPNetherBaseFinder() {
-        super(GlazedAddon.CATEGORY, "RTPNetherBaseFinder", "Continuously RTPs to the Nether and searches for stashes.");
+        super(GlazedAddon.CATEGORY, "rtp-nether-base-finder", "Continuously RTPs to the Nether and searches for stashes.");
     }
 
     @Override

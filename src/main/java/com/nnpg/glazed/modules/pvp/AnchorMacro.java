@@ -67,7 +67,7 @@ public class AnchorMacro extends Module {
     private BlockHitResult lastBlockHitResult = null;
 
     public AnchorMacro() {
-        super(GlazedAddon.pvp, "AnchorMacro", "Automatically charges and explodes respawn anchors.");
+        super(GlazedAddon.pvp, "anchor-macro", "Automatically charges and explodes respawn anchors.");
     }
 
     @Override

@@ -45,7 +45,7 @@ public class BlazeRodDropper extends Module {
     );
 
     public BlazeRodDropper() {
-        super(GlazedAddon.CATEGORY, "BlazeRodDropper", "Automatically buys blaze rods from shop and drops them");
+        super(GlazedAddon.CATEGORY, "blaze-rod-dropper", "Automatically buys blaze rods from shop and drops them");
     }
 
     @Override

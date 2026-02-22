@@ -46,7 +46,7 @@ public class KelpESP extends Module {
     private final Set<ChunkPos> flaggedKelpChunks = new HashSet<>();
 
     public KelpESP() {
-        super(GlazedAddon.esp, "KelpESP", "ESP for kelp chunks with suspicious patterns.");
+        super(GlazedAddon.esp, "kelp-esp", "ESP for kelp chunks with suspicious patterns.");
     }
 
     @Override

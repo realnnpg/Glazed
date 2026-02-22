@@ -137,7 +137,7 @@ public class ClusterFinder extends Module {
     private ExecutorService threadPool;
 
     public ClusterFinder() {
-        super(GlazedAddon.esp, "ClusterFinder", "ESP for amethyst clusters and buds with threading and tracer support.");
+        super(GlazedAddon.esp, "cluster-finder", "ESP for amethyst clusters and buds with threading and tracer support.");
     }
 
     @Override

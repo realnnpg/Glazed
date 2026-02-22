@@ -109,7 +109,7 @@ public class DeepslateESP extends Module {
     private ExecutorService threadPool;
 
     public DeepslateESP() {
-        super(GlazedAddon.esp, "DeepslateESP", "ESP for deepslate blocks with threading and tracer support.");
+        super(GlazedAddon.esp, "deepslate-esp", "ESP for deepslate blocks with threading and tracer support.");
     }
 
     @Override

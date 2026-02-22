@@ -734,7 +734,7 @@ public class PremiumTunnelBaseFinder extends Module {
     private boolean isValidWebhook = false;
 
     public PremiumTunnelBaseFinder() {
-        super(GlazedAddon.CATEGORY, "PremiumTunnelBaseFinder", "Advanced tunnel mining with enhanced lava detection, pearl-through feature, and improved safety systems.");
+        super(GlazedAddon.CATEGORY, "premium-tunnel-base-finder", "Advanced tunnel mining with enhanced lava detection, pearl-through feature, and improved safety systems.");
     }
 
     @Override

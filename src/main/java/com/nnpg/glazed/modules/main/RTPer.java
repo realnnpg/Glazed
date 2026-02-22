@@ -292,7 +292,7 @@ public class RTPer extends Module {
         .build();
 
     public RTPer() {
-        super(GlazedAddon.CATEGORY, "RTPer", "RTP to specific coordinates or find specific biomes.");
+        super(GlazedAddon.CATEGORY, "rtper", "RTP to specific coordinates or find specific biomes.");
     }
 
     @Override

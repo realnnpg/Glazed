@@ -60,7 +60,7 @@ public class AutoShulkerShellOrder extends Module {
     );
 
     public AutoShulkerShellOrder() {
-        super(GlazedAddon.CATEGORY, "AutoShulkerShellOrder", "Automatically buys shulker shells and sells them in orders for profit (FAST MODE)");
+        super(GlazedAddon.CATEGORY, "auto-shulker-shell-order", "Automatically buys shulker shells and sells them in orders for profit (FAST MODE)");
     }
 
     @Override

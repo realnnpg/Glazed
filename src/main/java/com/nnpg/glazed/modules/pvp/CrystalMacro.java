@@ -79,7 +79,7 @@ public class CrystalMacro extends Module {
     private long resumeTime = 0;
 
     public CrystalMacro() {
-        super(GlazedAddon.pvp, "CrystalMacro", "Automatically crystals fast for you");
+        super(GlazedAddon.pvp, "crystal-macro", "Automatically crystals fast for you");
     }
 
     @Override

@@ -61,7 +61,7 @@ public class CrateBuyer extends Module {
     private static final int CONFIRM_SLOT_SHOVEL = 15;
 
     public CrateBuyer() {
-        super(GlazedAddon.CATEGORY, "CrateBuyer", "Automatically buys items from the common crate");
+        super(GlazedAddon.CATEGORY, "crate-buyer", "Automatically buys items from the common crate");
     }
 
     @EventHandler

@@ -45,7 +45,7 @@ public class AutoSell extends Module {
     private boolean shouldReopen = false;
 
     public AutoSell() {
-        super(GlazedAddon.CATEGORY, "AutoSell", "Automatically sells items.");
+        super(GlazedAddon.CATEGORY, "auto-sell", "Automatically sells items.");
     }
 
     @Override

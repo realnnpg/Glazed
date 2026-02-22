@@ -188,7 +188,7 @@ public class TunnelBaseFinder extends Module {
     private boolean playerWasAlive = true;
 
     public TunnelBaseFinder() {
-        super(GlazedAddon.CATEGORY, "TunnelBaseFinder", "RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.");
+        super(GlazedAddon.CATEGORY, "tunnel-base-finder", "RTPs, mines to a Y level, and then uses #tunnel to mine horizontally.");
     }
 
     private boolean isAnyWebhookEnabled() {

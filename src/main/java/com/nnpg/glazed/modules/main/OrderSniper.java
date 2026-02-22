@@ -78,7 +78,7 @@ public class OrderSniper extends Module {
         .build());
 
     public OrderSniper() {
-        super(GlazedAddon.CATEGORY, "Order-Sniper", "Sniping Orders and sell for your price.");
+        super(GlazedAddon.CATEGORY, "order-sniper", "Sniping Orders and sell for your price.");
     }
 
     @Override

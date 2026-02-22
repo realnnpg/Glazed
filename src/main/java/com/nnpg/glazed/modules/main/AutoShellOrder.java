@@ -86,7 +86,7 @@ public class AutoShellOrder extends Module {
     );
 
     public AutoShellOrder() {
-        super(GlazedAddon.CATEGORY, "AutoShellOrder", "Automatically buys shulker shells and sells them in orders with player targeting");
+        super(GlazedAddon.CATEGORY, "auto-shell-order", "Automatically buys shulker shells and sells them in orders with player targeting");
     }
 
     @Override
