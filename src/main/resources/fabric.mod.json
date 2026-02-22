@@ -10,7 +10,7 @@
   "contact": {
     "homepage": "https://glazedclient.com",
     "repo": "https://github.com/realnnpg/",
-    "discord": "https://discord.gg/TCQDpG8ByY"
+    "discord": "https://discord.gg/glazedclient"
   },
   "license": "All Rights Reserved",
   "icon": "assets/template/icon.png",
@@ -28,7 +28,7 @@
     "modmenu": {
       "links": {
         "modmenu.website": "https://glazedclient.com",
-        "modmenu.discord": "https://discord.gg/TCQDpG8ByY"
+        "modmenu.discord": "https://discord.gg/glazedclient"
       }
     }
   },
