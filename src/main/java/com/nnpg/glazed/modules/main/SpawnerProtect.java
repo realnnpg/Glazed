@@ -13,7 +13,6 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.screen.GenericContainerScreenHandler;
@@ -22,6 +21,7 @@ import net.minecraft.item.Items;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.world.World;
+import net.minecraft.text.Text;
 import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 
 import java.net.URI;
@@ -326,7 +326,7 @@ public class SpawnerProtect extends Module {
             if (player == null) continue;
             if (!(player instanceof AbstractClientPlayerEntity)) continue;
 
-            String playerName = player.getGameProfile().getName();
+            String playerName = player.getGameProfile().name();
 
             if (enableWhitelist.get() && isPlayerWhitelisted(playerName)) {
                 continue;
@@ -341,7 +341,7 @@ public class SpawnerProtect extends Module {
 
                 toggle();
                 if (mc.world != null) {
-                    mc.world.disconnect();
+                    mc.world.disconnect(Text.empty());
                 }
 
                 detectedPlayer = playerName;
@@ -366,7 +366,7 @@ public class SpawnerProtect extends Module {
             if (player == null) continue;
             if (!(player instanceof AbstractClientPlayerEntity)) continue;
 
-            String playerName = player.getGameProfile().getName();
+            String playerName = player.getGameProfile().name();
 
             if (enableWhitelist.get() && isPlayerWhitelisted(playerName)) {
                 continue;
@@ -534,7 +534,7 @@ public class SpawnerProtect extends Module {
             playerPos.add(spawnerRange.get(), spawnerRange.get(), spawnerRange.get()))) {
 
             if (mc.world.getBlockState(pos).getBlock() == Blocks.SPAWNER) {
-                double distance = pos.getSquaredDistance(mc.player.getPos());
+                double distance = pos.getSquaredDistance(mc.player.getEntityPos());
                 if (distance < nearestDistance) {
                     nearestDistance = distance;
                     nearestSpawner = pos.toImmutable();
@@ -573,15 +573,13 @@ public class SpawnerProtect extends Module {
     }
 
     private void setSneaking(boolean sneak) {
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null) return;
 
         if (sneak && !sneaking) {
             mc.player.setSneaking(true);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY));
             sneaking = true;
         } else if (!sneak && sneaking) {
             mc.player.setSneaking(false);
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
             sneaking = false;
         }
     }
@@ -624,7 +622,7 @@ public class SpawnerProtect extends Module {
             playerPos.add(16, 8, 16))) {
 
             if (mc.world.getBlockState(pos).getBlock() == Blocks.ENDER_CHEST) {
-                double distance = pos.getSquaredDistance(mc.player.getPos());
+                double distance = pos.getSquaredDistance(mc.player.getEntityPos());
                 if (distance < nearestDistance) {
                     nearestDistance = distance;
                     nearestChest = pos.toImmutable();
@@ -636,7 +634,7 @@ public class SpawnerProtect extends Module {
     }
 
     private void moveTowardsBlock(BlockPos target) {
-        Vec3d playerPos = mc.player.getPos();
+        Vec3d playerPos = mc.player.getEntityPos();
         Vec3d targetPos = Vec3d.ofCenter(target);
         Vec3d direction = targetPos.subtract(playerPos).normalize();
 
@@ -790,7 +788,7 @@ public class SpawnerProtect extends Module {
         }
 
         if (mc.world != null) {
-            mc.world.disconnect();
+            mc.world.disconnect(Text.empty());
         }
 
         if (notifications.get()) info("Disconnected due to player detection.");

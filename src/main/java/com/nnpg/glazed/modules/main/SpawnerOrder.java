@@ -298,7 +298,7 @@ public class SpawnerOrder extends Module {
             return;
         }
 
-        double distance = mc.player.getPos().distanceTo(Vec3d.ofCenter(targetSpawner));
+        double distance = mc.player.getEntityPos().distanceTo(Vec3d.ofCenter(targetSpawner));
 
         if (distance <= 4.5) {
             currentState = State.OPENING;

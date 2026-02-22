@@ -224,7 +224,7 @@ public class AimAssist extends Module {
 
     private boolean isInFov(Entity entity, double fov) {
         if (fov >= 360.0) return true;
-        Vec3d entityPos = entity.getPos();
+        Vec3d entityPos = entity.getEntityPos();
         Vec3d playerPos = mc.player.getEyePos();
         Vec3d direction = entityPos.subtract(playerPos).normalize();
         double yaw = Math.toDegrees(Math.atan2(direction.z, direction.x)) - 90;

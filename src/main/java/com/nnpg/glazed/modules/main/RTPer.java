@@ -387,7 +387,7 @@ public class RTPer extends Module {
             if (disconnectOnReach.get()) {
                 if (notifications.get()) info("Disconnecting...");
                 if (mc.world != null) {
-                    mc.world.disconnect();
+                    mc.world.disconnect(Text.empty());
                 }
             }
 
@@ -490,11 +490,11 @@ public class RTPer extends Module {
                     return;
                 }
                 if (mc.world != null) {
-                    mc.world.disconnect();
+                    mc.world.disconnect(Text.empty());
                 }
             }
         } catch (Exception ignored) {
-            if (mc != null && mc.world != null) mc.world.disconnect();
+            if (mc != null && mc.world != null) mc.world.disconnect(Text.empty());
         }
     }
 

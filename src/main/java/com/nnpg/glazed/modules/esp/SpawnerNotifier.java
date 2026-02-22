@@ -302,7 +302,7 @@ public class SpawnerNotifier extends Module {
         if (show_distance.get() && mc.player != null) {
             int center_x = chunk_pos.x * 16 + 8;
             int center_z = chunk_pos.z * 16 + 8;
-            double distance = mc.player.getPos().distanceTo(new Vec3d(center_x, mc.player.getY(), center_z));
+            double distance = mc.player.getEntityPos().distanceTo(new Vec3d(center_x, mc.player.getY(), center_z));
             msg.append(" (").append(String.format("%.1f", distance)).append("m away)");
         }
 
@@ -311,7 +311,7 @@ public class SpawnerNotifier extends Module {
 
     private void show_toast_notification(String message) {
         try {
-            MeteorToast toast = new MeteorToast(Items.SPAWNER, title, message);
+            MeteorToast toast = new MeteorToast.Builder(title).text(message).icon(Items.SPAWNER).build();
             mc.getToastManager().add(toast);
         } catch (Exception e) {
             if (notifications.get()) info(message);

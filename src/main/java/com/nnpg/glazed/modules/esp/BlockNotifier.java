@@ -340,7 +340,7 @@ public class BlockNotifier extends Module {
     private void show_toast_notification(String message, Map<Block, Integer> found_blocks) {
         try {
             Block first_block = found_blocks.keySet().iterator().next();
-            MeteorToast toast = new MeteorToast(new ItemStack(first_block.asItem()).getItem(), title, message);
+            MeteorToast toast = new MeteorToast.Builder(title).text(message).icon(first_block.asItem()).build();
             mc.getToastManager().add(toast);
         } catch (Exception e) {
             if (notifications.get()) info(message);

@@ -15,7 +15,7 @@ public class VersionUtil {
     }
 
     public static int getSelectedSlot(ClientPlayerEntity player) {
-    return player.getInventory().selectedSlot;
+    return player.getInventory().getSelectedSlot();
     }
 
     public static void setSelectedSlot(ClientPlayerEntity player, int slot) {
@@ -35,6 +35,6 @@ public class VersionUtil {
     }
 
     public static DefaultedList<ItemStack> getMainInventory(ClientPlayerEntity player) {
-    return player.getInventory().main;
+    return player.getInventory().getMainStacks();
     }
 }

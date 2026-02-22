@@ -5,6 +5,7 @@ import meteordevelopment.meteorclient.gui.themes.meteor.MeteorGuiTheme;
 import meteordevelopment.meteorclient.gui.themes.meteor.MeteorWidget;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.utils.render.color.Color;
+import net.minecraft.client.gui.Click;
 import net.minecraft.util.math.MathHelper;
 
 public class WRandomBetweenSlider extends WWidget implements MeteorWidget {
@@ -77,8 +78,10 @@ public class WRandomBetweenSlider extends WWidget implements MeteorWidget {
     }
 
     @Override
-    public boolean onMouseClicked(double mouseX, double mouseY, int button, boolean used) {
-        if (mouseOver && !used) {
+    public boolean onMouseClicked(Click click, boolean doubled) {
+        double mouseX = click.x();
+        int button = click.button();
+        if (mouseOver) {
             valueMinAtDragStart = valueMin;
             valueMaxAtDragStart = valueMax;
 
@@ -142,7 +145,7 @@ public class WRandomBetweenSlider extends WWidget implements MeteorWidget {
     }
 
     @Override
-    public boolean onMouseReleased(double mouseX, double mouseY, int button) {
+    public boolean onMouseReleased(Click click) {
         if (draggingMin || draggingMax) {
             if ((valueMin != valueMinAtDragStart || valueMax != valueMaxAtDragStart) && actionOnRelease != null) {
                 actionOnRelease.run();

@@ -38,7 +38,7 @@ public class TextDisplaySetting extends Setting<String> {
 
     @Override
     public String load(NbtCompound tag) {
-        return tag.contains("value") ? tag.getString("value") : defaultValue;
+        return tag.getString("value", defaultValue);
     }
 
     public static class Builder extends SettingBuilder<Builder, String, TextDisplaySetting> {

@@ -210,7 +210,7 @@ public class CrystalMacro extends Module {
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
 
-            String name = player.getGameProfile().getName();
+            String name = player.getGameProfile().name();
             boolean isBedrock = name.startsWith(".");
 
             if (player.isDead() || player.getHealth() <= 0) {

@@ -473,7 +473,7 @@ public class UIHelper extends Module {
             // Check if the packet is a slot click packet (when player clicks items in GUI)
             if (event.packet instanceof ClickSlotC2SPacket packet) {
                 // Detect if the slot clicked contained a dropper
-                if (StringUtils.convertUnicodeToAscii(packet.getStack().getName().getString()).equals("drop loot")) {
+                if (mc.player != null && mc.player.currentScreenHandler != null && packet.slot() >= 0 && packet.slot() < mc.player.currentScreenHandler.slots.size() && StringUtils.convertUnicodeToAscii(mc.player.currentScreenHandler.slots.get(packet.slot()).getStack().getName().getString()).equals("drop loot")) {
                     // Start timer after dropping loot (delay is already in milliseconds)
                     aaTimer = System.currentTimeMillis() + aaRandomDelay.get().getRandom();
                 }
