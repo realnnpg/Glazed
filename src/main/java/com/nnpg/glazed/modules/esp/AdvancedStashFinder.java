@@ -22,6 +22,7 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.entity.*;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.ChunkPos;
 
 import java.io.*;
@@ -201,12 +202,12 @@ public class AdvancedStashFinder extends Module {
                 switch (notificationMode.get()) {
                     case Chat -> info("Found %s at (highlight)%s(default), (highlight)%s(default). %s", stashType, chunk.x, chunk.z, detectionReason);
                     case Toast -> {
-                        MeteorToast toast = new MeteorToast(Items.CHEST, title, "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
+                        MeteorToast toast = new MeteorToast.Builder(title).text("Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!").icon(Items.CHEST).build();
                         mc.getToastManager().add(toast);
                     }
                     case Both -> {
                         info("Found %s at (highlight)%s(default), (highlight)%s(default). %s", stashType, chunk.x, chunk.z, detectionReason);
-                        MeteorToast toast = new MeteorToast(Items.CHEST, title, "Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!");
+                        MeteorToast toast = new MeteorToast.Builder(title).text("Found " + stashType.substring(0, 1).toUpperCase() + stashType.substring(1) + "!").icon(Items.CHEST).build();
                         mc.getToastManager().add(toast);
                     }
                 }
@@ -221,7 +222,7 @@ public class AdvancedStashFinder extends Module {
                 toggle();
 
                 if (mc.world != null) {
-                    mc.world.disconnect();
+                    mc.world.disconnect(Text.empty());
                 }
             }
         }

@@ -58,7 +58,7 @@ public class TabDetector extends Module {
         Collection<PlayerListEntry> playerList = mc.getNetworkHandler().getPlayerList();
 
         for (PlayerListEntry entry : playerList) {
-            String playerName = entry.getProfile().getName();
+            String playerName = entry.getProfile().name();
 
             for (String targetName : targetPlayers.get()) {
                 if (targetName.equalsIgnoreCase(playerName)) {
@@ -98,12 +98,12 @@ public class TabDetector extends Module {
             case Chat -> { if (notifications.get()) info(message); }
             case Toast -> {
                 String toastMessage = players.size() == 1 ? "Target Player Joined!" : "Target Players Joined!";
-                mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, toastMessage));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text(toastMessage).icon(Items.PLAYER_HEAD).build());
             }
             case Both -> {
                 if (notifications.get()) info(message);
                 String toastMessage = players.size() == 1 ? "Target Player Joined!" : "Target Players Joined!";
-                mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, toastMessage));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text(toastMessage).icon(Items.PLAYER_HEAD).build());
             }
         }
 
@@ -119,12 +119,12 @@ public class TabDetector extends Module {
             case Chat -> { if (notifications.get()) info(message); }
             case Toast -> {
                 String toastMessage = players.size() == 1 ? "Target Player Left!" : "Target Players Left!";
-                mc.getToastManager().add(new MeteorToast(Items.BARRIER, title, toastMessage));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text(toastMessage).icon(Items.BARRIER).build());
             }
             case Both -> {
                 if (notifications.get()) info(message);
                 String toastMessage = players.size() == 1 ? "Target Player Left!" : "Target Players Left!";
-                mc.getToastManager().add(new MeteorToast(Items.BARRIER, title, toastMessage));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text(toastMessage).icon(Items.BARRIER).build());
             }
         }
 
@@ -139,7 +139,7 @@ public class TabDetector extends Module {
         if (mc.getNetworkHandler() != null) {
             Collection<PlayerListEntry> playerList = mc.getNetworkHandler().getPlayerList();
             for (PlayerListEntry entry : playerList) {
-                String playerName = entry.getProfile().getName();
+                String playerName = entry.getProfile().name();
                 for (String targetName : targetPlayers.get()) {
                     if (targetName.equalsIgnoreCase(playerName)) {
                         previousTargetPlayers.add(playerName);

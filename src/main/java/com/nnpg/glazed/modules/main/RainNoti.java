@@ -97,10 +97,10 @@ public class RainNoti extends Module {
         if (sendNotifications.get()) {
             switch (notificationMode.get()) {
                 case Chat -> info("It has started raining!");
-                case Toast -> mc.getToastManager().add(new MeteorToast(null, "Weather Alert", "It has started raining!"));
+                case Toast -> mc.getToastManager().add(new MeteorToast.Builder("Weather Alert").text("It has started raining!").build());
                 case Both -> {
                     info("It has started raining!");
-                    mc.getToastManager().add(new MeteorToast(null, "Weather Alert", "It has started raining!"));
+                    mc.getToastManager().add(new MeteorToast.Builder("Weather Alert").text("It has started raining!").build());
                 }
             }
         }

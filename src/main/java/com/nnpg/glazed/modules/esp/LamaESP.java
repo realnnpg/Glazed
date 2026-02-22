@@ -158,10 +158,10 @@ public class LamaESP extends Module {
 
         switch (notificationMode.get()) {
             case Chat -> { if (notifications.get()) info("(highlight)%s", message); }
-            case Toast -> mc.getToastManager().add(new MeteorToast(Items.LEAD, title, message));
+            case Toast -> mc.getToastManager().add(new MeteorToast.Builder(title).text(message).icon(Items.LEAD).build());
             case Both -> {
                 if (notifications.get()) info("(highlight)%s", message);
-                mc.getToastManager().add(new MeteorToast(Items.LEAD, title, message));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text(message).icon(Items.LEAD).build());
             }
         }
 

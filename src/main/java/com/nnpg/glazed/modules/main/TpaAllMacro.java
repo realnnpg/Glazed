@@ -94,8 +94,8 @@ public class TpaAllMacro extends Module {
         if (onlinePlayers.isEmpty() || currentIndex >= onlinePlayers.size()) {
             onlinePlayers.clear();
             mc.player.networkHandler.getPlayerList().forEach(info -> {
-                String name = info.getProfile().getName();
-                if (!Objects.equals(name, mc.player.getGameProfile().getName()) &&
+                String name = info.getProfile().name();
+                if (!Objects.equals(name, mc.player.getGameProfile().name()) &&
                     !blacklist.get().contains(name)) {
                     onlinePlayers.add(name);
                 }

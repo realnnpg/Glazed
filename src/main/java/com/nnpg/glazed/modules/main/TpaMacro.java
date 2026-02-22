@@ -84,7 +84,7 @@ public class TpaMacro extends Module {
 
         // If the player is nearby, disable
         PlayerEntity target = mc.world.getPlayers().stream()
-            .filter(p -> Objects.equals(p.getGameProfile().getName(), playerName.get()))
+            .filter(p -> Objects.equals(p.getGameProfile().name(), playerName.get()))
             .findFirst()
             .orElse(null);
 

@@ -91,7 +91,7 @@ public class DrownedTridentESP extends Module {
 
                     // Render tracer if enabled
                     if (tracers.get()) {
-                        Vec3d entityPos = drowned.getPos().add(0, drowned.getHeight() / 2.0, 0); // middle of entity
+                        Vec3d entityPos = drowned.getEntityPos().add(0, drowned.getHeight() / 2.0, 0); // middle of entity
                         Vec3d startPos;
 
                         if (mc.options.getPerspective().isFirstPerson()) {

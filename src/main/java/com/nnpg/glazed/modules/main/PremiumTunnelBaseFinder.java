@@ -1408,8 +1408,8 @@ public class PremiumTunnelBaseFinder extends Module {
         int blockSlot = findBlockSlot();
         if (blockSlot == -1) return false;
 
-        int currentSlot = mc.player.getInventory().selectedSlot;
-        mc.player.getInventory().selectedSlot = blockSlot;
+        int currentSlot = mc.player.getInventory().getSelectedSlot();
+        mc.player.getInventory().setSelectedSlot(blockSlot);
 
         try {
             // look at where we want to place it
@@ -1427,7 +1427,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
             // switch back to what we had (but not if it was a pickaxe)
             if (currentSlot != blockSlot && !isPickaxeSlot(currentSlot)) {
-                mc.player.getInventory().selectedSlot = currentSlot;
+                mc.player.getInventory().setSelectedSlot(currentSlot);
             }
 
             return true;
@@ -1533,7 +1533,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
                     playerDetected = true;
                     detectedPlayerName = playerName;
-                    detectedPlayerPos = player.getPos();
+                    detectedPlayerPos = player.getEntityPos();
                     isRandomLooking = true;
                     isDirectStaring = false;
                     isMovingAway = false;
@@ -1560,7 +1560,7 @@ public class PremiumTunnelBaseFinder extends Module {
                     }
                 } else if (detectedPlayerName.equals(playerName)) {
                     // update where the player is (we already detected them)
-                    detectedPlayerPos = player.getPos();
+                    detectedPlayerPos = player.getEntityPos();
                 }
                 return; // Only handle one player at a time
             }
@@ -1726,7 +1726,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // figure out which way to go to get away from the player
         if (detectedPlayerPos != null && mc.player != null) {
-            Vec3d playerPos = mc.player.getPos();
+            Vec3d playerPos = mc.player.getEntityPos();
             Vec3d directionAway = playerPos.subtract(detectedPlayerPos).normalize();
 
             // convert to a cardinal direction (prefer going backward)

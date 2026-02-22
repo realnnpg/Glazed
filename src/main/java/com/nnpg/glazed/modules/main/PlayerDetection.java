@@ -142,7 +142,7 @@ public class PlayerDetection extends Module {
         if (mc.player == null || mc.world == null) return;
 
         Set<String> currentPlayers = new HashSet<>();
-        String currentPlayerName = mc.player.getGameProfile().getName();
+        String currentPlayerName = mc.player.getGameProfile().name();
 
         Set<String> fullWhitelist = new HashSet<>(PERMANENT_WHITELIST);
         fullWhitelist.addAll(userWhitelist.get());
@@ -150,7 +150,7 @@ public class PlayerDetection extends Module {
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
 
-            String playerName = player.getGameProfile().getName();
+            String playerName = player.getGameProfile().name();
             if (playerName.equals(currentPlayerName)) continue;
 
             if (fullWhitelist.contains(playerName)) {
@@ -175,10 +175,10 @@ public class PlayerDetection extends Module {
 
         switch (notificationMode.get()) {
             case Chat -> { if (notifications.get()) info("Player(s) detected: (highlight)%s", playerList); }
-            case Toast -> mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, "Player Detected!"));
+            case Toast -> mc.getToastManager().add(new MeteorToast.Builder(title).text("Player Detected!").icon(Items.PLAYER_HEAD).build());
             case Both -> {
                 if (notifications.get()) info("Player(s) detected: (highlight)%s", playerList);
-                mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, "Player Detected!"));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text("Player Detected!").icon(Items.PLAYER_HEAD).build());
             }
         }
 

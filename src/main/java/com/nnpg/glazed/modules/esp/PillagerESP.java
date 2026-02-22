@@ -197,10 +197,10 @@ public class PillagerESP extends Module {
 
                     switch (notificationMode.get()) {
                         case Chat -> { if (notifications.get()) info("§5[§dPillagerESP§5] §c" + message); }
-                        case Toast -> mc.getToastManager().add(new MeteorToast(Items.CROSSBOW, title, message));
+                        case Toast -> mc.getToastManager().add(new MeteorToast.Builder(title).text(message).icon(Items.CROSSBOW).build());
                         case Both -> {
                             if (notifications.get()) info("§5[§dPillagerESP§5] §c" + message);
-                            mc.getToastManager().add(new MeteorToast(Items.CROSSBOW, title, message));
+                            mc.getToastManager().add(new MeteorToast.Builder(title).text(message).icon(Items.CROSSBOW).build());
                         }
                     }
                 }
@@ -336,7 +336,7 @@ public class PillagerESP extends Module {
     private void renderPillager(PillagerEntity pillager, Render3DEvent event) {
         if (mc.player == null) return;
 
-        Vec3d pos = pillager.getPos();
+        Vec3d pos = pillager.getEntityPos();
         Box box = pillager.getBoundingBox();
 
         renderESP(pillager, box, event);

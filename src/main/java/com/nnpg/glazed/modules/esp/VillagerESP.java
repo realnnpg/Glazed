@@ -186,10 +186,10 @@ public class VillagerESP extends Module {
 
         switch (notificationMode.get()) {
             case Chat -> { if (notifications.get()) info("(highlight)%s", message); }
-            case Toast -> mc.getToastManager().add(new MeteorToast(Items.EMERALD, title, message));
+            case Toast -> mc.getToastManager().add(new MeteorToast.Builder(title).text(message).icon(Items.EMERALD).build());
             case Both -> {
                 if (notifications.get()) info("(highlight)%s", message);
-                mc.getToastManager().add(new MeteorToast(Items.EMERALD, title, message));
+                mc.getToastManager().add(new MeteorToast.Builder(title).text(message).icon(Items.EMERALD).build());
             }
         }
 

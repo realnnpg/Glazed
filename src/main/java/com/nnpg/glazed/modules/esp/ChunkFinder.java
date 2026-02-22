@@ -714,13 +714,13 @@ public class ChunkFinder extends Module {
                     }
                 }
                 case Toast -> {
-                    mc.getToastManager().add(new MeteorToast(Items.CHEST, "ChunkFinder", message));
+                    mc.getToastManager().add(new MeteorToast.Builder("ChunkFinder").text(message).icon(Items.CHEST).build());
                 }
                 case Both -> {
                     if (chatAlerts.get() && mc.player != null) {
                         mc.player.sendMessage(Text.literal(message), false);
                     }
-                    mc.getToastManager().add(new MeteorToast(Items.CHEST, "ChunkFinder", message));
+                    mc.getToastManager().add(new MeteorToast.Builder("ChunkFinder").text(message).icon(Items.CHEST).build());
                 }
             }
 
@@ -751,13 +751,13 @@ public class ChunkFinder extends Module {
                     }
                 }
                 case Toast -> {
-                    mc.getToastManager().add(new MeteorToast(Items.CHEST, "ChunkFinder", String.format("%s - %s", coordsPart, detailsPart)));
+                    mc.getToastManager().add(new MeteorToast.Builder("ChunkFinder").text(String.format("%s - %s", coordsPart, detailsPart)).icon(Items.CHEST).build());
                 }
                 case Both -> {
                     if (trialChamberAlerts.get() && mc.player != null) {
                         mc.player.sendMessage(Text.literal(message), false);
                     }
-                    mc.getToastManager().add(new MeteorToast(Items.CHEST, "ChunkFinder", String.format("%s - %s", coordsPart, detailsPart)));
+                    mc.getToastManager().add(new MeteorToast.Builder("ChunkFinder").text(String.format("%s - %s", coordsPart, detailsPart)).icon(Items.CHEST).build());
                 }
             }
 
@@ -797,7 +797,7 @@ public class ChunkFinder extends Module {
 
         suspiciousBlocks.entrySet().removeIf(entry -> {
             BlockPos blockPos = entry.getKey();
-            double distance = mc.player.getPos().distanceTo(Vec3d.ofCenter(blockPos));
+            double distance = mc.player.getEntityPos().distanceTo(Vec3d.ofCenter(blockPos));
             return distance > viewDist * 16 + 80;
         });
     }
@@ -844,7 +844,7 @@ public class ChunkFinder extends Module {
             BlockPos pos = entry.getKey();
             SuspiciousBlock suspiciousBlock = entry.getValue();
 
-            double distance = mc.player.getPos().distanceTo(Vec3d.ofCenter(pos));
+            double distance = mc.player.getEntityPos().distanceTo(Vec3d.ofCenter(pos));
             if (distance > mc.options.getViewDistance().getValue() * 16) continue;
 
             Color blockColor = getColorForBlockType(suspiciousBlock.type);
