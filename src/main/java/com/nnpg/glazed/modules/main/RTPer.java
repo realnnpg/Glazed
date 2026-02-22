@@ -184,6 +184,13 @@ public class RTPer extends Module {
     private final SettingGroup sgBiome = settings.createGroup("Biome");
     private final SettingGroup sgWebhook = settings.createGroup("Webhook");
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<RTPMode> rtpMode = sgGeneral.add(new EnumSetting.Builder<RTPMode>()
         .name("rtp-mode")
         .description("RTP mode: Coordinates or Biome.")
@@ -312,21 +319,21 @@ public class RTPer extends Module {
 
         if (rtpMode.get() == RTPMode.COORDINATES) {
             double currentDist = getCurrentDistance();
-            info("RTPer started - target: (%d, %d)", targetX.get(), targetZ.get());
-            info("Distance: %s -> %d blocks", distance.get(), targetDistanceBlocks);
-            info("Current: %.1f blocks away", currentDist);
+            if (notifications.get()) info("RTPer started - target: (%d, %d)", targetX.get(), targetZ.get());
+            if (notifications.get()) info("Distance: %s -> %d blocks", distance.get(), targetDistanceBlocks);
+            if (notifications.get()) info("Current: %.1f blocks away", currentDist);
 
             if (currentDist <= targetDistanceBlocks) {
-                info("Already close enough!");
+                if (notifications.get()) info("Already close enough!");
                 toggle();
             }
         } else {
-            info("RTPer started - Biome Finder mode");
-            info("Target biome: %s", targetBiome.get().getDisplayName());
+            if (notifications.get()) info("RTPer started - Biome Finder mode");
+            if (notifications.get()) info("Target biome: %s", targetBiome.get().getDisplayName());
         }
         if (rtpMode.get() == RTPMode.COORDINATES &&
             (rtpRegion.get() == RTPRegion.NETHER || rtpRegion.get() == RTPRegion.END)) {
-            warning("Using %s region with coordinate mode - make sure your coordinates are valid for this dimension!",
+            if (notifications.get()) warning("Using %s region with coordinate mode - make sure your coordinates are valid for this dimension!",
                 rtpRegion.get().getCommandPart());
         }
     }
@@ -334,9 +341,9 @@ public class RTPer extends Module {
     @Override
     public void onDeactivate() {
         if (rtpMode.get() == RTPMode.COORDINATES) {
-            info("Stopped after %d attempts", rtpAttempts);
+            if (notifications.get()) info("Stopped after %d attempts", rtpAttempts);
         } else {
-            info("Biome finder stopped after %d attempts", rtpAttempts);
+            if (notifications.get()) info("Biome finder stopped after %d attempts", rtpAttempts);
         }
         isRtping = false;
     }
@@ -367,7 +374,7 @@ public class RTPer extends Module {
         double currentDistance = getCurrentDistance();
 
         if (isNearTarget(currentDistance)) {
-            info("Done! %.1f blocks away (target: %d)", currentDistance, targetDistanceBlocks);
+            if (notifications.get()) info("Done! %.1f blocks away (target: %d)", currentDistance, targetDistanceBlocks);
 
             if (webhookEnabled.get()) {
                 sendWebhook("Target Reached!",
@@ -378,7 +385,7 @@ public class RTPer extends Module {
             }
 
             if (disconnectOnReach.get()) {
-                info("Disconnecting...");
+                if (notifications.get()) info("Disconnecting...");
                 if (mc.world != null) {
                     mc.world.disconnect();
                 }
@@ -389,14 +396,14 @@ public class RTPer extends Module {
         }
 
         if (tickTimer % 100 == 0 && Math.abs(currentDistance - lastReportedDistance) > 100) {
-            info("Distance: %.1f blocks", currentDistance);
+            if (notifications.get()) info("Distance: %.1f blocks", currentDistance);
             lastReportedDistance = currentDistance;
         }
     }
 
     private void handleBiomeMode() {
         if (biomeFound) {
-            info("Target biome found: %s", targetBiome.get().getDisplayName());
+            if (notifications.get()) info("Target biome found: %s", targetBiome.get().getDisplayName());
 
             if (webhookEnabled.get()) {
                 sendWebhook("Biome Found!",
@@ -407,7 +414,7 @@ public class RTPer extends Module {
             }
 
             if (disconnectOnReach.get()) {
-                info("Disconnecting...");
+                if (notifications.get()) info("Disconnecting...");
                 disconnectWithMessage("Glazed: found requested biome");
             }
 
@@ -422,7 +429,7 @@ public class RTPer extends Module {
 
         if (tickTimer % 100 == 0) {
             String currentBiome = getCurrentBiome();
-            info("Current biome: %s", currentBiome);
+            if (notifications.get()) info("Current biome: %s", currentBiome);
         }
     }
 
@@ -503,21 +510,21 @@ public class RTPer extends Module {
 
                 if (rtpMode.get() == RTPMode.COORDINATES) {
                     double distance = getCurrentDistance();
-                    info("RTP %d done - pos: (%d, %d, %d) dist: %.1f",
+                    if (notifications.get()) info("RTP %d done - pos: (%d, %d, %d) dist: %.1f",
                         rtpAttempts, currentPos.getX(), currentPos.getY(), currentPos.getZ(), distance);
 
                     if (lastReportedDistance > 0) {
                         double diff = lastReportedDistance - distance;
                         if (diff > 0) {
-                            info("Better by %.1f blocks", diff);
+                            if (notifications.get()) info("Better by %.1f blocks", diff);
                         } else if (diff < -1000) {
-                            info("Worse by %.1f blocks", Math.abs(diff));
+                            if (notifications.get()) info("Worse by %.1f blocks", Math.abs(diff));
                         }
                     }
                     lastReportedDistance = distance;
                 } else {
                     String biome = getCurrentBiome();
-                    info("RTP %d done - pos: (%d, %d, %d) biome: %s",
+                    if (notifications.get()) info("RTP %d done - pos: (%d, %d, %d) biome: %s",
                         rtpAttempts, currentPos.getX(), currentPos.getY(), currentPos.getZ(), biome);
 
                     if (isInTargetBiome()) {
@@ -537,10 +544,10 @@ public class RTPer extends Module {
 
         if (rtpMode.get() == RTPMode.COORDINATES) {
             double currentDistance = getCurrentDistance();
-            info("Attempting RTP (%s) - current: %.1f blocks",
+            if (notifications.get()) info("Attempting RTP (%s) - current: %.1f blocks",
                 rtpRegion.get().getCommandPart(), currentDistance);
         } else {
-            info("Attempting RTP (%s) - searching for %s biome",
+            if (notifications.get()) info("Attempting RTP (%s) - searching for %s biome",
                 rtpRegion.get().getCommandPart(), targetBiome.get().getDisplayName());
         }
     }
@@ -567,7 +574,7 @@ public class RTPer extends Module {
         String dist = distance.get().toLowerCase().trim();
 
         if (dist.isEmpty()) {
-            error("Empty distance, using 1000");
+            if (notifications.get()) error("Empty distance, using 1000");
             return 1000;
         }
 
@@ -575,7 +582,7 @@ public class RTPer extends Module {
             if (dist.endsWith("k")) {
                 String num = dist.substring(0, dist.length() - 1).trim();
                 if (num.isEmpty()) {
-                    error("Bad format: '%s', using 1000", dist);
+                    if (notifications.get()) error("Bad format: '%s', using 1000", dist);
                     return 1000;
                 }
                 double val = Double.parseDouble(num);
@@ -583,7 +590,7 @@ public class RTPer extends Module {
             } else if (dist.endsWith("m")) {
                 String num = dist.substring(0, dist.length() - 1).trim();
                 if (num.isEmpty()) {
-                    error("Bad format: '%s', using 1000", dist);
+                    if (notifications.get()) error("Bad format: '%s', using 1000", dist);
                     return 1000;
                 }
                 double val = Double.parseDouble(num);
@@ -592,7 +599,7 @@ public class RTPer extends Module {
                 return Integer.parseInt(dist);
             }
         } catch (NumberFormatException e) {
-            error("Can't parse '%s': %s, using 1000", dist, e.getMessage());
+            if (notifications.get()) error("Can't parse '%s': %s, using 1000", dist, e.getMessage());
             return 1000;
         }
     }
@@ -662,12 +669,12 @@ public class RTPer extends Module {
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
-                    info("Webhook sent successfully");
+                    if (notifications.get()) info("Webhook sent successfully");
                 } else {
-                    error("Webhook failed with status: %d", response.statusCode());
+                    if (notifications.get()) error("Webhook failed with status: %d", response.statusCode());
                 }
             } catch (IOException | InterruptedException e) {
-                error("Webhook error: %s", e.getMessage());
+                if (notifications.get()) error("Webhook error: %s", e.getMessage());
             }
         });
     }

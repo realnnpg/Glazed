@@ -2,6 +2,7 @@ package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -43,6 +44,13 @@ public class CrateBuyer extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private int tickCounter = 0;
     private int warningCooldown = 0;
     private int currentStep = 0;
@@ -74,7 +82,7 @@ public class CrateBuyer extends Module {
 
         if (!(mc.currentScreen instanceof HandledScreen)) {
             if (isActive() && warningCooldown == 0) {
-                warning("You need to be on the crate screen to use this module.");
+                if (notifications.get()) warning("You need to be on the crate screen to use this module.");
                 warningCooldown = 20;
             }
             return;
@@ -84,7 +92,7 @@ public class CrateBuyer extends Module {
 
         if (!hasClickedOnce && !isValidCrateScreen(screen)) {
             if (warningCooldown == 0) {
-                warning("This doesn't appear to be a valid crate screen. Closing screen.");
+                if (notifications.get()) warning("This doesn't appear to be a valid crate screen. Closing screen.");
                 warningCooldown = 20;
                 mc.setScreen(null);
             }
@@ -191,7 +199,7 @@ public class CrateBuyer extends Module {
         currentStep = 0;
         currentItemIndex = 0;
         hasClickedOnce = false;
-        info("CrateBuyer activated. Mode: " + WhatToBuy.get().toString());
+        if (notifications.get()) info("CrateBuyer activated. Mode: " + WhatToBuy.get().toString());
     }
 
     @Override

@@ -67,6 +67,13 @@ public class SpawnerProtect extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Integer> spawnerRange = sgGeneral.add(new IntSetting.Builder()
         .name("spawner-range")
         .description("Range to check for remaining spawners")
@@ -190,11 +197,11 @@ public class SpawnerProtect extends Module {
         if (mc.world != null) {
             trackedWorld = mc.world;
             worldChangeCount = 0;
-            info("SpawnerProtect activated - Monitoring world: " + mc.world.getRegistryKey().getValue());
-            info("Monitoring for players...");
+            if (notifications.get()) info("SpawnerProtect activated - Monitoring world: " + mc.world.getRegistryKey().getValue());
+            if (notifications.get()) info("Monitoring for players...");
         }
 
-        ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
+        if (notifications.get()) ChatUtils.warning("Make sure to have an empty inventory with only a silk touch pickaxe and an ender chest nearby!");
     }
 
     private void resetState() {
@@ -226,14 +233,14 @@ public class SpawnerProtect extends Module {
     }
 
     private void configureLegitMining() {
-        info("Manual mining mode activated");
+        if (notifications.get()) info("Manual mining mode activated");
     }
 
     private void disableAutoReconnectIfEnabled() {
         Module autoReconnect = Modules.get().get(AutoReconnect.class);
         if (autoReconnect != null && autoReconnect.isActive()) {
             autoReconnect.toggle();
-            info("AutoReconnect disabled due to player detection");
+            if (notifications.get()) info("AutoReconnect disabled due to player detection");
         }
     }
 
@@ -262,7 +269,7 @@ public class SpawnerProtect extends Module {
 
         if (currentState == State.WORLD_CHANGED_TWICE) {
             currentState = State.IDLE;
-            info("Returned to spawner world - resuming player monitoring");
+            if (notifications.get()) info("Returned to spawner world - resuming player monitoring");
         }
 
         if (checkEmergencyDisconnect()) {
@@ -302,11 +309,11 @@ public class SpawnerProtect extends Module {
 
         if (worldChangeCount == 1) {
             currentState = State.WORLD_CHANGED_ONCE;
-            info("World changed (TP to spawn) - pausing player detection until return");
+            if (notifications.get()) info("World changed (TP to spawn) - pausing player detection until return");
         } else if (worldChangeCount == 2) {
             currentState = State.WORLD_CHANGED_TWICE;
             worldChangeCount = 0;
-            info("World changed (back to spawners) - will resume monitoring");
+            if (notifications.get()) info("World changed (back to spawners) - will resume monitoring");
         }
     }
 
@@ -327,7 +334,7 @@ public class SpawnerProtect extends Module {
 
             double distance = mc.player.distanceTo(player);
             if (distance <= emergencyDistance.get()) {
-                info("EMERGENCY: Player " + playerName + " came too close (" + String.format("%.1f", distance) + " blocks)!");
+                if (notifications.get()) info("EMERGENCY: Player " + playerName + " came too close (" + String.format("%.1f", distance) + " blocks)!");
 
                 emergencyDisconnect = true;
                 emergencyReason = "User " + playerName + " came too close";
@@ -368,12 +375,12 @@ public class SpawnerProtect extends Module {
             detectedPlayer = playerName;
             detectionTime = System.currentTimeMillis();
 
-            info("SpawnerProtect: Player detected - " + detectedPlayer);
+            if (notifications.get()) info("SpawnerProtect: Player detected - " + detectedPlayer);
 
             disableAutoReconnectIfEnabled();
 
             currentState = State.GOING_TO_SPAWNERS;
-            info("Player detected! Starting protection sequence...");
+            if (notifications.get()) info("Player detected! Starting protection sequence...");
 
             setSneaking(true);
             break;
@@ -409,20 +416,20 @@ public class SpawnerProtect extends Module {
                 if (!waitingForSpawnerConfirm) {
                     noSpawnerDetectedTime = System.currentTimeMillis();
                     waitingForSpawnerConfirm = true;
-                    info("No spawners detected, waiting " + spawnerCheckDelay.get() + "ms...");
+                    if (notifications.get()) info("No spawners detected, waiting " + spawnerCheckDelay.get() + "ms...");
                     return;
                 } else {
                     long elapsed = System.currentTimeMillis() - noSpawnerDetectedTime;
                     if (elapsed < spawnerCheckDelay.get()) {
                         return;
                     }
-                    info("Confirmed: No spawners found.");
+                    if (notifications.get()) info("Confirmed: No spawners found.");
                     stopBreaking();
                     spawnersMinedSuccessfully = true;
                     setSneaking(false);
                     currentTarget = null;
                     currentState = State.GOING_TO_CHEST;
-                    info("All spawners mined! Total collected: " + countSpawnersInInventory());
+                    if (notifications.get()) info("All spawners mined! Total collected: " + countSpawnersInInventory());
                     tickCounter = 0;
                     waitingForSpawnerConfirm = false;
                     noSpawnerDetectedTime = 0;
@@ -438,7 +445,7 @@ public class SpawnerProtect extends Module {
                     currentTarget = found;
                     expectedSpawnersAtPosition = manualSpawnerCount.get();
                     initialInventoryCount = countSpawnersInInventory();
-                    info("New spawner at " + found + " - expecting " + manualSpawnerCount.get() + " spawners");
+                    if (notifications.get()) info("New spawner at " + found + " - expecting " + manualSpawnerCount.get() + " spawners");
                 }
 
                 currentTarget = found;
@@ -453,7 +460,7 @@ public class SpawnerProtect extends Module {
 
             if (mc.world.getBlockState(currentTarget).getBlock() != Blocks.SPAWNER) {
                 if (mc.world.getBlockState(currentTarget).isAir()) {
-                    info("Spawner broken! Waiting for pickup...");
+                    if (notifications.get()) info("Spawner broken! Waiting for pickup...");
                     stopBreaking();
                     isMiningCycle = false;
                     miningCycleTimer = 0;
@@ -467,17 +474,17 @@ public class SpawnerProtect extends Module {
                 int currentCount = countSpawnersInInventory();
                 int collected = currentCount - initialInventoryCount;
 
-                info("Progress: " + collected + "/" + expectedSpawnersAtPosition + " spawners collected");
+                if (notifications.get()) info("Progress: " + collected + "/" + expectedSpawnersAtPosition + " spawners collected");
 
                 if (collected >= expectedSpawnersAtPosition) {
-                    info("Stack complete! Moving to next spawner...");
+                    if (notifications.get()) info("Stack complete! Moving to next spawner...");
                     currentTarget = null;
                     lastMiningPosition = null;
                     expectedSpawnersAtPosition = 0;
                     miningCycleTimer = 0;
                 } else {
                     if (mc.world.getBlockState(lastMiningPosition).getBlock() == Blocks.SPAWNER) {
-                        info("Spawner respawned! Continuing...");
+                        if (notifications.get()) info("Spawner respawned! Continuing...");
                         currentTarget = lastMiningPosition;
                         isMiningCycle = true;
                         miningCycleTimer = 0;
@@ -499,7 +506,7 @@ public class SpawnerProtect extends Module {
                 currentTarget = foundSpawner;
                 isMiningCycle = true;
                 miningCycleTimer = 0;
-                info("Found additional spawner at " + foundSpawner);
+                if (notifications.get()) info("Found additional spawner at " + foundSpawner);
                 return;
             }
         }
@@ -511,7 +518,7 @@ public class SpawnerProtect extends Module {
                 spawnersMinedSuccessfully = true;
                 setSneaking(false);
                 currentState = State.GOING_TO_CHEST;
-                info("All spawners mined successfully. Looking for ender chest...");
+                if (notifications.get()) info("All spawners mined successfully. Looking for ender chest...");
                 tickCounter = 0;
             }
         }
@@ -536,7 +543,7 @@ public class SpawnerProtect extends Module {
         }
 
         if (nearestSpawner != null) {
-            info("Found spawner at " + nearestSpawner + " (distance: " + String.format("%.2f", Math.sqrt(nearestDistance)) + ")");
+            if (notifications.get()) info("Found spawner at " + nearestSpawner + " (distance: " + String.format("%.2f", Math.sqrt(nearestDistance)) + ")");
         }
 
         return nearestSpawner;
@@ -586,11 +593,11 @@ public class SpawnerProtect extends Module {
         if (targetChest == null) {
             targetChest = findNearestEnderChest();
             if (targetChest == null) {
-                info("No ender chest found nearby!");
+                if (notifications.get()) info("No ender chest found nearby!");
                 currentState = State.DISCONNECTING;
                 return;
             }
-            info("Found ender chest at " + targetChest);
+            if (notifications.get()) info("Found ender chest at " + targetChest);
         }
 
         moveTowardsBlock(targetChest);
@@ -598,11 +605,11 @@ public class SpawnerProtect extends Module {
         if (mc.player.getBlockPos().getSquaredDistance(targetChest) <= 9) {
             currentState = State.OPENING_CHEST;
             chestOpenAttempts = 0;
-            info("Reached ender chest. Attempting to open...");
+            if (notifications.get()) info("Reached ender chest. Attempting to open...");
         }
 
         if (tickCounter > 600) {
-            ChatUtils.error("Timed out trying to reach ender chest!");
+            if (notifications.get()) ChatUtils.error("Timed out trying to reach ender chest!");
             currentState = State.DISCONNECTING;
         }
     }
@@ -669,7 +676,7 @@ public class SpawnerProtect extends Module {
                         false
                     )
                 );
-                info("Right-clicking ender chest... (attempt " + (chestOpenAttempts / 5 + 1) + ")");
+                if (notifications.get()) info("Right-clicking ender chest... (attempt " + (chestOpenAttempts / 5 + 1) + ")");
             }
         }
 
@@ -681,12 +688,12 @@ public class SpawnerProtect extends Module {
             chestOpened = true;
             lastProcessedSlot = -1;
             tickCounter = 0;
-            info("Ender chest opened successfully! Made by GLZD ");
+            if (notifications.get()) info("Ender chest opened successfully! Made by GLZD ");
         }
 
         if (chestOpenAttempts > 200) {
             KeyBinding.setKeyPressed(mc.options.jumpKey.getDefaultKey(), false);
-            ChatUtils.error("Failed to open ender chest after multiple attempts!");
+            if (notifications.get()) ChatUtils.error("Failed to open ender chest after multiple attempts!");
             currentState = State.DISCONNECTING;
         }
     }
@@ -702,7 +709,7 @@ public class SpawnerProtect extends Module {
 
             if (!hasItemsToDeposit()) {
                 itemsDepositedSuccessfully = true;
-                info("All items deposited successfully!");
+                if (notifications.get()) info("All items deposited successfully!");
                 mc.player.closeHandledScreen();
                 transferDelayCounter = 10;
                 currentState = State.DISCONNECTING;
@@ -718,7 +725,7 @@ public class SpawnerProtect extends Module {
         }
 
         if (tickCounter > 900) {
-            ChatUtils.error("Timed out depositing items!");
+            if (notifications.get()) ChatUtils.error("Timed out depositing items!");
             currentState = State.DISCONNECTING;
         }
     }
@@ -747,7 +754,7 @@ public class SpawnerProtect extends Module {
                 continue;
             }
 
-            info("Transferring item from slot " + slotId + ": " + stack.getItem().toString());
+            if (notifications.get()) info("Transferring item from slot " + slotId + ": " + stack.getItem().toString());
 
             if (mc.interactionManager != null) {
                 mc.interactionManager.clickSlot(
@@ -777,22 +784,22 @@ public class SpawnerProtect extends Module {
         sendWebhookNotification();
 
         if (emergencyDisconnect) {
-            info("SpawnerProtect: " + emergencyReason + ". Successfully disconnected.");
+            if (notifications.get()) info("SpawnerProtect: " + emergencyReason + ". Successfully disconnected.");
         } else {
-            info("SpawnerProtect: " + detectedPlayer + " detected. Successfully disconnected.");
+            if (notifications.get()) info("SpawnerProtect: " + detectedPlayer + " detected. Successfully disconnected.");
         }
 
         if (mc.world != null) {
             mc.world.disconnect();
         }
 
-        info("Disconnected due to player detection.");
+        if (notifications.get()) info("Disconnected due to player detection.");
         toggle();
     }
 
     private void sendWebhookNotification() {
         if (!webhook.get() || webhookUrl.get() == null || webhookUrl.get().trim().isEmpty()) {
-            info("Webhook disabled or URL not configured.");
+            if (notifications.get()) info("Webhook disabled or URL not configured.");
             return;
         }
 
@@ -819,12 +826,12 @@ public class SpawnerProtect extends Module {
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                    info("Webhook notification sent successfully!");
+                    if (notifications.get()) info("Webhook notification sent successfully!");
                 } else {
-                    ChatUtils.error("Failed to send webhook notification. Status: " + response.statusCode());
+                    if (notifications.get()) ChatUtils.error("Failed to send webhook notification. Status: " + response.statusCode());
                 }
             } catch (Exception e) {
-                ChatUtils.error("Failed to send webhook notification: " + e.getMessage());
+                if (notifications.get()) ChatUtils.error("Failed to send webhook notification: " + e.getMessage());
             }
         }).start();
     }

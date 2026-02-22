@@ -74,6 +74,8 @@ public class PillagerESP extends Module {
         .defaultValue(false)
         .build());
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
+
     private final Setting<SettingColor> espColor = sgESP.add(new ColorSetting.Builder()
         .name("esp-color")
         .description("Color of pillager ESP")
@@ -194,10 +196,10 @@ public class PillagerESP extends Module {
                     String message = "Found " + pillagers.size() + " pillager(s) nearby";
 
                     switch (notificationMode.get()) {
-                        case Chat -> info("§5[§dPillagerESP§5] §c" + message);
+                        case Chat -> { if (notifications.get()) info("§5[§dPillagerESP§5] §c" + message); }
                         case Toast -> mc.getToastManager().add(new MeteorToast(Items.CROSSBOW, title, message));
                         case Both -> {
-                            info("§5[§dPillagerESP§5] §c" + message);
+                            if (notifications.get()) info("§5[§dPillagerESP§5] §c" + message);
                             mc.getToastManager().add(new MeteorToast(Items.CROSSBOW, title, message));
                         }
                     }
@@ -253,7 +255,7 @@ public class PillagerESP extends Module {
     private void sendWebhookNotification(int pillagerCount) {
         String url = webhookUrl.get().trim();
         if (url.isEmpty()) {
-            warning("Webhook URL not configured!");
+            if (notifications.get()) warning("Webhook URL not configured!");
             return;
         }
 
@@ -313,13 +315,13 @@ public class PillagerESP extends Module {
                     HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
-                    info("Webhook notification sent successfully");
+                    if (notifications.get()) info("Webhook notification sent successfully");
                 } else {
-                    error("Webhook failed with status: " + response.statusCode());
+                    if (notifications.get()) error("Webhook failed with status: " + response.statusCode());
                 }
 
             } catch (IOException | InterruptedException e) {
-                error("Failed to send webhook: " + e.getMessage());
+                if (notifications.get()) error("Failed to send webhook: " + e.getMessage());
             }
         });
     }
@@ -327,7 +329,7 @@ public class PillagerESP extends Module {
     private void disconnectFromServer(String reason) {
         if (mc.world != null && mc.getNetworkHandler() != null) {
             mc.getNetworkHandler().getConnection().disconnect(Text.literal(reason));
-            info("Disconnected from server - " + reason);
+            if (notifications.get()) info("Disconnected from server - " + reason);
         }
     }
 

@@ -41,6 +41,13 @@ public class AutoSell extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private int delayCounter;
     private boolean shouldReopen = false;
 
@@ -88,7 +95,7 @@ public class AutoSell extends Module {
         }
 
         if (areAllSellSlotsOccupied(currentScreenHandler)) {
-            info("All sell menu slots (0-35) are occupied. Closing and reopening menu.");
+            if (notifications.get()) info("All sell menu slots (0-35) are occupied. Closing and reopening menu.");
             mc.player.closeHandledScreen();
             shouldReopen = true;
             delayCounter = delay.get();
@@ -113,7 +120,7 @@ public class AutoSell extends Module {
         }
 
         if (!foundItemToSell) {
-            info("All items sold. Closing GUI.");
+            if (notifications.get()) info("All items sold. Closing GUI.");
             mc.player.closeHandledScreen();
             toggle();
             delayCounter = 40;

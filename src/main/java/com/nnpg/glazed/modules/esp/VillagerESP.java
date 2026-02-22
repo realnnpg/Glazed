@@ -114,6 +114,8 @@ public class VillagerESP extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
+
     private final Set<Integer> detectedVillagers = new HashSet<>();
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -183,10 +185,10 @@ public class VillagerESP extends Module {
         String message = buildDetectionMessage(villagerCount, zombieVillagerCount);
 
         switch (notificationMode.get()) {
-            case Chat -> info("(highlight)%s", message);
+            case Chat -> { if (notifications.get()) info("(highlight)%s", message); }
             case Toast -> mc.getToastManager().add(new MeteorToast(Items.EMERALD, title, message));
             case Both -> {
-                info("(highlight)%s", message);
+                if (notifications.get()) info("(highlight)%s", message);
                 mc.getToastManager().add(new MeteorToast(Items.EMERALD, title, message));
             }
         }
@@ -226,7 +228,7 @@ public class VillagerESP extends Module {
     private void sendWebhookNotification(int villagerCount, int zombieVillagerCount) {
         String url = webhookUrl.get().trim();
         if (url.isEmpty()) {
-            warning("Webhook URL not configured!");
+            if (notifications.get()) warning("Webhook URL not configured!");
             return;
         }
 
@@ -305,13 +307,13 @@ public class VillagerESP extends Module {
                     HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
-                    info("Webhook notification sent successfully");
+                    if (notifications.get()) info("Webhook notification sent successfully");
                 } else {
-                    error("Webhook failed with status: " + response.statusCode());
+                    if (notifications.get()) error("Webhook failed with status: " + response.statusCode());
                 }
 
             } catch (IOException | InterruptedException e) {
-                error("Failed to send webhook: " + e.getMessage());
+                if (notifications.get()) error("Failed to send webhook: " + e.getMessage());
             }
         });
     }
@@ -319,7 +321,7 @@ public class VillagerESP extends Module {
     private void disconnectFromServer(String reason) {
         if (mc.world != null && mc.getNetworkHandler() != null) {
             mc.getNetworkHandler().getConnection().disconnect(Text.literal(reason));
-            info("Disconnected from server - " + reason);
+            if (notifications.get()) info("Disconnected from server - " + reason);
         }
     }
 

@@ -31,6 +31,13 @@ public class PlayerDetection extends Module {
         "FreeCamera"
     ));
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<List<String>> userWhitelist = sgwhitelist.add(new StringListSetting.Builder()
         .name("User Whitelist")
         .description("List of player names to ignore")
@@ -167,10 +174,10 @@ public class PlayerDetection extends Module {
         String playerList = String.join(", ", players);
 
         switch (notificationMode.get()) {
-            case Chat -> info("Player(s) detected: (highlight)%s", playerList);
+            case Chat -> { if (notifications.get()) info("Player(s) detected: (highlight)%s", playerList); }
             case Toast -> mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, "Player Detected!"));
             case Both -> {
-                info("Player(s) detected: (highlight)%s", playerList);
+                if (notifications.get()) info("Player(s) detected: (highlight)%s", playerList);
                 mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, "Player Detected!"));
             }
         }
@@ -179,7 +186,7 @@ public class PlayerDetection extends Module {
 
         for (Module m : modulesToToggle.get()) {
             m.toggle();
-            info("Toggled module: (highlight)%s", m.title);
+            if (notifications.get()) info("Toggled module: (highlight)%s", m.title);
         }
 
         if (enablePanicPay.get()) {
@@ -189,11 +196,11 @@ public class PlayerDetection extends Module {
             if (!target.isEmpty() && !amount.isEmpty()) {
                 String payCommand = String.format("/pay %s %s", target, amount);
                 ChatUtils.sendPlayerMsg(payCommand);
-                info("Panic pay executed: sent %s to %s", amount, target);
+                if (notifications.get()) info("Panic pay executed: sent %s to %s", amount, target);
             } else if (target.isEmpty()) {
-                warning("Panic pay target not set!");
+                if (notifications.get()) warning("Panic pay target not set!");
             } else if (amount.isEmpty()) {
-                warning("Panic pay amount not set!");
+                if (notifications.get()) warning("Panic pay amount not set!");
             }
         }
 
@@ -221,7 +228,7 @@ public class PlayerDetection extends Module {
     private void sendWebhookNotification(Set<String> players) {
         String url = webhookUrl.get().trim();
         if (url.isEmpty()) {
-            warning("Webhook URL not configured!");
+            if (notifications.get()) warning("Webhook URL not configured!");
             return;
         }
 
@@ -274,13 +281,13 @@ public class PlayerDetection extends Module {
                     HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
-                    info("Webhook notification sent successfully");
+                    if (notifications.get()) info("Webhook notification sent successfully");
                 } else {
-                    error("Webhook failed with status: " + response.statusCode());
+                    if (notifications.get()) error("Webhook failed with status: " + response.statusCode());
                 }
 
             } catch (IOException | InterruptedException e) {
-                error("Failed to send webhook: " + e.getMessage());
+                if (notifications.get()) error("Failed to send webhook: " + e.getMessage());
             }
         });
     }
@@ -289,7 +296,7 @@ public class PlayerDetection extends Module {
         if (mc.world != null && mc.getNetworkHandler() != null) {
             String reason = "Player(s) detected: " + playerList;
             mc.getNetworkHandler().getConnection().disconnect(Text.literal(reason));
-            info("Disconnected from server - " + reason);
+            if (notifications.get()) info("Disconnected from server - " + reason);
         }
     }
 

@@ -17,6 +17,8 @@ import java.util.List;
 public class AntiTrap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
+
     private final Setting<Boolean> removeExisting = sgGeneral.add(new BoolSetting.Builder()
         .name("remove-existing")
         .description("Remove existing trap entities when enabled.")
@@ -104,7 +106,7 @@ public class AntiTrap extends Module {
         }
 
         if (!trapEntities.isEmpty()) {
-            info("Removed %d trap entities", trapEntities.size());
+            if (notifications.get()) info("Removed %d trap entities", trapEntities.size());
         }
     }
 

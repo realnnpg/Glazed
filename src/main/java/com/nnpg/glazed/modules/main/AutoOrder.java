@@ -84,7 +84,7 @@ public class AutoOrder extends Module {
     @Override
     public void onActivate() {
         if (mc.player == null) {
-            error("Cannot activate - player is null");
+            if (chatFeedback.get()) error("Cannot activate - player is null");
             toggle();
             return;
         }

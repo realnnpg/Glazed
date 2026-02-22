@@ -77,6 +77,13 @@ public class PremiumTunnelBaseFinder extends Module {
     private final SettingGroup sgPlayerDetection = settings.createGroup("Player Detection");
 
     // basic settings
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Boolean> infiniteTunnel = sgGeneral.add(new BoolSetting.Builder()
         .name("infinite-tunnel")
         .description("Tunnel infinitely until manually stopped.")
@@ -766,7 +773,7 @@ public class PremiumTunnelBaseFinder extends Module {
             (enablePearlThrough.get() ? "+Pearl" : "") +
             (enablePlayerDetection.get() ? "+Players" : "");
 
-        info("TunnelBaseFinder activated" + pickaxeInfo + yLevelInfo + enhancedFeaturesInfo + ". " +
+        if (notifications.get()) info("TunnelBaseFinder activated" + pickaxeInfo + yLevelInfo + enhancedFeaturesInfo + ". " +
             (infiniteTunnel.get() ? "Infinite tunnel mode" : "Target: " + tunnelLength.get() + " blocks"));
     }
 
@@ -786,7 +793,7 @@ public class PremiumTunnelBaseFinder extends Module {
                     (maintainYLevel.get() ? " at Y-level " + startYLevel : ""));
         }
 
-        info("PremiumTunnelBaseFinder deactivated. Mined " + blocksMined + " blocks using " + pickaxeType.get().toString() + ".");
+        if (notifications.get()) info("PremiumTunnelBaseFinder deactivated. Mined " + blocksMined + " blocks using " + pickaxeType.get().toString() + ".");
     }
 
     private void resetAllStates() {
@@ -896,7 +903,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // check if we should stop (only if not infinite mode)
         if (!infiniteTunnel.get() && blocksMined >= tunnelLength.get()) {
-            info("Tunnel length reached! Mined " + blocksMined + " blocks.");
+            if (notifications.get()) info("Tunnel length reached! Mined " + blocksMined + " blocks.");
             shouldDisable = true;
             return;
         }
@@ -997,7 +1004,7 @@ public class PremiumTunnelBaseFinder extends Module {
         int scanWidth = lavaDetectionWidth.get();
         int scanHeight = lavaDetectionHeight.get();
 
-        if (debugLavaDetection.get()) {
+        if (debugLavaDetection.get() && notifications.get()) {
             info("🔍 Scanning for lava: Range=" + scanRange + ", Width=" + scanWidth + ", Height=" + scanHeight);
         }
 
@@ -1012,7 +1019,7 @@ public class PremiumTunnelBaseFinder extends Module {
                         dangerousBlockPos = scanPos;
                         dangerType = "lava (3D scan at " + scanPos.toShortString() + ")";
 
-                        if (debugLavaDetection.get()) {
+                        if (debugLavaDetection.get() && notifications.get()) {
                             warning("🔥 LAVA DETECTED at " + scanPos.toShortString() +
                                 " (distance=" + distance + ", side=" + side + ", vertical=" + vertical + ")");
                         }
@@ -1109,7 +1116,7 @@ public class PremiumTunnelBaseFinder extends Module {
         emptyAreaDetected = airPercentage >= emptyAreaThreshold.get();
 
         if (emptyAreaDetected && !wasEmptyArea) {
-            info("🕳️ Empty area detected! Air percentage: " + String.format("%.1f%%", airPercentage * 100) +
+            if (notifications.get()) info("🕳️ Empty area detected! Air percentage: " + String.format("%.1f%%", airPercentage * 100) +
                 " (threshold: " + String.format("%.1f%%", emptyAreaThreshold.get() * 100) + ")");
 
             if (enableWebhook.get()) {
@@ -1120,7 +1127,7 @@ public class PremiumTunnelBaseFinder extends Module {
                         "**Action:** Middle-click to activate pearl-through");
             }
         } else if (!emptyAreaDetected && wasEmptyArea) {
-            info("✅ Left empty area. Air percentage: " + String.format("%.1f%%", airPercentage * 100));
+            if (notifications.get()) info("✅ Left empty area. Air percentage: " + String.format("%.1f%%", airPercentage * 100));
         }
     }
 
@@ -1144,7 +1151,7 @@ public class PremiumTunnelBaseFinder extends Module {
         // stop moving
         stopAllMovement();
 
-        info("🌟 Pearl-through activated! Cooldown: " + pearlThroughCooldownTicks + " ticks");
+        if (notifications.get()) info("🌟 Pearl-through activated! Cooldown: " + pearlThroughCooldownTicks + " ticks");
 
         if (enableWebhook.get()) {
             takeScreenshotAndSend("🌟 Pearl-Through Activated",
@@ -1159,12 +1166,12 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // show updates every so often
         if (pearlThroughCooldownTicks % 20 == 0) { // Every second
-            info("🌟 Pearl-through cooldown: " + (pearlThroughCooldownTicks / 20) + " seconds remaining");
+            if (notifications.get()) info("🌟 Pearl-through cooldown: " + (pearlThroughCooldownTicks / 20) + " seconds remaining");
         }
 
         if (pearlThroughCooldownTicks <= 0) {
             isPearlThroughActive = false;
-            info("✅ Pearl-through cooldown complete. Resuming mining.");
+            if (notifications.get()) info("✅ Pearl-through cooldown complete. Resuming mining.");
         }
     }
 
@@ -1224,13 +1231,13 @@ public class PremiumTunnelBaseFinder extends Module {
             backupSteps++;
         } else {
             // Backup complete
-            info("Enhanced backup complete (" + actualBackupDistance + " blocks). Starting avoidance maneuver...");
+            if (notifications.get()) info("Enhanced backup complete (" + actualBackupDistance + " blocks). Starting avoidance maneuver...");
             completeBackup();
         }
 
         // don't try to backup forever
         if (backupSteps > safetyBackupDistance.get() * 4 || backupStuckTicks > backupStuckTimeout.get() * 3) {
-            warning("Backup timeout after " + backupSteps + " attempts. Proceeding to avoidance.");
+            if (notifications.get()) warning("Backup timeout after " + backupSteps + " attempts. Proceeding to avoidance.");
             completeBackup();
         }
     }
@@ -1254,7 +1261,7 @@ public class PremiumTunnelBaseFinder extends Module {
             backupBlockingStone = currentPos.offset(sideDir);
         }
 
-        info("🔨 Breaking blocking stone at " + backupBlockingStone.toShortString());
+        if (notifications.get()) info("🔨 Breaking blocking stone at " + backupBlockingStone.toShortString());
 
         if (enableWebhook.get()) {
             takeScreenshotAndSend("🔨 Breaking Blocking Stone",
@@ -1276,7 +1283,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // check if we broke it
         if (mc.world.getBlockState(backupBlockingStone).isAir()) {
-            info("✅ Blocking stone cleared. Resuming backup.");
+            if (notifications.get()) info("✅ Blocking stone cleared. Resuming backup.");
             isBreakingBlockingStones = false;
             backupBlockingStone = null;
             backupStuckTicks = 0; // Reset stuck timer
@@ -1300,7 +1307,7 @@ public class PremiumTunnelBaseFinder extends Module {
                 originalDirection.rotateYClockwise() :
                 originalDirection.rotateYCounterclockwise();
             hasRandomizedAvoidanceDirection = true;
-            info("🎲 Randomly chose " + (currentDirection == originalDirection.rotateYClockwise() ? "right" : "left") + " direction for avoidance");
+            if (notifications.get()) info("🎲 Randomly chose " + (currentDirection == originalDirection.rotateYClockwise() ? "right" : "left") + " direction for avoidance");
         } else {
             currentDirection = originalDirection.rotateYClockwise();
         }
@@ -1325,7 +1332,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         if (Math.abs(yDifference) > yLevelTolerance.get()) {
             if (!isAdjustingYLevel) {
-                info("Y-level deviation detected: " + yDifference + " blocks. Starting adjustment...");
+                if (notifications.get()) info("Y-level deviation detected: " + yDifference + " blocks. Starting adjustment...");
                 isAdjustingYLevel = true;
                 yLevelAdjustmentSteps = 0;
 
@@ -1346,11 +1353,11 @@ public class PremiumTunnelBaseFinder extends Module {
             // try to place blocks to get back up
             if (tryPlaceBlock()) {
                 needsBlockPlacement = false;
-                info("Block placed to maintain Y-level.");
+                if (notifications.get()) info("Block placed to maintain Y-level.");
             } else {
                 yLevelAdjustmentSteps++;
                 if (yLevelAdjustmentSteps > 100) {
-                    warning("Failed to place blocks for Y-level adjustment after 100 attempts.");
+                    if (notifications.get()) warning("Failed to place blocks for Y-level adjustment after 100 attempts.");
                     needsBlockPlacement = false;
                     isAdjustingYLevel = false;
                 }
@@ -1370,7 +1377,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // check if we're done adjusting
         if (Math.abs(currentY - startYLevel) <= yLevelTolerance.get()) {
-            info("Y-level adjustment complete. Current Y: " + currentY);
+            if (notifications.get()) info("Y-level adjustment complete. Current Y: " + currentY);
             isAdjustingYLevel = false;
             yLevelAdjustmentSteps = 0;
             needsBlockPlacement = false;
@@ -1378,7 +1385,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // don't try forever
         if (yLevelAdjustmentSteps > 200) {
-            warning("Y-level adjustment timeout. Resuming normal mining.");
+            if (notifications.get()) warning("Y-level adjustment timeout. Resuming normal mining.");
             isAdjustingYLevel = false;
             yLevelAdjustmentSteps = 0;
             needsBlockPlacement = false;
@@ -1391,7 +1398,7 @@ public class PremiumTunnelBaseFinder extends Module {
         // find a block in our inventory
         ItemStack blockStack = findBlockInInventory();
         if (blockStack.isEmpty()) {
-            if (debugMode.get()) {
+            if (debugMode.get() && notifications.get()) {
                 info("No blocks found in inventory for placement.");
             }
             return false;
@@ -1425,7 +1432,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
             return true;
         } catch (Exception e) {
-            if (debugMode.get()) {
+            if (debugMode.get() && notifications.get()) {
                 error("Failed to place block: " + e.getMessage());
             }
             return false;
@@ -1509,7 +1516,7 @@ public class PremiumTunnelBaseFinder extends Module {
             String playerName = player.getName().getString();
             String displayName = player.getDisplayName().getString();
 
-            if (debugPlayerDetection.get()) {
+            if (debugPlayerDetection.get() && notifications.get()) {
                 info("Checking player: " + playerName + " | Display: " + displayName + " | Distance: " + String.format("%.1f", distance));
             }
 
@@ -1518,8 +1525,8 @@ public class PremiumTunnelBaseFinder extends Module {
                     // new player detected - turn off adaptive smooth looking right away
                     wasAdaptiveSmoothingEnabled = adaptiveSmoothing.get();
                     if (wasAdaptiveSmoothingEnabled) {
-                        adaptiveSmoothing.set(false); // Disable adaptive smoothing during detection
-                        if (debugPlayerDetection.get()) {
+                        adaptiveSmoothing.set(false);
+                        if (debugPlayerDetection.get() && notifications.get()) {
                             info("🚨 DISABLED adaptive smoothing for fast player detection response");
                         }
                     }
@@ -1542,7 +1549,7 @@ public class PremiumTunnelBaseFinder extends Module {
                     // look around randomly FAST (no smooth movement)
                     generateAndApplyRandomLookFast();
 
-                    warning("🚨 SUSPICIOUS PLAYER DETECTED: " + playerName + " at distance " + String.format("%.1f", distance));
+                    if (notifications.get()) warning("🚨 SUSPICIOUS PLAYER DETECTED: " + playerName + " at distance " + String.format("%.1f", distance));
 
                     if (enableWebhook.get() && screenshotOnPlayerDetection.get()) {
                         takeScreenshotAndSend("🚨 Suspicious Player Detected",
@@ -1561,7 +1568,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // no suspicious players found, reset if we were tracking someone
         if (playerDetected) {
-            info("Suspicious player left detection range. Resuming normal operation.");
+            if (notifications.get()) info("Suspicious player left detection range. Resuming normal operation.");
             resetPlayerDetectionAndRestoreSmoothing();
         }
     }
@@ -1577,7 +1584,7 @@ public class PremiumTunnelBaseFinder extends Module {
         boolean hasBlue = displayName.contains("§9") || displayName.contains("§b") || displayName.contains("§3");
         boolean hasPlus = cleanName.contains("+");
 
-        if (debugPlayerDetection.get()) {
+        if (debugPlayerDetection.get() && notifications.get()) {
             info("Player analysis - Name: " + playerName +
                 " | Green: " + hasGreen +
                 " | Gold: " + hasGold +
@@ -1588,7 +1595,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // ignore blue names with + if the setting is on (those are just plus rankers)
         if (ignorePlusRankers.get() && hasBlue && hasPlus) {
-            if (debugPlayerDetection.get()) {
+            if (debugPlayerDetection.get() && notifications.get()) {
                 info("Ignoring plus ranker: " + playerName);
             }
             return false;
@@ -1619,7 +1626,7 @@ public class PremiumTunnelBaseFinder extends Module {
                 isDirectStaring = true;
                 directStareTicks = 0;
 
-                if (debugPlayerDetection.get()) {
+                if (debugPlayerDetection.get() && notifications.get()) {
                     info("Switching to direct stare at " + detectedPlayerName);
                 }
             }
@@ -1637,7 +1644,7 @@ public class PremiumTunnelBaseFinder extends Module {
                     initiateMoveAway();
                 } else {
                     // just reset detection
-                    info("Finished analyzing " + detectedPlayerName + ". Resuming normal operation.");
+                    if (notifications.get()) info("Finished analyzing " + detectedPlayerName + ". Resuming normal operation.");
                     resetPlayerDetectionAndRestoreSmoothing();
                 }
             }
@@ -1657,7 +1664,7 @@ public class PremiumTunnelBaseFinder extends Module {
         mc.player.setYaw(newRandomYaw);
         mc.player.setPitch(newRandomPitch);
 
-        if (debugPlayerDetection.get()) {
+        if (debugPlayerDetection.get() && notifications.get()) {
             info("Applied FAST random look: Yaw=" + String.format("%.1f", newRandomYaw) +
                 " Pitch=" + String.format("%.1f", newRandomPitch));
         }
@@ -1681,7 +1688,7 @@ public class PremiumTunnelBaseFinder extends Module {
         mc.player.setYaw(yaw);
         mc.player.setPitch(pitch);
 
-        if (debugPlayerDetection.get()) {
+        if (debugPlayerDetection.get() && notifications.get()) {
             info("Applied FAST look at player: Yaw=" + String.format("%.1f", yaw) +
                 " Pitch=" + String.format("%.1f", pitch));
         }
@@ -1703,7 +1710,7 @@ public class PremiumTunnelBaseFinder extends Module {
         // turn adaptive smoothing back on for normal mining
         if (wasAdaptiveSmoothingEnabled) {
             adaptiveSmoothing.set(true);
-            if (debugPlayerDetection.get()) {
+            if (debugPlayerDetection.get() && notifications.get()) {
                 info("✅ RESTORED adaptive smoothing for normal mining operations");
             }
         }
@@ -1746,9 +1753,9 @@ public class PremiumTunnelBaseFinder extends Module {
             moveAwayDirection = currentDirection.getOpposite();
         }
 
-        info("Moving away from " + detectedPlayerName + " in direction: " + moveAwayDirection);
+        if (notifications.get()) info("Moving away from " + detectedPlayerName + " in direction: " + moveAwayDirection);
 
-        if (debugPlayerDetection.get()) {
+        if (debugPlayerDetection.get() && notifications.get()) {
             info("Starting move away sequence: " + moveAwayDistance.get() + " blocks in direction " + moveAwayDirection);
         }
     }
@@ -1775,12 +1782,12 @@ public class PremiumTunnelBaseFinder extends Module {
                 moveAwaySteps++; // Increment even if not moving to avoid infinite loop
             }
 
-            if (debugPlayerDetection.get() && moveAwaySteps % 10 == 0) {
+            if (debugPlayerDetection.get() && notifications.get() && moveAwaySteps % 10 == 0) {
                 info("Move away progress: " + moveAwaySteps + "/" + moveAwayDistance.get() + " blocks");
             }
         } else {
             // done moving away
-            info("✅ Moved away " + moveAwaySteps + " blocks from " + detectedPlayerName + ". Resuming normal operation.");
+            if (notifications.get()) info("✅ Moved away " + moveAwaySteps + " blocks from " + detectedPlayerName + ". Resuming normal operation.");
             resetPlayerDetectionAndRestoreSmoothing();
             stopAllMovement();
         }
@@ -1801,7 +1808,7 @@ public class PremiumTunnelBaseFinder extends Module {
         mc.player.setYaw(yaw);
         mc.player.setPitch(0.0f);
 
-        if (debugPlayerDetection.get()) {
+        if (debugPlayerDetection.get() && notifications.get()) {
             info("Applied FAST directional look: " + direction + " (Yaw=" + yaw + ")");
         }
     }
@@ -1817,12 +1824,12 @@ public class PremiumTunnelBaseFinder extends Module {
                 backupSteps++;
             } else {
                 // we backed up enough, start avoiding
-                info("Backup complete (" + actualBackupDistance + " blocks). Starting avoidance maneuver...");
+                if (notifications.get()) info("Backup complete (" + actualBackupDistance + " blocks). Starting avoidance maneuver...");
                 completeBackup();
             }
         } else {
             // fallback: if we somehow hit max steps without going far enough
-            info("Backup steps limit reached. Starting avoidance maneuver...");
+            if (notifications.get()) info("Backup steps limit reached. Starting avoidance maneuver...");
             completeBackup();
         }
     }
@@ -1933,7 +1940,7 @@ public class PremiumTunnelBaseFinder extends Module {
         if (Math.abs(yawDiff) <= 0.5f && Math.abs(pitchDiff) <= 0.5f) {
             isSmoothLooking = false;
             isMiningLook = false;
-            if (debugPlayerDetection.get()) {
+            if (debugPlayerDetection.get() && notifications.get()) {
                 info("Smooth look completed");
             }
         }
@@ -1963,7 +1970,7 @@ public class PremiumTunnelBaseFinder extends Module {
         isSmoothLooking = true;
         isMiningLook = isMining;
 
-        if (debugPlayerDetection.get()) {
+        if (debugPlayerDetection.get() && notifications.get()) {
             info("Setting target look: Yaw=" + String.format("%.1f", yaw) +
                 " Pitch=" + String.format("%.1f", pitch) +
                 " Mining=" + isMining);
@@ -2019,7 +2026,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
     private void initiateLavaAvoidance() {
         if (!isLavaAvoidance) {
-            warning("🔥 LAVA/GRAVEL DETECTED (" + dangerType + ")! Initiating improved avoidance maneuver...");
+            if (notifications.get()) warning("🔥 LAVA/GRAVEL DETECTED (" + dangerType + ")! Initiating improved avoidance maneuver...");
 
             if (enableWebhook.get() && screenshotOnDanger.get()) {
                 takeScreenshotAndSend("🔥 Danger Detected - Improved Avoidance",
@@ -2042,7 +2049,7 @@ public class PremiumTunnelBaseFinder extends Module {
             backwardBlockToBreak = null;
             backwardBreakAttempts = 0;
 
-            info("Phase 0: Backing up " + safetyBackupDistance.get() + " blocks, then checking both sides...");
+            if (notifications.get()) info("Phase 0: Backing up " + safetyBackupDistance.get() + " blocks, then checking both sides...");
         }
     }
 
@@ -2079,7 +2086,7 @@ public class PremiumTunnelBaseFinder extends Module {
             lavaAvoidanceSteps++;
             } else {
             // Backup complete
-            info("Lava backup complete (" + backupDistance + " blocks). Choosing avoidance direction...");
+            if (notifications.get()) info("Lava backup complete (" + backupDistance + " blocks). Choosing avoidance direction...");
             lavaAvoidancePhase = 1;
             lavaAvoidanceSteps = 0;
             stopAllMovement();
@@ -2094,35 +2101,35 @@ public class PremiumTunnelBaseFinder extends Module {
         if (!rightSideChecked) {
             rightSideSafe = isPathSafeForDistance(currentPos, rightDir, lavaAvoidanceDistance.get());
             rightSideChecked = true;
-            info("Checked right side: " + (rightSideSafe ? "SAFE" : "UNSAFE (lava/gravel detected)"));
+            if (notifications.get()) info("Checked right side: " + (rightSideSafe ? "SAFE" : "UNSAFE (lava/gravel detected)"));
         }
 
         if (!leftSideChecked) {
             leftSideSafe = isPathSafeForDistance(currentPos, leftDir, lavaAvoidanceDistance.get());
             leftSideChecked = true;
-            info("Checked left side: " + (leftSideSafe ? "SAFE" : "UNSAFE (lava/gravel detected)"));
+            if (notifications.get()) info("Checked left side: " + (leftSideSafe ? "SAFE" : "UNSAFE (lava/gravel detected)"));
         }
 
         if (rightSideSafe && leftSideSafe) {
             lavaAvoidanceDirection = Math.random() > 0.5 ? rightDir : leftDir;
-            info("Both sides safe. Randomly chose " + (lavaAvoidanceDirection == rightDir ? "right" : "left") + " direction.");
+            if (notifications.get()) info("Both sides safe. Randomly chose " + (lavaAvoidanceDirection == rightDir ? "right" : "left") + " direction.");
             lavaAvoidancePhase = 2;
             lavaAvoidanceSteps = 0;
             currentDirection = lavaAvoidanceDirection;
         } else if (rightSideSafe) {
             lavaAvoidanceDirection = rightDir;
-            info("Right side safe. Going right.");
+            if (notifications.get()) info("Right side safe. Going right.");
             lavaAvoidancePhase = 2;
             lavaAvoidanceSteps = 0;
             currentDirection = lavaAvoidanceDirection;
         } else if (leftSideSafe) {
             lavaAvoidanceDirection = leftDir;
-            info("Left side safe. Going left.");
+            if (notifications.get()) info("Left side safe. Going left.");
             lavaAvoidancePhase = 2;
             lavaAvoidanceSteps = 0;
             currentDirection = lavaAvoidanceDirection;
         } else {
-            info("Both sides blocked by lava/gravel. Trying backward...");
+            if (notifications.get()) info("Both sides blocked by lava/gravel. Trying backward...");
             tryingBackward = true;
             lavaAvoidancePhase = 4;
         }
@@ -2145,7 +2152,7 @@ public class PremiumTunnelBaseFinder extends Module {
             }
         } else {
             // done mining sideways, check if the original path is clear now
-            info("Sideways mining complete (" + lavaAvoidanceSteps + " blocks). Checking original path...");
+            if (notifications.get()) info("Sideways mining complete (" + lavaAvoidanceSteps + " blocks). Checking original path...");
 
             BlockPos currentPos = mc.player.getBlockPos();
             BlockPos checkPos = currentPos.offset(originalDirection, 5);
@@ -2156,10 +2163,10 @@ public class PremiumTunnelBaseFinder extends Module {
                 lavaAvoidanceSteps = 0;
                 currentDirection = originalDirection;
 
-                info("Phase 3: Original path clear. Returning to original direction...");
+                if (notifications.get()) info("Phase 3: Original path clear. Returning to original direction...");
             } else {
                 // still dangerous, keep mining sideways
-                warning("Original path still blocked by lava. Continuing sideways mining...");
+                if (notifications.get()) warning("Original path still blocked by lava. Continuing sideways mining...");
                 lavaAvoidanceSteps = lavaAvoidanceDistance.get() - 2;
             }
         }
@@ -2175,7 +2182,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // after mining forward a bit, we're done avoiding
         if (lavaAvoidanceSteps >= 3) {
-            info("✅ Enhanced lava avoidance maneuver complete! Resuming normal tunneling.");
+            if (notifications.get()) info("✅ Enhanced lava avoidance maneuver complete! Resuming normal tunneling.");
 
             // reset all the lava avoidance stuff
             isLavaAvoidance = false;
@@ -2209,12 +2216,12 @@ public class PremiumTunnelBaseFinder extends Module {
         boolean backwardSafe = isPathSafeForDistance(currentPos, backwardDir, safetyBackupDistance.get());
 
         if (backwardSafe) {
-            info("Backward path is safe. Going backward...");
+            if (notifications.get()) info("Backward path is safe. Going backward...");
             moveBackward();
             lavaAvoidanceSteps++;
 
             if (lavaAvoidanceSteps >= safetyBackupDistance.get()) {
-                info("Backed up enough. Checking sides again...");
+                if (notifications.get()) info("Backed up enough. Checking sides again...");
                 rightSideChecked = false;
                 leftSideChecked = false;
                 lavaAvoidancePhase = 1;
@@ -2230,7 +2237,7 @@ public class PremiumTunnelBaseFinder extends Module {
                 (!behindStateUp.isAir() && isBlockSafeToBreak(behindPos.up()));
 
             if (hasBlocksBehind) {
-                info("Cannot go backward (lava/gravel), but blocks behind detected. Turning 180 degrees to break blocks...");
+                if (notifications.get()) info("Cannot go backward (lava/gravel), but blocks behind detected. Turning 180 degrees to break blocks...");
                 turning180 = true;
                 lavaAvoidancePhase = 5;
                 backwardBreakAttempts = 0;
@@ -2241,19 +2248,19 @@ public class PremiumTunnelBaseFinder extends Module {
                     backwardBlockToBreak = behindPos.up();
                 }
             } else {
-                warning("Cannot go backward and no blocks to break. Stuck! Trying random direction...");
+                if (notifications.get()) warning("Cannot go backward and no blocks to break. Stuck! Trying random direction...");
                 Direction randomDir = Math.random() > 0.5 ? originalDirection.rotateYClockwise() : originalDirection.rotateYCounterclockwise();
                 lavaAvoidanceDirection = randomDir;
                 lavaAvoidancePhase = 2;
                 currentDirection = randomDir;
-                info("Attempting random direction: " + (randomDir == originalDirection.rotateYClockwise() ? "right" : "left"));
+                if (notifications.get()) info("Attempting random direction: " + (randomDir == originalDirection.rotateYClockwise() ? "right" : "left"));
             }
         }
     }
 
     private void handleLava180TurnAndBreak() {
         if (backwardBlockToBreak == null) {
-            info("No blocks to break. Resuming original direction...");
+            if (notifications.get()) info("No blocks to break. Resuming original direction...");
             lavaAvoidancePhase = 3;
             currentDirection = originalDirection;
             turning180 = false;
@@ -2270,7 +2277,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         // check if we broke it
         if (mc.world.getBlockState(backwardBlockToBreak).isAir()) {
-            info("✅ Block behind cleared. Checking for more blocks or resuming...");
+            if (notifications.get()) info("✅ Block behind cleared. Checking for more blocks or resuming...");
             backwardBreakAttempts = 0;
 
             // check if there are more blocks behind us
@@ -2287,12 +2294,12 @@ public class PremiumTunnelBaseFinder extends Module {
                 // no more blocks, check if going backward is safe now
                 boolean backwardNowSafe = isPathSafeForDistance(currentPos, backwardDir, safetyBackupDistance.get());
                 if (backwardNowSafe) {
-                    info("Backward path now clear. Going backward...");
+                    if (notifications.get()) info("Backward path now clear. Going backward...");
                     tryingBackward = true;
                     lavaAvoidancePhase = 4;
                     backwardBlockToBreak = null;
                 } else {
-                    info("Backward path still blocked. Checking sides again...");
+                    if (notifications.get()) info("Backward path still blocked. Checking sides again...");
                     rightSideChecked = false;
                     leftSideChecked = false;
                     lavaAvoidancePhase = 1;
@@ -2303,7 +2310,7 @@ public class PremiumTunnelBaseFinder extends Module {
         } else {
             backwardBreakAttempts++;
             if (backwardBreakAttempts > 100) {
-                warning("Failed to break block after 100 attempts. Trying different approach...");
+                if (notifications.get()) warning("Failed to break block after 100 attempts. Trying different approach...");
                 rightSideChecked = false;
                 leftSideChecked = false;
                 lavaAvoidancePhase = 1;
@@ -2363,7 +2370,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
     private void handleDangerAvoidance() {
         if (!isBackingUp) {
-            warning("⚠️ " + dangerType + " detected ahead! Backing up " + safetyBackupDistance.get() + " blocks...");
+            if (notifications.get()) warning("⚠️ " + dangerType + " detected ahead! Backing up " + safetyBackupDistance.get() + " blocks...");
 
             if (enableWebhook.get() && screenshotOnDanger.get()) {
                 takeScreenshotAndSend("⚠️ Danger Detected",
@@ -2387,7 +2394,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
             if (randomizeAvoidanceDirection.get() && !hasRandomizedAvoidanceDirection) {
                 hasRandomizedAvoidanceDirection = true;
-                info("🎲 Randomly chose " + (avoidanceDir == originalDirection.rotateYClockwise() ? "right" : "left") + " for avoidance");
+                if (notifications.get()) info("🎲 Randomly chose " + (avoidanceDir == originalDirection.rotateYClockwise() ? "right" : "left") + " for avoidance");
             }
 
             // Turn camera to face the avoidance direction, then use W to move
@@ -2398,7 +2405,7 @@ public class PremiumTunnelBaseFinder extends Module {
             // Check if original path is clear
             BlockPos checkPos = mc.player.getBlockPos().offset(originalDirection, 3);
             if (!detectDangerAt(checkPos) && !detectLavaInArea(checkPos)) {
-                info("Danger avoided. Returning to original direction.");
+                if (notifications.get()) info("Danger avoided. Returning to original direction.");
                 isAvoiding = false;
                 hasRandomizedAvoidanceDirection = false;
                 currentDirection = originalDirection;
@@ -2474,7 +2481,7 @@ public class PremiumTunnelBaseFinder extends Module {
             isStuck = true;
             if (!alreadyReportedStuck) {
                 alreadyReportedStuck = true;
-                warning("🚫 Stuck detected! No progress for " + ticksStuck + " ticks.");
+                if (notifications.get()) warning("🚫 Stuck detected! No progress for " + ticksStuck + " ticks.");
 
                 if (enableWebhook.get() && screenshotOnStuck.get()) {
                     takeScreenshotAndSend("🚫 Mining Stuck - Enhanced Detection",
@@ -2500,7 +2507,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
             if (randomizeAvoidanceDirection.get() && !hasRandomizedAvoidanceDirection) {
                 hasRandomizedAvoidanceDirection = true;
-                info("🎲 Randomly chose " + (sideDirection == originalDirection.rotateYClockwise() ? "right" : "left") + " for stuck movement");
+                if (notifications.get()) info("🎲 Randomly chose " + (sideDirection == originalDirection.rotateYClockwise() ? "right" : "left") + " for stuck movement");
             }
 
             lookInDirection(sideDirection);
@@ -2513,7 +2520,7 @@ public class PremiumTunnelBaseFinder extends Module {
             avoidanceSteps = 0;
             currentDirection = originalDirection;
             lookInDirection(currentDirection);
-            info("Anti-stuck movement complete. Resuming normal mining.");
+            if (notifications.get()) info("Anti-stuck movement complete. Resuming normal mining.");
         }
     }
 
@@ -2791,13 +2798,13 @@ public class PremiumTunnelBaseFinder extends Module {
     // DISCORD WEBHOOK METHODS (sending screenshots and stuff)
     private void takeScreenshotAndSend(String title, String description) {
         if (!enableWebhook.get() || !isValidWebhook) {
-            if (debugMode.get()) {
+            if (debugMode.get() && notifications.get()) {
                 warning("Webhook not enabled or invalid. Status: " + webhookStatus);
             }
             return;
         }
 
-        if (debugMode.get()) {
+        if (debugMode.get() && notifications.get()) {
             info("Taking screenshot for webhook: " + title);
         }
 
@@ -2819,15 +2826,15 @@ public class PremiumTunnelBaseFinder extends Module {
                                     }
                                 }
 
-                                if (debugMode.get()) {
+                                if (debugMode.get() && notifications.get()) {
                                     info("Screenshot saved: " + latestScreenshot.getName());
                                 }
                                 sendWebhookWithImage(title, description, latestScreenshot);
                     } else {
-                                error("No screenshot files found");
+                                if (notifications.get()) error("No screenshot files found");
                             }
                         } catch (Exception e) {
-                            error("Failed to process screenshot: " + e.getMessage());
+                            if (notifications.get()) error("Failed to process screenshot: " + e.getMessage());
                             if (debugMode.get()) {
                                 e.printStackTrace();
                             }
@@ -2835,7 +2842,7 @@ public class PremiumTunnelBaseFinder extends Module {
                     }
                 );
             } catch (Exception e) {
-                error("Failed to take screenshot: " + e.getMessage());
+                if (notifications.get()) error("Failed to take screenshot: " + e.getMessage());
                 if (debugMode.get()) {
                     e.printStackTrace();
                 }
@@ -2845,7 +2852,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
     private void sendWebhookWithImage(String title, String description, File imageFile) {
         try {
-            if (debugMode.get()) {
+            if (debugMode.get() && notifications.get()) {
                 info("Sending webhook to: " + webhookUrl.get().substring(0, Math.min(50, webhookUrl.get().length())) + "...");
             }
 
@@ -2877,7 +2884,7 @@ public class PremiumTunnelBaseFinder extends Module {
                 escapedTitle, escapedDescription, escapedPlayerName, escapedPosition, escapedPickaxeInfo, timestamp
             );
 
-            if (debugMode.get()) {
+            if (debugMode.get() && notifications.get()) {
                 info("JSON Payload: " + jsonPayload);
             }
 
@@ -2915,12 +2922,12 @@ public class PremiumTunnelBaseFinder extends Module {
             int responseCode = connection.getResponseCode();
             if (responseCode == 200 || responseCode == 204) {
                 webhookStatus = "Last sent: Success";
-                if (debugMode.get()) {
+                if (debugMode.get() && notifications.get()) {
                     info("Screenshot sent to webhook successfully (Code: " + responseCode + ")");
                 }
             } else {
                 webhookStatus = "Last sent: Failed (" + responseCode + ")";
-                warning("Webhook failed with response code: " + responseCode);
+                if (notifications.get()) warning("Webhook failed with response code: " + responseCode);
 
                 if (debugMode.get()) {
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(
@@ -2930,9 +2937,9 @@ public class PremiumTunnelBaseFinder extends Module {
                         while ((line = reader.readLine()) != null) {
                             errorResponse.append(line).append("\n");
                         }
-                        warning("Response body: " + errorResponse.toString());
+                        if (notifications.get()) warning("Response body: " + errorResponse.toString());
         } catch (Exception e) {
-                        warning("Could not read error response: " + e.getMessage());
+                        if (notifications.get()) warning("Could not read error response: " + e.getMessage());
                     }
                 }
             }
@@ -2941,7 +2948,7 @@ public class PremiumTunnelBaseFinder extends Module {
 
         } catch (Exception e) {
             webhookStatus = "Last sent: Error - " + e.getMessage();
-            error("Failed to send webhook: " + e.getMessage());
+            if (notifications.get()) error("Failed to send webhook: " + e.getMessage());
             if (debugMode.get()) {
                 e.printStackTrace();
             }
@@ -2967,21 +2974,21 @@ public class PremiumTunnelBaseFinder extends Module {
         if (!url.startsWith("https://discord.com/api/webhooks/") && !url.startsWith("https://discordapp.com/api/webhooks/")) {
             webhookStatus = "Invalid URL format";
             isValidWebhook = false;
-            warning("Invalid webhook URL format. Must be a Discord webhook URL.");
+            if (notifications.get()) warning("Invalid webhook URL format. Must be a Discord webhook URL.");
             return;
         }
 
         webhookStatus = "Configured (not tested)";
         isValidWebhook = true;
 
-        if (debugMode.get()) {
+        if (debugMode.get() && notifications.get()) {
             info("Webhook URL validated: " + url.substring(0, Math.min(50, url.length())) + "...");
         }
     }
 
     private void onTestWebhookChanged(Boolean value) {
         if (value && enableWebhook.get()) {
-            info("Testing webhook...");
+            if (notifications.get()) info("Testing webhook...");
             takeScreenshotAndSend("🧪 Enhanced Webhook Test",
                 "This is a test message from TunnelBaseFinder v3.0 to verify webhook functionality.\n" +
                     "**Enhanced Features:**\n" +

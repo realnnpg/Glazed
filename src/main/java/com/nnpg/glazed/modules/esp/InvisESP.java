@@ -54,6 +54,8 @@ public class InvisESP extends Module {
         .defaultValue(true)
         .build()
     );
+
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
     
     // Player Settings
     private final Setting<Boolean> showPlayers = sgPlayers.add(new BoolSetting.Builder()
@@ -133,7 +135,7 @@ public class InvisESP extends Module {
 
     @Override
     public void onActivate() {
-        info("Invisible hitboxes will now be displayed");
+        if (notifications.get()) info("Invisible hitboxes will now be displayed");
     }
 
     @EventHandler

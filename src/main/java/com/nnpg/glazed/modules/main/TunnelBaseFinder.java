@@ -46,6 +46,13 @@ public class TunnelBaseFinder extends Module {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<RTPRegion> rtpRegion = sgGeneral.add(new EnumSetting.Builder<RTPRegion>()
         .name("RTP Region")
         .description("The region to RTP to.")
@@ -220,7 +227,7 @@ public class TunnelBaseFinder extends Module {
         stageStartTime = System.currentTimeMillis();
         updateMovementTracking();
         processedChunks.clear();
-        info("Starting RTP to " + rtpRegion.get().getCommandPart());
+        if (notifications.get()) info("Starting RTP to " + rtpRegion.get().getCommandPart());
     }
 
     @EventHandler
@@ -253,11 +260,11 @@ public class TunnelBaseFinder extends Module {
 
         if (spawnersCritical.get() && chunk.spawners > 0) {
             isBase = true;
-            info("Spawner detected! Treating as critical base find.");
+            if (notifications.get()) info("Spawner detected! Treating as critical base find.");
         }
         else if (totalStorageBlocks >= baseThreshold.get()) {
             isBase = true;
-            info("Storage threshold reached: " + totalStorageBlocks + " blocks found.");
+            if (notifications.get()) info("Storage threshold reached: " + totalStorageBlocks + " blocks found.");
         }
 
         if (isBase) {
@@ -300,13 +307,13 @@ public class TunnelBaseFinder extends Module {
         if (mc.player == null) return;
         BlockPos pos = mc.player.getBlockPos();
         ChatUtils.sendPlayerMsg("#goto " + pos.getX() + " " + mineYLevel.get() + " " + pos.getZ());
-        info("Started mining down to Y level " + mineYLevel.get());
+        if (notifications.get()) info("Started mining down to Y level " + mineYLevel.get());
     }
 
     private void startTunneling() {
         if (mc.player == null) return;
         ChatUtils.sendPlayerMsg("#tunnel");
-        info("Started tunneling at Y level " + mineYLevel.get());
+        if (notifications.get()) info("Started tunneling at Y level " + mineYLevel.get());
     }
 
     @EventHandler
@@ -322,7 +329,7 @@ public class TunnelBaseFinder extends Module {
                 }
                 if (rtptotempop.get()) {
                     ChatUtils.sendPlayerMsg("#stop");
-                    info("Totem popped! Stopping mining and restarting RTP loop for safety...");
+                    if (notifications.get()) info("Totem popped! Stopping mining and restarting RTP loop for safety...");
 
                     Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                         MinecraftClient.getInstance().execute(() -> {
@@ -341,7 +348,7 @@ public class TunnelBaseFinder extends Module {
         long now = System.currentTimeMillis();
 
         if (isPlayerStuck()) {
-            info("Player stuck for 20 seconds, restarting loop...");
+            if (notifications.get()) info("Player stuck for 20 seconds, restarting loop...");
             ChatUtils.sendPlayerMsg("#stop");
             startLoop();
             return;
@@ -359,7 +366,7 @@ public class TunnelBaseFinder extends Module {
             boolean isAlive = mc.player.isAlive();
 
             if (currentHealth < 11.0f && isAlive && !emergencyRtpTriggered && rtplowhealth.get()) {
-                info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
+                if (notifications.get()) info("Health dropped to " + currentHealth + " (below 5.5 hearts), emergency RTP...");
                 ChatUtils.sendPlayerMsg("#stop");
                 startLoop();
                 emergencyRtpTriggered = true;
@@ -388,7 +395,7 @@ public class TunnelBaseFinder extends Module {
                 if (now - stageStartTime >= RTP_WAIT_DURATION) {
                     loopStage = 1;
                     stageStartTime = now;
-                    info("RTP completed, starting mining...");
+                    if (notifications.get()) info("RTP completed, starting mining...");
                     startMining();
                 }
             }
@@ -396,7 +403,7 @@ public class TunnelBaseFinder extends Module {
                 if (mc.player.getY() <= mineYLevel.get() + 2) {
                     loopStage = 2;
                     stageStartTime = now;
-                    info("Reached mining goal, starting tunnel...");
+                    if (notifications.get()) info("Reached mining goal, starting tunnel...");
                     startTunneling();
                 }
             }
@@ -449,7 +456,7 @@ public class TunnelBaseFinder extends Module {
                     });
                 }, 2, TimeUnit.SECONDS);
             } else {
-                info("Base found but disconnect is disabled. Continuing mining...");
+                if (notifications.get()) info("Base found but disconnect is disabled. Continuing mining...");
             }
         } else {
             if (disconnectOnBaseFind.get()) {
@@ -458,7 +465,7 @@ public class TunnelBaseFinder extends Module {
                     toggle();
                 }
             } else {
-                info("Base found but disconnect is disabled. Continuing mining...");
+                if (notifications.get()) info("Base found but disconnect is disabled. Continuing mining...");
             }
         }
     }
@@ -513,7 +520,7 @@ public class TunnelBaseFinder extends Module {
 
             sendWebhookRequest(jsonPayload, "Base find");
         } catch (Exception e) {
-            error("Error creating base find webhook request: " + e.getMessage());
+            if (notifications.get()) error("Error creating base find webhook request: " + e.getMessage());
         }
     }
 
@@ -545,7 +552,7 @@ public class TunnelBaseFinder extends Module {
 
             sendWebhookRequest(jsonPayload, "Totem pop");
         } catch (Exception e) {
-            error("Error creating totem pop webhook request: " + e.getMessage());
+            if (notifications.get()) error("Error creating totem pop webhook request: " + e.getMessage());
         }
     }
 
@@ -577,7 +584,7 @@ public class TunnelBaseFinder extends Module {
 
             sendWebhookRequest(jsonPayload, "Death");
         } catch (Exception e) {
-            error("Error creating death webhook request: " + e.getMessage());
+            if (notifications.get()) error("Error creating death webhook request: " + e.getMessage());
         }
     }
 
@@ -593,17 +600,17 @@ public class TunnelBaseFinder extends Module {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenAccept(response -> {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        info(type + " webhook sent successfully!");
+                        if (notifications.get()) info(type + " webhook sent successfully!");
                     } else {
-                        error("Failed to send " + type + " webhook. Status: " + response.statusCode());
+                        if (notifications.get()) error("Failed to send " + type + " webhook. Status: " + response.statusCode());
                     }
                 })
                 .exceptionally(throwable -> {
-                    error("Error sending " + type + " webhook: " + throwable.getMessage());
+                    if (notifications.get()) error("Error sending " + type + " webhook: " + throwable.getMessage());
                     return null;
                 });
         } catch (Exception e) {
-            error("Error creating " + type + " webhook request: " + e.getMessage());
+            if (notifications.get()) error("Error creating " + type + " webhook request: " + e.getMessage());
         }
     }
 

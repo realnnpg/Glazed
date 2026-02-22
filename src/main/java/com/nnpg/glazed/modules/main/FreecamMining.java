@@ -2,6 +2,7 @@ package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent.Post;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.settings.DoubleSetting.Builder;
@@ -26,11 +27,13 @@ public class FreecamMining extends Module {
    private final Freecam freecam;
    private final MinecraftClient mc = MinecraftClient.getInstance();
    private final SettingGroup sgGeneral;
+   private final Setting<Boolean> notifications;
    private final Setting<Double> reach;
 
    public FreecamMining() {
       super(GlazedAddon.CATEGORY, "freecam-mining", "Freecam with real-position mining override.");
       this.sgGeneral = this.settings.getDefaultGroup();
+      this.notifications = this.sgGeneral.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
       this.reach = this.sgGeneral.add(
          ((Builder)((Builder)(new Builder())
             .name("reach"))
@@ -47,7 +50,7 @@ public class FreecamMining extends Module {
    public void onActivate() {
       if (!this.freecam.isActive()) {
          this.freecam.toggle();
-         this.info("Freecam activated for mining.", new Object[0]);
+         if (this.notifications.get()) this.info("Freecam activated for mining.", new Object[0]);
       }
       // Ensure attack key is not stuck when enabling
       KeyBinding.setKeyPressed(this.mc.options.attackKey.getDefaultKey(), false);
@@ -59,7 +62,7 @@ public class FreecamMining extends Module {
       
       if (this.freecam.isActive()) {
          this.freecam.toggle();
-         this.info("Freecam deactivated.", new Object[0]);
+         if (this.notifications.get()) this.info("Freecam deactivated.", new Object[0]);
       }
    }
 

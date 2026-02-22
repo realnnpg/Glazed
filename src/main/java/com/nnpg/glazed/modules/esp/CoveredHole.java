@@ -93,7 +93,7 @@ public class CoveredHole extends Module {
 
         holeESP = Modules.get().get(HoleTunnelStairsESP.class);
         if (holeESP == null || !holeESP.isActive()) {
-            error("HoleTunnelStairsESP must be active for CoveredHole to work!");
+            if (chatNotifications.get()) error("HoleTunnelStairsESP must be active for CoveredHole to work!");
             toggle();
             return;
         }
@@ -169,7 +169,7 @@ public class CoveredHole extends Module {
         if (mc.world == null || mc.player == null) return;
 
         if (holeESP == null || !holeESP.isActive()) {
-            error("HoleTunnelStairsESP was disabled!");
+            if (chatNotifications.get()) error("HoleTunnelStairsESP was disabled!");
             toggle();
             return;
         }

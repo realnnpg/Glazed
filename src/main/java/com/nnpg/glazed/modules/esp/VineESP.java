@@ -30,7 +30,7 @@ public class VineESP extends Module {
     private final SettingGroup sgRange = settings.createGroup("Range");
     private final SettingGroup sgThreading = settings.createGroup("Threading");
 
-
+    private final Setting<Boolean> notifications = sgRender.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
 
     private final Setting<SettingColor> espColor = sgRender.add(new ColorSetting.Builder()
         .name("ESP Color")
@@ -189,7 +189,7 @@ public class VineESP extends Module {
             if (isGrounded) {
                 boolean wasAdded = groundedVines.add(pos);
                 if (wasAdded && chatFeedback.get() && (!useThreading.get() || !limitChatSpam.get())) {
-                    info("§aVineESP§f: Found vine at §a%s", pos.toShortString());
+                    if (notifications.get()) info("§aVineESP§f: Found vine at §a%s", pos.toShortString());
                 }
             } else {
                 groundedVines.remove(pos);
@@ -241,12 +241,12 @@ public class VineESP extends Module {
         if (chatFeedback.get() && foundCount > 0) {
             if (useThreading.get() && limitChatSpam.get()) {
                 if (newVines > 0) {
-                    info("§aVineESP§f: Chunk %s,%s: §a%d new vines found", cpos.x, cpos.z, newVines);
+                    if (notifications.get()) info("§aVineESP§f: Chunk %s,%s: §a%d new vines found", cpos.x, cpos.z, newVines);
                 }
             } else {
                 for (BlockPos pos : chunkVines) {
                     if (!groundedVines.contains(pos)) {
-                        info("§aVineESP§f: Found vine at §a%s", pos.toShortString());
+                        if (notifications.get()) info("§aVineESP§f: Found vine at §a%s", pos.toShortString());
                     }
                 }
             }

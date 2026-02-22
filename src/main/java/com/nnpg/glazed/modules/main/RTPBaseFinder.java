@@ -2,6 +2,7 @@ package com.nnpg.glazed.modules.main;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.option.KeyBinding;
@@ -9,6 +10,15 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 public class RTPBaseFinder extends Module {
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private BlockPos currentTarget = null;
     private boolean waitingForTeleport = false;
     private long lastTeleportTime = 0;
@@ -21,13 +31,13 @@ public class RTPBaseFinder extends Module {
     public void onActivate() {
         currentTarget = mc.player.getBlockPos().down();
         waitingForTeleport = false;
-        info("RTPBaseFinder activated. Mining straight down.");
+        if (notifications.get()) info("RTPBaseFinder activated. Mining straight down.");
     }
 
     @Override
     public void onDeactivate() {
         releaseLeftClick();
-        info("RTPBaseFinder disabled.");
+        if (notifications.get()) info("RTPBaseFinder disabled.");
     }
 
     @EventHandler
@@ -78,6 +88,6 @@ public class RTPBaseFinder extends Module {
         mc.player.networkHandler.sendChatCommand("rtp east");
         lastTeleportTime = System.currentTimeMillis();
         waitingForTeleport = true;
-        info("Reached Y=-58. Teleporting east.");
+        if (notifications.get()) info("Reached Y=-58. Teleporting east.");
     }
 }

@@ -21,6 +21,13 @@ public class SpawnerDropper extends Module {
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
         .name("delay")
         .description("Delay between clicks in ticks.")
@@ -116,7 +123,7 @@ public class SpawnerDropper extends Module {
         if (spawnerPos == null) {
             spawnerPos = findNearbySpawner();
             if (spawnerPos != null) {
-                info("Spawner detected nearby!");
+                if (notifications.get()) info("Spawner detected nearby!");
             }
         }
 
@@ -127,7 +134,7 @@ public class SpawnerDropper extends Module {
         // If waiting for interval just count and wait ty
         if (waitingForInterval) {
             if (reopenTimer >= reopenIntervalTicks) {
-                info("Interval reached - opening spawner.");
+                if (notifications.get()) info("Interval reached - opening spawner.");
                 openSpawner();
                 reopenTimer = 0;
             }
@@ -149,7 +156,7 @@ public class SpawnerDropper extends Module {
 
         // Check for arrows if found close and wait for interval sigma
         if (boneOnly.get() && hasArrowsInInventory(screen)) {
-            info("Arrows detected - closing spawner and waiting for interval.");
+            if (notifications.get()) info("Arrows detected - closing spawner and waiting for interval.");
             mc.currentScreen.close();
             waitingForInterval = true;
             reopenTimer = 0;
@@ -161,7 +168,7 @@ public class SpawnerDropper extends Module {
             checkDelayCounter++;
             if (checkDelayCounter >= CHECK_DELAY) {
                 if (screen.getScreenHandler().getSlot(0).getStack().isEmpty()) {
-                    info("All bones dropped - closing and waiting for interval.");
+                    if (notifications.get()) info("All bones dropped - closing and waiting for interval.");
                     mc.currentScreen.close();
                     waitingForInterval = true;
                     reopenTimer = 0;
@@ -217,7 +224,7 @@ public class SpawnerDropper extends Module {
         reopenTimer = 0;
         spawnerPos = null;
         waitingForInterval = false;
-        info("SpawnerDropper activated - will auto-open spawner.");
+        if (notifications.get()) info("SpawnerDropper activated - will auto-open spawner.");
     }
 
     @Override

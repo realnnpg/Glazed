@@ -35,6 +35,13 @@ public class TabDetector extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Set<String> currentTargetPlayers = new HashSet<>();
     private final Set<String> previousTargetPlayers = new HashSet<>();
 
@@ -88,13 +95,13 @@ public class TabDetector extends Module {
             String.format("Target players joined: (highlight)%s", playerList);
 
         switch (notificationMode.get()) {
-            case Chat -> info(message);
+            case Chat -> { if (notifications.get()) info(message); }
             case Toast -> {
                 String toastMessage = players.size() == 1 ? "Target Player Joined!" : "Target Players Joined!";
                 mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, toastMessage));
             }
             case Both -> {
-                info(message);
+                if (notifications.get()) info(message);
                 String toastMessage = players.size() == 1 ? "Target Player Joined!" : "Target Players Joined!";
                 mc.getToastManager().add(new MeteorToast(Items.PLAYER_HEAD, title, toastMessage));
             }
@@ -109,13 +116,13 @@ public class TabDetector extends Module {
             String.format("Target players left: (highlight)%s", playerList);
 
         switch (notificationMode.get()) {
-            case Chat -> info(message);
+            case Chat -> { if (notifications.get()) info(message); }
             case Toast -> {
                 String toastMessage = players.size() == 1 ? "Target Player Left!" : "Target Players Left!";
                 mc.getToastManager().add(new MeteorToast(Items.BARRIER, title, toastMessage));
             }
             case Both -> {
-                info(message);
+                if (notifications.get()) info(message);
                 String toastMessage = players.size() == 1 ? "Target Player Left!" : "Target Players Left!";
                 mc.getToastManager().add(new MeteorToast(Items.BARRIER, title, toastMessage));
             }

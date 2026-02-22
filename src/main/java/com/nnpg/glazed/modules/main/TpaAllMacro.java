@@ -45,6 +45,13 @@ public class TpaAllMacro extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("notifications")
+        .description("Show chat feedback.")
+        .defaultValue(true)
+        .build()
+    );
+
     private int tickCounter = 0;
     private boolean waitingForConfirm = false;
     private long guiWaitStart = 0;
@@ -69,14 +76,14 @@ public class TpaAllMacro extends Module {
         guiWaitStart = 0;
         currentIndex = 0;
         onlinePlayers.clear();
-        info("Starting TPA Macro loop.");
+        if (notifications.get()) info("Starting TPA Macro loop.");
     }
 
     @Override
     public void onDeactivate() {
         waitingForConfirm = false;
         guiWaitStart = 0;
-        info("TPA Macro deactivated.");
+        if (notifications.get()) info("TPA Macro deactivated.");
     }
 
     @EventHandler
@@ -96,7 +103,7 @@ public class TpaAllMacro extends Module {
             currentIndex = 0;
 
             if (onlinePlayers.isEmpty()) {
-                warning("No valid players online.");
+                if (notifications.get()) warning("No valid players online.");
                 return;
             }
         }
@@ -109,7 +116,7 @@ public class TpaAllMacro extends Module {
 
             if (waitingForConfirm && guiWaitStart > 0 &&
                 System.currentTimeMillis() - guiWaitStart > GUI_TIMEOUT_MS) {
-                ChatUtils.warning("GUI timeout. Retrying...");
+                if (notifications.get()) ChatUtils.warning("GUI timeout. Retrying...");
                 waitingForConfirm = false;
                 guiWaitStart = 0;
             }
@@ -121,7 +128,7 @@ public class TpaAllMacro extends Module {
                 String target = onlinePlayers.get(currentIndex++);
                 String command = (tpaType.get() == TpaType.TPA ? "/tpa " : "/tpahere ") + target;
                 ChatUtils.sendPlayerMsg(command);
-                ChatUtils.info("📨 Sent: " + command);
+                if (notifications.get()) ChatUtils.info("📨 Sent: " + command);
 
                 if (useGui.get()) {
                     waitingForConfirm = true;
@@ -143,13 +150,13 @@ public class TpaAllMacro extends Module {
 
             if (key.contains("stained_glass_pane") && key.contains("lime")) {
                 mc.interactionManager.clickSlot(handler.syncId, i, 0, SlotActionType.PICKUP, mc.player);
-                ChatUtils.info("🟢 Confirm button clicked (slot " + i + ").");
+                if (notifications.get()) ChatUtils.info("🟢 Confirm button clicked (slot " + i + ").");
                 mc.player.closeHandledScreen();
                 waitingForConfirm = false;
                 guiWaitStart = 0;
                 return;
             }
         }
-        ChatUtils.warning("No confirmation button found in GUI.");
+        if (notifications.get()) ChatUtils.warning("No confirmation button found in GUI.");
     }
 }

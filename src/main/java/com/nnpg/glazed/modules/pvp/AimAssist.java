@@ -24,6 +24,9 @@ import java.util.Set;
 
 public class AimAssist extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    private final Setting<Boolean> notifications = sgGeneral.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
+
     private final SettingGroup sgSpeed = settings.createGroup("Aim Speed");
     private final SettingGroup sgBypass = settings.createGroup("Grim Bypass");
 
@@ -132,18 +135,18 @@ public class AimAssist extends Module {
     @Override
     public void onActivate() {
         if (mc.player == null || mc.world == null) {
-            ChatUtils.error("Cannot activate AimAssist: Player or world is null!");
+            if (notifications.get()) ChatUtils.error("Cannot activate AimAssist: Player or world is null!");
             toggle();
             return;
         }
         target = null;
-        ChatUtils.info("AimAssist activated. Targeting range: " + range.get() + " blocks.");
+        if (notifications.get()) ChatUtils.info("AimAssist activated. Targeting range: " + range.get() + " blocks.");
     }
 
     @Override
     public void onDeactivate() {
         target = null;
-        ChatUtils.info("AimAssist deactivated.");
+        if (notifications.get()) ChatUtils.info("AimAssist deactivated.");
     }
 
     @EventHandler

@@ -65,6 +65,8 @@ public class SpawnerNotifier extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sg_notifications.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
+
     private final Setting<Boolean> webhook_enabled = sg_webhook.add(new BoolSetting.Builder()
         .name("webhook-enabled")
         .description("Enable webhook notifications.")
@@ -170,12 +172,12 @@ public class SpawnerNotifier extends Module {
         found_spawner_positions.clear();
         new_found_spawners.clear();
         total_spawners_found = 0;
-        info("SpawnerNotifier activated!");
+        if (notifications.get()) info("SpawnerNotifier activated!");
     }
 
     @Override
     public void onDeactivate() {
-        info("SpawnerNotifier deactivated. Found %d spawners total this session.", total_spawners_found);
+        if (notifications.get()) info("SpawnerNotifier deactivated. Found %d spawners total this session.", total_spawners_found);
     }
 
     @EventHandler
@@ -265,10 +267,10 @@ public class SpawnerNotifier extends Module {
         String message = build_notification_message(chunk_pos, spawner_positions.size());
 
         switch (notification_mode.get()) {
-            case Chat -> info(message);
+            case Chat -> { if (notifications.get()) info(message); }
             case Toast -> show_toast_notification(message);
             case Both -> {
-                info(message);
+                if (notifications.get()) info(message);
                 show_toast_notification(message);
             }
         }
@@ -312,14 +314,14 @@ public class SpawnerNotifier extends Module {
             MeteorToast toast = new MeteorToast(Items.SPAWNER, title, message);
             mc.getToastManager().add(toast);
         } catch (Exception e) {
-            info(message);
+            if (notifications.get()) info(message);
         }
     }
 
     private void send_webhook_notification(ChunkPos chunk_pos, List<BlockPos> spawner_positions) {
         String url = webhook_url.get().trim();
         if (url.isEmpty()) {
-            warning("Webhook URL not configured!");
+            if (notifications.get()) warning("Webhook URL not configured!");
             return;
         }
 
@@ -390,13 +392,13 @@ public class SpawnerNotifier extends Module {
                     HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
-                    info("Webhook notification sent successfully");
+                    if (notifications.get()) info("Webhook notification sent successfully");
                 } else {
-                    error("Webhook failed with status: " + response.statusCode());
+                    if (notifications.get()) error("Webhook failed with status: " + response.statusCode());
                 }
 
             } catch (IOException | InterruptedException e) {
-                error("Failed to send webhook: " + e.getMessage());
+                if (notifications.get()) error("Failed to send webhook: " + e.getMessage());
             }
         });
     }
@@ -405,7 +407,7 @@ public class SpawnerNotifier extends Module {
         int center_x = chunk_pos.x * 16 + 8;
         int center_z = chunk_pos.z * 16 + 8;
 
-        info("SPAWNER%s FOUND! Disconnecting and disabling module...",
+        if (notifications.get()) info("SPAWNER%s FOUND! Disconnecting and disabling module...",
             spawner_positions.size() > 1 ? "S" : "");
         toggle();
 

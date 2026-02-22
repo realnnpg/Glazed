@@ -54,6 +54,8 @@ public class BlockNotifier extends Module {
         .build()
     );
 
+    private final Setting<Boolean> notifications = sg_notifications.add(new BoolSetting.Builder().name("notifications").description("Show chat feedback.").defaultValue(true).build());
+
     private final Setting<Boolean> webhook_enabled = sg_webhook.add(new BoolSetting.Builder()
         .name("webhook-enabled")
         .description("Enable webhook notifications.")
@@ -163,12 +165,12 @@ public class BlockNotifier extends Module {
         new_found_blocks.clear();
         block_type_map.clear();
         total_blocks_found = 0;
-        info("BlockNotifier activated!");
+        if (notifications.get()) info("BlockNotifier activated!");
     }
 
     @Override
     public void onDeactivate() {
-        info("BlockNotifier deactivated. Found %d blocks total this session.", total_blocks_found);
+        if (notifications.get()) info("BlockNotifier deactivated. Found %d blocks total this session.", total_blocks_found);
     }
 
     @EventHandler
@@ -268,10 +270,10 @@ public class BlockNotifier extends Module {
         String detection_reason = build_detection_reason(found_blocks);
 
         switch (notification_mode.get()) {
-            case Chat -> info(message);
+            case Chat -> { if (notifications.get()) info(message); }
             case Toast -> show_toast_notification(message, found_blocks);
             case Both -> {
-                info(message);
+                if (notifications.get()) info(message);
                 show_toast_notification(message, found_blocks);
             }
         }
@@ -341,14 +343,14 @@ public class BlockNotifier extends Module {
             MeteorToast toast = new MeteorToast(new ItemStack(first_block.asItem()).getItem(), title, message);
             mc.getToastManager().add(toast);
         } catch (Exception e) {
-            info(message);
+            if (notifications.get()) info(message);
         }
     }
 
     private void send_webhook_notification(ChunkPos chunk_pos, Map<Block, Integer> found_blocks, String detection_reason) {
         String url = webhook_url.get().trim();
         if (url.isEmpty()) {
-            warning("Webhook URL not configured!");
+            if (notifications.get()) warning("Webhook URL not configured!");
             return;
         }
 
@@ -417,13 +419,13 @@ public class BlockNotifier extends Module {
                     HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 204) {
-                    info("Webhook notification sent successfully");
+                    if (notifications.get()) info("Webhook notification sent successfully");
                 } else {
-                    error("Webhook failed with status: " + response.statusCode());
+                    if (notifications.get()) error("Webhook failed with status: " + response.statusCode());
                 }
 
             } catch (IOException | InterruptedException e) {
-                error("Failed to send webhook: " + e.getMessage());
+                if (notifications.get()) error("Failed to send webhook: " + e.getMessage());
             }
         });
     }
@@ -432,7 +434,7 @@ public class BlockNotifier extends Module {
         int center_x = chunk_pos.x * 16 + 8;
         int center_z = chunk_pos.z * 16 + 8;
 
-        info("TARGET BLOCKS FOUND! Disconnecting...");
+        if (notifications.get()) info("TARGET BLOCKS FOUND! Disconnecting...");
         toggle();
 
         if (mc.player != null) {
