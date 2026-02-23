@@ -202,7 +202,7 @@ public class OrderSniper extends Module {
                 if (!(mc.currentScreen instanceof GenericContainerScreen screen)) return;
                 ScreenHandler handler = screen.getScreenHandler();
 
-                if (transferIndex >= 36 || !hasItemsToSell()) {
+                if (!hasItemsToSell()) {
                     mc.player.closeHandledScreen();
                     stage = Stage.WAIT_CONFIRM_GUI;
                     stageStart = now;
@@ -212,35 +212,58 @@ public class OrderSniper extends Module {
                 }
 
                 if (ticksSinceStageStart >= getTransferDelayTicks()) {
-                    ItemStack stack = mc.player.getInventory().getStack(transferIndex);
-                    boolean shouldTransfer = false;
-
-                    if (!stack.isEmpty()) {
-                        if (stack.isOf(targetItem.get())) {
-                            shouldTransfer = true;
-                        } else if (shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack)) {
-                            shouldTransfer = true;
-                            // Per le shulker, aggiungi un delay extra ridotto
-                            if (ticksSinceStageStart < Math.max(10, delayTicks.get() * 2)) {
-                                return;
+                    // Find first matching item slot
+                    int firstSlotId = -1;
+                    int secondSlotId = -1;
+                    
+                    for (Slot slot : handler.slots) {
+                        if (slot.inventory == mc.player.getInventory()) {
+                            ItemStack stack = slot.getStack();
+                            if (!stack.isEmpty() && stack.isOf(targetItem.get())) {
+                                if (firstSlotId == -1) {
+                                    firstSlotId = slot.id;
+                                } else if (secondSlotId == -1) {
+                                    secondSlotId = slot.id;
+                                    break;
+                                }
                             }
                         }
                     }
-
-                    if (shouldTransfer) {
-                        int playerSlotId = -1;
-                        for (Slot slot : handler.slots) {
-                            if (slot.inventory == mc.player.getInventory() && slot.getIndex() == transferIndex) {
-                                playerSlotId = slot.id;
-                                break;
+                    
+                    if (firstSlotId != -1) {
+                        if (secondSlotId != -1) {
+                            // Double-click method: pickup first, then double-click second to gather all
+                            // Step 1: Pick up first item
+                            mc.interactionManager.clickSlot(handler.syncId, firstSlotId, 0, SlotActionType.PICKUP, mc.player);
+                            // Step 2: Double-click on second slot to gather all matching items
+                            mc.interactionManager.clickSlot(handler.syncId, secondSlotId, 0, SlotActionType.PICKUP, mc.player);
+                            mc.interactionManager.clickSlot(handler.syncId, secondSlotId, 0, SlotActionType.PICKUP, mc.player);
+                            // Step 3: Quick move (shift-click) to transfer all items on cursor
+                            mc.interactionManager.clickSlot(handler.syncId, secondSlotId, 0, SlotActionType.QUICK_MOVE, mc.player);
+                        } else {
+                            // Only one slot with items, just quick move it
+                            mc.interactionManager.clickSlot(handler.syncId, firstSlotId, 0, SlotActionType.QUICK_MOVE, mc.player);
+                        }
+                    } else {
+                        // Check for shulker support if no direct items found
+                        if (shulkerSupport.get()) {
+                            for (Slot slot : handler.slots) {
+                                if (slot.inventory == mc.player.getInventory()) {
+                                    ItemStack stack = slot.getStack();
+                                    if (!stack.isEmpty() && isShulker(stack) && shulkerContainsTarget(stack)) {
+                                        mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, mc.player);
+                                        break;
+                                    }
+                                }
                             }
                         }
-                        if (playerSlotId != -1) {
-                            mc.interactionManager.clickSlot(handler.syncId, playerSlotId, 0, SlotActionType.QUICK_MOVE, mc.player);
-                        }
                     }
-                    transferIndex++;
+                    
                     ticksSinceStageStart = 0;
+                    // Add a small delay before checking if done
+                    stage = Stage.WAIT_CONFIRM_GUI;
+                    stageStart = now;
+                    transferIndex = 0;
                 }
             }
 
