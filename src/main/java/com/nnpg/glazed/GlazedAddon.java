@@ -99,6 +99,7 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new AutoTotemOrder());
         Modules.get().add(new LightESP());
         Modules.get().add(new PremiumTunnelBaseFinder());
+        Modules.get().add(new AdminList());
         Modules.get().add(new AutoTreeFarmer());
     }
 
