@@ -202,7 +202,6 @@ public class OrderSniper extends Module {
                 if (!(mc.currentScreen instanceof GenericContainerScreen screen)) return;
                 ScreenHandler handler = screen.getScreenHandler();
 
-                // Vérifie si le coffre a encore de la place
                 boolean chestHasSpace = false;
                 for (Slot slot : handler.slots) {
                     if (slot.inventory != mc.player.getInventory() && slot.getStack().isEmpty()) {
@@ -219,32 +218,38 @@ public class OrderSniper extends Module {
                     return;
                 }
 
-                // Transfert tous les items cibles de l'inventaire joueur
+                boolean hasNormalItems = false;
+                boolean hasShulkers = false;
+                for (ItemStack stack : mc.player.getInventory().main) {
+                    if (!stack.isEmpty()) {
+                        if (stack.isOf(targetItem.get())) hasNormalItems = true;
+                        else if (shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack)) hasShulkers = true;
+                    }
+                }
+
                 for (Slot slot : handler.slots) {
                     if (slot.inventory == mc.player.getInventory()) {
                         ItemStack stack = slot.getStack();
-                        if (!stack.isEmpty() && stack.isOf(targetItem.get())) {
-                            // Pickup le stack
-                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
-                            // Double click pour rassembler tous les stacks identiques
-                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP_ALL, mc.player);
-                            // Shift-click pour transférer tout dans le coffre
-                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, mc.player);
+                        if (!stack.isEmpty()) {
+                            if (stack.isOf(targetItem.get()) || (!hasNormalItems && shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack))) {
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP_ALL, mc.player);
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, mc.player);
+                            }
                         }
                     }
                 }
 
-                // Vérifie qu’il reste des items à transférer
                 boolean stillHasItems = false;
                 for (ItemStack stack : mc.player.getInventory().main) {
-                    if (!stack.isEmpty() && stack.isOf(targetItem.get())) {
+                    if (!stack.isEmpty() && (stack.isOf(targetItem.get()) || (shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack)))) {
                         stillHasItems = true;
                         break;
                     }
                 }
 
                 if (!stillHasItems) {
-                    mc.player.closeHandledScreen(); // ferme la GUI une fois tout transféré
+                    mc.player.closeHandledScreen();
                     stage = Stage.WAIT_CONFIRM_GUI;
                     stageStart = now;
                     ticksSinceStageStart = 0;
@@ -281,7 +286,7 @@ public class OrderSniper extends Module {
             case FINAL_EXIT -> {
                 if (mc.currentScreen != null) {
                     mc.player.closeHandledScreen();
-                    // Aspetta un po' prima di continuare per assicurarsi che la GUI sia chiusa
+                    // Aspetta un po' prima di continuare per assicurarsi che la GUI sia chiusa (PIZZZZZZAAAA!!!!!!!!)
                     if (ticksSinceStageStart < Math.max(5, delayTicks.get())) return;
                 }
 
