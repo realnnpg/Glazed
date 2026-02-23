@@ -22,10 +22,11 @@
 
 ## 🚀Features
 
-### Main Modules (38)
+### Main Modules (39)
 
 | Module | Description |
 |---|---|
+| Admin List | List of admins - bot stops when admin detected (not fully implemented) |
 | AH Sell | Automatically sells all hotbar items using /ah sell |
 | AH Sniper | Snipes items from auction house for cheap prices |
 | Auto Blaze Rod Order | Buys/sells blaze rods in orders for profit (FAST MODE) |
