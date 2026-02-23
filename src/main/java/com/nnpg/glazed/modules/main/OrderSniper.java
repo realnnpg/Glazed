@@ -202,68 +202,52 @@ public class OrderSniper extends Module {
                 if (!(mc.currentScreen instanceof GenericContainerScreen screen)) return;
                 ScreenHandler handler = screen.getScreenHandler();
 
-                if (!hasItemsToSell()) {
+                // Vérifie si le coffre a encore de la place
+                boolean chestHasSpace = false;
+                for (Slot slot : handler.slots) {
+                    if (slot.inventory != mc.player.getInventory() && slot.getStack().isEmpty()) {
+                        chestHasSpace = true;
+                        break;
+                    }
+                }
+
+                if (!chestHasSpace) {
                     mc.player.closeHandledScreen();
                     stage = Stage.WAIT_CONFIRM_GUI;
                     stageStart = now;
-                    transferIndex = 0;
                     ticksSinceStageStart = 0;
                     return;
                 }
 
-                if (ticksSinceStageStart >= getTransferDelayTicks()) {
-                    // Find first matching item slot
-                    int firstSlotId = -1;
-                    int secondSlotId = -1;
-                    
-                    for (Slot slot : handler.slots) {
-                        if (slot.inventory == mc.player.getInventory()) {
-                            ItemStack stack = slot.getStack();
-                            if (!stack.isEmpty() && stack.isOf(targetItem.get())) {
-                                if (firstSlotId == -1) {
-                                    firstSlotId = slot.id;
-                                } else if (secondSlotId == -1) {
-                                    secondSlotId = slot.id;
-                                    break;
-                                }
-                            }
+                // Transfert tous les items cibles de l'inventaire joueur
+                for (Slot slot : handler.slots) {
+                    if (slot.inventory == mc.player.getInventory()) {
+                        ItemStack stack = slot.getStack();
+                        if (!stack.isEmpty() && stack.isOf(targetItem.get())) {
+                            // Pickup le stack
+                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
+                            // Double click pour rassembler tous les stacks identiques
+                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP_ALL, mc.player);
+                            // Shift-click pour transférer tout dans le coffre
+                            mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, mc.player);
                         }
                     }
-                    
-                    if (firstSlotId != -1) {
-                        if (secondSlotId != -1) {
-                            // Double-click method: pickup first, then double-click second to gather all
-                            // Step 1: Pick up first item
-                            mc.interactionManager.clickSlot(handler.syncId, firstSlotId, 0, SlotActionType.PICKUP, mc.player);
-                            // Step 2: Double-click on second slot to gather all matching items
-                            mc.interactionManager.clickSlot(handler.syncId, secondSlotId, 0, SlotActionType.PICKUP, mc.player);
-                            mc.interactionManager.clickSlot(handler.syncId, secondSlotId, 0, SlotActionType.PICKUP, mc.player);
-                            // Step 3: Quick move (shift-click) to transfer all items on cursor
-                            mc.interactionManager.clickSlot(handler.syncId, secondSlotId, 0, SlotActionType.QUICK_MOVE, mc.player);
-                        } else {
-                            // Only one slot with items, just quick move it
-                            mc.interactionManager.clickSlot(handler.syncId, firstSlotId, 0, SlotActionType.QUICK_MOVE, mc.player);
-                        }
-                    } else {
-                        // Check for shulker support if no direct items found
-                        if (shulkerSupport.get()) {
-                            for (Slot slot : handler.slots) {
-                                if (slot.inventory == mc.player.getInventory()) {
-                                    ItemStack stack = slot.getStack();
-                                    if (!stack.isEmpty() && isShulker(stack) && shulkerContainsTarget(stack)) {
-                                        mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, mc.player);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                }
+
+                // Vérifie qu’il reste des items à transférer
+                boolean stillHasItems = false;
+                for (ItemStack stack : mc.player.getInventory().main) {
+                    if (!stack.isEmpty() && stack.isOf(targetItem.get())) {
+                        stillHasItems = true;
+                        break;
                     }
-                    
-                    ticksSinceStageStart = 0;
-                    // Add a small delay before checking if done
+                }
+
+                if (!stillHasItems) {
+                    mc.player.closeHandledScreen(); // ferme la GUI une fois tout transféré
                     stage = Stage.WAIT_CONFIRM_GUI;
                     stageStart = now;
-                    transferIndex = 0;
+                    ticksSinceStageStart = 0;
                 }
             }
 
