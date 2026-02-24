@@ -202,44 +202,56 @@ public class OrderSniper extends Module {
                 if (!(mc.currentScreen instanceof GenericContainerScreen screen)) return;
                 ScreenHandler handler = screen.getScreenHandler();
 
-                if (transferIndex >= 36 || !hasItemsToSell()) {
+                boolean chestHasSpace = false;
+                for (Slot slot : handler.slots) {
+                    if (slot.inventory != mc.player.getInventory() && slot.getStack().isEmpty()) {
+                        chestHasSpace = true;
+                        break;
+                    }
+                }
+
+                if (!chestHasSpace) {
                     mc.player.closeHandledScreen();
                     stage = Stage.WAIT_CONFIRM_GUI;
                     stageStart = now;
-                    transferIndex = 0;
                     ticksSinceStageStart = 0;
                     return;
                 }
 
-                if (ticksSinceStageStart >= getTransferDelayTicks()) {
-                    ItemStack stack = mc.player.getInventory().getStack(transferIndex);
-                    boolean shouldTransfer = false;
-
+                boolean hasNormalItems = false;
+                boolean hasShulkers = false;
+                for (ItemStack stack : mc.player.getInventory().main) {
                     if (!stack.isEmpty()) {
-                        if (stack.isOf(targetItem.get())) {
-                            shouldTransfer = true;
-                        } else if (shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack)) {
-                            shouldTransfer = true;
-                            // Per le shulker, aggiungi un delay extra ridotto
-                            if (ticksSinceStageStart < Math.max(10, delayTicks.get() * 2)) {
-                                return;
-                            }
-                        }
+                        if (stack.isOf(targetItem.get())) hasNormalItems = true;
+                        else if (shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack)) hasShulkers = true;
                     }
+                }
 
-                    if (shouldTransfer) {
-                        int playerSlotId = -1;
-                        for (Slot slot : handler.slots) {
-                            if (slot.inventory == mc.player.getInventory() && slot.getIndex() == transferIndex) {
-                                playerSlotId = slot.id;
-                                break;
+                for (Slot slot : handler.slots) {
+                    if (slot.inventory == mc.player.getInventory()) {
+                        ItemStack stack = slot.getStack();
+                        if (!stack.isEmpty()) {
+                            if (stack.isOf(targetItem.get()) || (!hasNormalItems && shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack))) {
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP_ALL, mc.player);
+                                mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, mc.player);
                             }
                         }
-                        if (playerSlotId != -1) {
-                            mc.interactionManager.clickSlot(handler.syncId, playerSlotId, 0, SlotActionType.QUICK_MOVE, mc.player);
-                        }
                     }
-                    transferIndex++;
+                }
+
+                boolean stillHasItems = false;
+                for (ItemStack stack : mc.player.getInventory().main) {
+                    if (!stack.isEmpty() && (stack.isOf(targetItem.get()) || (shulkerSupport.get() && isShulker(stack) && shulkerContainsTarget(stack)))) {
+                        stillHasItems = true;
+                        break;
+                    }
+                }
+
+                if (!stillHasItems) {
+                    mc.player.closeHandledScreen();
+                    stage = Stage.WAIT_CONFIRM_GUI;
+                    stageStart = now;
                     ticksSinceStageStart = 0;
                 }
             }
@@ -274,7 +286,7 @@ public class OrderSniper extends Module {
             case FINAL_EXIT -> {
                 if (mc.currentScreen != null) {
                     mc.player.closeHandledScreen();
-                    // Aspetta un po' prima di continuare per assicurarsi che la GUI sia chiusa
+                    // Aspetta un po' prima di continuare per assicurarsi che la GUI sia chiusa (PIZZZZZZAAAA!!!!!!!!)
                     if (ticksSinceStageStart < Math.max(5, delayTicks.get())) return;
                 }
 

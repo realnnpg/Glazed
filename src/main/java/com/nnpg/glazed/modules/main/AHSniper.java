@@ -37,35 +37,42 @@ public class AHSniper extends Module {
     private final SettingGroup sgEnchantments;
     private final SettingGroup sgWebhook;
     private final SettingGroup sgAutoSell;
+    private final SettingGroup sgUserFilter;
     private final Setting<SnipeMode> snipeMode;
     private final Setting<Item> snipingItem;
     private final Setting<String> targetItemName;
+    private final Setting<String> minPrice;
     private final Setting<String> maxPrice;
     private final Setting<PriceMode> priceMode;
     private final Setting<Boolean> filterLowTime;
     private final Setting<Double> minTimeHours;
     private final Setting<Boolean> topLeftOnly;
     private final Setting<Item> multiItem1;
+    private final Setting<String> multiMinPrice1;
     private final Setting<String> multiPrice1;
     private final Setting<PriceMode> multiPriceMode1;
     private final Setting<List<String>> multiEnchantments1;
     private final Setting<Boolean> multiExactEnchantments1;
     private final Setting<Item> multiItem2;
+    private final Setting<String> multiMinPrice2;
     private final Setting<String> multiPrice2;
     private final Setting<PriceMode> multiPriceMode2;
     private final Setting<List<String>> multiEnchantments2;
     private final Setting<Boolean> multiExactEnchantments2;
     private final Setting<Item> multiItem3;
+    private final Setting<String> multiMinPrice3;
     private final Setting<String> multiPrice3;
     private final Setting<PriceMode> multiPriceMode3;
     private final Setting<List<String>> multiEnchantments3;
     private final Setting<Boolean> multiExactEnchantments3;
     private final Setting<Item> multiItem4;
+    private final Setting<String> multiMinPrice4;
     private final Setting<String> multiPrice4;
     private final Setting<PriceMode> multiPriceMode4;
     private final Setting<List<String>> multiEnchantments4;
     private final Setting<Boolean> multiExactEnchantments4;
     private final Setting<Item> multiItem5;
+    private final Setting<String> multiMinPrice5;
     private final Setting<String> multiPrice5;
     private final Setting<PriceMode> multiPriceMode5;
     private final Setting<List<String>> multiEnchantments5;
@@ -86,6 +93,8 @@ public class AHSniper extends Module {
     private final Setting<Boolean> selfPing;
     private final Setting<String> discordId;
     private final Setting<Boolean> debugMode;
+    private final Setting<List<String>> userBlacklist;
+    private final Setting<Boolean> useAdminList;
     private boolean waitingForConfirmation;
     private boolean itemPickedUp;
     private boolean purchaseAttempted;
@@ -128,6 +137,7 @@ public class AHSniper extends Module {
         this.sgEnchantments = this.settings.createGroup("Enchantments");
         this.sgAutoSell = this.settings.createGroup("Auto Sell");
         this.sgWebhook = this.settings.createGroup("Discord Webhook");
+        this.sgUserFilter = this.settings.createGroup("User Filter");
 
         this.snipeMode = this.sgGeneral.add(new EnumSetting.Builder<SnipeMode>()
             .name("snipe-mode")
@@ -146,6 +156,13 @@ public class AHSniper extends Module {
             .name("item-name")
             .description("Custom search name for the /ah command.")
             .defaultValue("")
+            .visible(() -> this.snipeMode.get() == SnipeMode.SINGLE)
+            .build());
+
+        this.minPrice = this.sgGeneral.add(new StringSetting.Builder()
+        .name("min-price")
+        .description("Minimum price to pay (supports K, M, B suffixes). Set to 0 to disable.")
+        .defaultValue("0")
             .visible(() -> this.snipeMode.get() == SnipeMode.SINGLE)
             .build());
 
@@ -191,6 +208,12 @@ public class AHSniper extends Module {
             .defaultValue(Items.AIR)
             .visible(() -> this.snipeMode.get() == SnipeMode.MULTI)
             .build());
+        this.multiMinPrice1 = this.sgMultiSnipe.add(new StringSetting.Builder()
+            .name("min-price-1")
+            .description("Min price for item 1. Set to 0 to disable.")
+            .defaultValue("0")
+            .visible(() -> this.snipeMode.get() == SnipeMode.MULTI && this.multiItem1.get() != Items.AIR)
+            .build());
         this.multiPrice1 = this.sgMultiSnipe.add(new StringSetting.Builder()
             .name("max-price-1")
             .description("Max price for item 1.")
@@ -221,6 +244,12 @@ public class AHSniper extends Module {
             .description("Second item to snipe.")
             .defaultValue(Items.AIR)
             .visible(() -> this.snipeMode.get() == SnipeMode.MULTI)
+            .build());
+        this.multiMinPrice2 = this.sgMultiSnipe.add(new StringSetting.Builder()
+            .name("min-price-2")
+            .description("Min price for item 2. Set to 0 to disable.")
+            .defaultValue("0")
+            .visible(() -> this.snipeMode.get() == SnipeMode.MULTI && this.multiItem2.get() != Items.AIR)
             .build());
         this.multiPrice2 = this.sgMultiSnipe.add(new StringSetting.Builder()
             .name("max-price-2")
@@ -253,6 +282,12 @@ public class AHSniper extends Module {
             .defaultValue(Items.AIR)
             .visible(() -> this.snipeMode.get() == SnipeMode.MULTI)
             .build());
+        this.multiMinPrice3 = this.sgMultiSnipe.add(new StringSetting.Builder()
+            .name("min-price-3")
+            .description("Min price for item 3. Set to 0 to disable.")
+            .defaultValue("0")
+            .visible(() -> this.snipeMode.get() == SnipeMode.MULTI && this.multiItem3.get() != Items.AIR)
+            .build());
         this.multiPrice3 = this.sgMultiSnipe.add(new StringSetting.Builder()
             .name("max-price-3")
             .description("Max price for item 3.")
@@ -284,6 +319,12 @@ public class AHSniper extends Module {
             .defaultValue(Items.AIR)
             .visible(() -> this.snipeMode.get() == SnipeMode.MULTI)
             .build());
+        this.multiMinPrice4 = this.sgMultiSnipe.add(new StringSetting.Builder()
+            .name("min-price-4")
+            .description("Min price for item 4. Set to 0 to disable.")
+            .defaultValue("0")
+            .visible(() -> this.snipeMode.get() == SnipeMode.MULTI && this.multiItem4.get() != Items.AIR)
+            .build());
         this.multiPrice4 = this.sgMultiSnipe.add(new StringSetting.Builder()
             .name("max-price-4")
             .description("Max price for item 4.")
@@ -314,6 +355,12 @@ public class AHSniper extends Module {
             .description("Fifth item to snipe.")
             .defaultValue(Items.AIR)
             .visible(() -> this.snipeMode.get() == SnipeMode.MULTI)
+            .build());
+        this.multiMinPrice5 = this.sgMultiSnipe.add(new StringSetting.Builder()
+            .name("min-price-5")
+            .description("Min price for item 5. Set to 0 to disable.")
+            .defaultValue("0")
+            .visible(() -> this.snipeMode.get() == SnipeMode.MULTI && this.multiItem5.get() != Items.AIR)
             .build());
         this.multiPrice5 = this.sgMultiSnipe.add(new StringSetting.Builder()
             .name("max-price-5")
@@ -425,6 +472,18 @@ public class AHSniper extends Module {
             .visible(this.webhookEnabled::get)
             .build());
 
+        this.userBlacklist = this.sgUserFilter.add(new StringListSetting.Builder()
+            .name("user-blacklist")
+            .description("List of usernames to avoid buying from.")
+            .defaultValue(new ArrayList<>())
+            .build());
+
+        this.useAdminList = this.sgUserFilter.add(new BoolSetting.Builder()
+            .name("use-admin-list")
+            .description("Allow purchases from users in the AdminList module.")
+            .defaultValue(true)
+            .build());
+
         this.waitingForConfirmation = false;
         this.itemPickedUp = false;
         this.purchaseAttempted = false;
@@ -477,31 +536,31 @@ public class AHSniper extends Module {
             this.multiSnipeConfigs.clear();
             SnipeItemConfig config;
             if (this.multiItem1.get() != Items.AIR) {
-                config = new SnipeItemConfig(this.multiItem1.get(), this.multiPrice1.get(), this.multiPriceMode1.get());
+                config = new SnipeItemConfig(this.multiItem1.get(), this.multiMinPrice1.get(), this.multiPrice1.get(), this.multiPriceMode1.get());
                 config.enchantments = new ArrayList<>(this.multiEnchantments1.get());
                 config.exactEnchantments = this.multiExactEnchantments1.get();
                 this.multiSnipeConfigs.add(config);
             }
             if (this.multiItem2.get() != Items.AIR) {
-                config = new SnipeItemConfig(this.multiItem2.get(), this.multiPrice2.get(), this.multiPriceMode2.get());
+                config = new SnipeItemConfig(this.multiItem2.get(), this.multiMinPrice2.get(), this.multiPrice2.get(), this.multiPriceMode2.get());
                 config.enchantments = new ArrayList<>(this.multiEnchantments2.get());
                 config.exactEnchantments = this.multiExactEnchantments2.get();
                 this.multiSnipeConfigs.add(config);
             }
             if (this.multiItem3.get() != Items.AIR) {
-                config = new SnipeItemConfig(this.multiItem3.get(), this.multiPrice3.get(), this.multiPriceMode3.get());
+                config = new SnipeItemConfig(this.multiItem3.get(), this.multiMinPrice3.get(), this.multiPrice3.get(), this.multiPriceMode3.get());
                 config.enchantments = new ArrayList<>(this.multiEnchantments3.get());
                 config.exactEnchantments = this.multiExactEnchantments3.get();
                 this.multiSnipeConfigs.add(config);
             }
             if (this.multiItem4.get() != Items.AIR) {
-                config = new SnipeItemConfig(this.multiItem4.get(), this.multiPrice4.get(), this.multiPriceMode4.get());
+                config = new SnipeItemConfig(this.multiItem4.get(), this.multiMinPrice4.get(), this.multiPrice4.get(), this.multiPriceMode4.get());
                 config.enchantments = new ArrayList<>(this.multiEnchantments4.get());
                 config.exactEnchantments = this.multiExactEnchantments4.get();
                 this.multiSnipeConfigs.add(config);
             }
             if (this.multiItem5.get() != Items.AIR) {
-                config = new SnipeItemConfig(this.multiItem5.get(), this.multiPrice5.get(), this.multiPriceMode5.get());
+                config = new SnipeItemConfig(this.multiItem5.get(), this.multiMinPrice5.get(), this.multiPrice5.get(), this.multiPriceMode5.get());
                 config.enchantments = new ArrayList<>(this.multiEnchantments5.get());
                 config.exactEnchantments = this.multiExactEnchantments5.get();
                 this.multiSnipeConfigs.add(config);
@@ -699,6 +758,7 @@ public class AHSniper extends Module {
         ItemStack topLeft = handler.getSlot(0).getStack();
         double price = this.getActualPrice(topLeft);
         if (!topLeft.isEmpty() && topLeft.isOf(this.snipingItem.get()) && this.isValidAuctionItem(topLeft) && price != -1.0) {
+            this.currentSnipedItem = this.snipingItem.get();
             this.mc.interactionManager.clickSlot(handler.syncId, 0, 0, SlotActionType.PICKUP, this.mc.player);
             this.attemptedItemName = this.snipingItem.get().getName().getString();
             this.attemptedActualPrice = price;
@@ -817,8 +877,20 @@ public class AHSniper extends Module {
         }
         if (!config.enchantments.isEmpty() && !this.hasValidEnchantmentsForConfig(stack, config)) return false;
 
+        // Check user filter
+        Item.TooltipContext tooltipContext = Item.TooltipContext.create(this.mc.world);
+        List<Text> tooltip = stack.getTooltip(tooltipContext, this.mc.player, TooltipType.BASIC);
+        String sellerName = this.extractSellerName(tooltip);
+        if (!this.isSellerAllowed(sellerName)) {
+            if (this.notifications.get()) {
+                this.info("Skipping item from blacklisted user: %s", sellerName);
+            }
+            return false;
+        }
+
         double itemPrice = this.getActualPrice(stack);
         double maxPriceValue = this.parsePrice(config.maxPrice);
+        double minPriceValue = this.parsePrice(config.minPrice);
         if (maxPriceValue == -1.0 || itemPrice == -1.0) return false;
 
         double comparisonPrice;
@@ -826,6 +898,15 @@ public class AHSniper extends Module {
             comparisonPrice = itemPrice / (double) stack.getCount();
         } else {
             comparisonPrice = itemPrice;
+        }
+
+        // Check minimum price
+        if (minPriceValue > 0 && comparisonPrice < minPriceValue) {
+            if (this.notifications.get()) {
+                String mode = config.priceMode == PriceMode.PER_ITEM ? "per item" : "per stack";
+                this.info("Item price %s below minimum %s (%s)", this.formatPrice(comparisonPrice), this.formatPrice(minPriceValue), mode);
+            }
+            return false;
         }
 
         boolean willBuy = comparisonPrice <= maxPriceValue;
@@ -961,6 +1042,7 @@ public class AHSniper extends Module {
                     }
 
                     if (this.isProcessing) {
+                        this.currentSnipedItem = this.snipingItem.get();
                         this.attemptedItemName = this.snipingItem.get().getName().getString();
                         this.attemptedActualPrice = currentItemPrice;
                         this.attemptedQuantity = stack.getCount();
@@ -1017,6 +1099,7 @@ public class AHSniper extends Module {
             return;
         }
 
+                this.currentSnipedItem = this.snipingItem.get();
                 this.attemptedItemName = auctionItem.getItem().getName().getString();
                 this.attemptedActualPrice = currentItemPrice;
                 this.attemptedQuantity = auctionItem.getCount();
@@ -1093,8 +1176,35 @@ public class AHSniper extends Module {
         double price = this.parsePrice(this.sellPrice.get());
         if (price <= 0.0) {
             this.sellingPhase = false;
-                    return;
+            return;
+        }
+        
+        // Find the purchased item in inventory and move it to hand
+        if (this.mc.player != null && this.currentSnipedItem != null) {
+            int itemSlot = -1;
+            // Search in inventory for the item
+            for (int i = 0; i < this.mc.player.getInventory().size(); ++i) {
+                ItemStack stack = this.mc.player.getInventory().getStack(i);
+                if (stack.isOf(this.currentSnipedItem)) {
+                    itemSlot = i;
+                    break;
                 }
+            }
+            
+            if (itemSlot != -1) {
+                // Swap item to main hand
+                int handSlot = this.mc.player.getInventory().selectedSlot;
+                if (itemSlot != handSlot && itemSlot < 9) {
+                    // Item is in hotbar, just select it
+                    this.mc.player.getInventory().selectedSlot = itemSlot;
+                } else if (itemSlot >= 9) {
+                    // Item is in inventory, swap with current hotbar slot
+                    this.mc.interactionManager.clickSlot(0, itemSlot, handSlot, SlotActionType.SWAP, this.mc.player);
+                }
+            }
+        }
+        
+        // Execute the sell command
         this.mc.getNetworkHandler().sendChatCommand(String.format("ah sell %d", (int) price));
         this.sellingPhase = false;
         this.navigationDelayCounter = 5;
@@ -1117,8 +1227,19 @@ public class AHSniper extends Module {
 
         Item.TooltipContext tooltipContext = Item.TooltipContext.create(this.mc.world);
         List<Text> tooltip = stack.getTooltip(tooltipContext, this.mc.player, TooltipType.BASIC);
+        
+        // Check user filter
+        String sellerName = this.extractSellerName(tooltip);
+        if (!this.isSellerAllowed(sellerName)) {
+            if (this.notifications.get()) {
+                this.info("Skipping item from blacklisted user: %s", sellerName);
+            }
+            return false;
+        }
+
         double itemPrice = this.parseTooltipPrice(tooltip);
         double maxPriceValue = this.parsePrice(this.maxPrice.get());
+        double minPriceValue = this.parsePrice(this.minPrice.get());
 
         if (maxPriceValue == -1.0) {
             if (this.notifications.get()) {
@@ -1136,17 +1257,67 @@ public class AHSniper extends Module {
             comparisonPrice = itemPrice;
         }
 
+        // Check minimum price
+        if (minPriceValue > 0 && comparisonPrice < minPriceValue) {
+            if (this.notifications.get()) {
+                String mode = this.priceMode.get() == PriceMode.PER_ITEM ? "per item" : "per stack";
+                this.info("Item price %s below minimum %s (%s)", this.formatPrice(comparisonPrice), this.formatPrice(minPriceValue), mode);
+            }
+            return false;
+        }
+
         if (this.notifications.get()) {
             String mode = this.priceMode.get() == PriceMode.PER_ITEM ? "per item" : "per stack";
             String priceStr = this.formatPrice(comparisonPrice);
             String maxStr = this.formatPrice(maxPriceValue);
-            boolean willBuy = comparisonPrice <= maxPriceValue;
-            this.info("Item: %dx %s | Price: %s (%s) | Max: %s | Will buy: %s",
+            String minStr = minPriceValue > 0 ? this.formatPrice(minPriceValue) : "none";
+            boolean willBuy = comparisonPrice <= maxPriceValue && (minPriceValue <= 0 || comparisonPrice >= minPriceValue);
+            this.info("Item: %dx %s | Price: %s (%s) | Min: %s | Max: %s | Will buy: %s",
                 stack.getCount(), stack.getItem().getName().getString(),
-                priceStr, mode, maxStr, willBuy ? "YES" : "NO");
+                priceStr, mode, minStr, maxStr, willBuy ? "YES" : "NO");
         }
 
         return comparisonPrice <= maxPriceValue;
+    }
+
+    private String extractSellerName(List<Text> tooltip) {
+        if (tooltip == null) return "";
+        for (Text line : tooltip) {
+            String text = line.getString();
+            // Common patterns for seller name in auction house tooltips
+            if (text.toLowerCase().contains("seller:") || text.toLowerCase().contains("sold by:")) {
+                String[] parts = text.split(":");
+                if (parts.length >= 2) {
+                    return parts[1].trim();
+                }
+            }
+            // Pattern: "Listed by <name>" or "Seller: <name>"
+            Pattern sellerPattern = Pattern.compile("(?i)(?:seller|sold by|listed by)[:\\s]+(\\w+)");
+            Matcher matcher = sellerPattern.matcher(text);
+            if (matcher.find()) {
+                return matcher.group(1).trim();
+            }
+        }
+        return "";
+    }
+
+    private boolean isSellerAllowed(String sellerName) {
+        if (sellerName == null || sellerName.isEmpty()) return true; // If we can't determine seller, allow it
+        
+        // Check if seller is in blacklist
+        for (String blacklisted : this.userBlacklist.get()) {
+            if (blacklisted.equalsIgnoreCase(sellerName)) {
+                // But if useAdminList is enabled and seller is an admin, allow it
+                if (this.useAdminList.get()) {
+                    AdminList adminList = Modules.get().get(AdminList.class);
+                    if (adminList != null && adminList.isAdmin(sellerName)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean hasValidEnchantments(ItemStack stack) {
@@ -1617,13 +1788,15 @@ public class AHSniper extends Module {
 
     public static class SnipeItemConfig {
         public Item item;
+        public String minPrice;
         public String maxPrice;
         public PriceMode priceMode;
         public List<String> enchantments;
         public boolean exactEnchantments;
 
-        public SnipeItemConfig(Item item, String maxPrice, PriceMode priceMode) {
+        public SnipeItemConfig(Item item, String minPrice, String maxPrice, PriceMode priceMode) {
             this.item = item;
+            this.minPrice = minPrice;
             this.maxPrice = maxPrice;
             this.priceMode = priceMode;
             this.enchantments = new ArrayList<>();
@@ -1631,4 +1804,3 @@ public class AHSniper extends Module {
         }
     }
 }
-
