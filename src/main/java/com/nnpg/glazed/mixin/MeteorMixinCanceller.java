@@ -15,7 +15,7 @@ public class MeteorMixinCanceller implements MixinCanceller {
 
     static {
         if (METEOR_PRESENT) {
-            LOGGER.info("[Glazed] Meteor Fix active - disabling Meteor's broken AbstractSignEditScreenMixin");
+            //LOGGER.info("[Glazed] Meteor autoban on donut is active");
         }
     }
 
