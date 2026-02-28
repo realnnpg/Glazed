@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules.basehunting;
+package com.nnpg.glazed.modules.esp;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -89,7 +89,7 @@ public class OneByOneHoles extends Module {
     private ExecutorService threadPool;
 
     public OneByOneHoles() {
-        super(GlazedAddon.basehunting, "1x1x1-holes", "Highlights 1x1x1 air holes that are likely player-made.");
+        super(GlazedAddon.esp, "1x1x1-holes", "Highlights 1x1x1 air holes that are likely player-made.");
     }
 
     @Override
