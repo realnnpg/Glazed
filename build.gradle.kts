@@ -23,8 +23,10 @@ repositories {
     maven {
         url = uri("https://jitpack.io")
     }
-
-
+    maven {
+        name = "Bawnorton"
+        url = uri("https://maven.bawnorton.com/releases")
+    }
 
     dependencies {
         // Fabric
@@ -40,7 +42,8 @@ repositories {
         modImplementation("meteordevelopment:baritone:${properties["baritone_version"] as String}-SNAPSHOT")
 
         implementation("com.google.code.gson:gson:2.10.1")
-        
+
+        include(implementation(annotationProcessor("com.github.bawnorton.mixinsquared:mixinsquared-fabric:0.3.7-beta.1")!!)!!)
 
 
 
