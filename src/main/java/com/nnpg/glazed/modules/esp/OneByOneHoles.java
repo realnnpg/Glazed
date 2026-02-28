@@ -1,4 +1,4 @@
-package com.nnpg.glazed.modules.esp;
+package com.nnpg.glazed.modules.basehunting;
 
 import com.nnpg.glazed.GlazedAddon;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -14,6 +14,7 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.chunk.Chunk;
@@ -22,9 +23,13 @@ import net.minecraft.text.Text;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class OneByOneHoles extends Module {
-    private final SettingGroup sgGeneral = settings.createGroup("General");
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgThreading = settings.createGroup("Threading");
 
     private final Setting<SettingColor> holeColor = sgGeneral.add(new ColorSetting.Builder()
         .name("hole-color")
@@ -51,53 +56,171 @@ public class OneByOneHoles extends Module {
         .visible(tracers::get)
         .build());
 
-    private final Set<BlockPos> oneByOneHoles = new HashSet<>();
+    private final Setting<Boolean> chatNotifications = sgGeneral.add(new BoolSetting.Builder()
+        .name("chat-notifications")
+        .description("Send chat messages when 1x1x1 holes are found")
+        .defaultValue(false)
+        .build());
+
+    private final Setting<Boolean> useThreading = sgThreading.add(new BoolSetting.Builder()
+        .name("enable-threading")
+        .description("Use multi-threading for chunk scanning (better performance)")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Integer> threadPoolSize = sgThreading.add(new IntSetting.Builder()
+        .name("thread-pool-size")
+        .description("Number of threads to use for scanning")
+        .defaultValue(2)
+        .min(1)
+        .max(8)
+        .sliderRange(1, 8)
+        .visible(useThreading::get)
+        .build());
+
+    private final Setting<Boolean> limitChatSpam = sgThreading.add(new BoolSetting.Builder()
+        .name("limit-chat-spam")
+        .description("Reduce chat spam when using threading")
+        .defaultValue(true)
+        .visible(useThreading::get)
+        .build());
+
+    private final Set<BlockPos> oneByOneHoles = ConcurrentHashMap.newKeySet();
+    private ExecutorService threadPool;
 
     public OneByOneHoles() {
-        super(GlazedAddon.esp, "1x1x1-holes", "Highlights 1x1x1 air holes that are likely player-made.");
+        super(GlazedAddon.basehunting, "1x1x1-holes", "Highlights 1x1x1 air holes that are likely player-made.");
     }
 
     @Override
     public void onActivate() {
         if (mc.world == null) return;
-        oneByOneHoles.clear();
-        for (Chunk chunk : Utils.chunks()) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          // made by temredd aka kxusk and made for Glazed , kez dont skid this :D
-            if (chunk instanceof WorldChunk) scanChunk((WorldChunk) chunk);
+        
+        if (useThreading.get()) {
+            threadPool = Executors.newFixedThreadPool(threadPoolSize.get());
         }
+        
+        oneByOneHoles.clear();
+        
+        if (useThreading.get() && threadPool != null) {
+            for (Chunk chunk : Utils.chunks()) {
+                if (chunk instanceof WorldChunk worldChunk) {
+                    threadPool.submit(() -> scanChunk(worldChunk));
+                }
+            }
+        } else {
+            for (Chunk chunk : Utils.chunks()) {
+                if (chunk instanceof WorldChunk worldChunk) {
+                    scanChunk(worldChunk);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onDeactivate() {
+        if (threadPool != null && !threadPool.isShutdown()) {
+            threadPool.shutdown();
+            threadPool = null;
+        }
+        oneByOneHoles.clear();
     }
 
     @EventHandler
     private void onChunkLoad(ChunkDataEvent event) {
-        scanChunk(event.chunk());
+        if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
+            threadPool.submit(() -> scanChunk(event.chunk()));
+        } else {
+            scanChunk(event.chunk());
+        }
     }
 
     @EventHandler
     private void onBlockUpdate(BlockUpdateEvent event) {
         BlockPos pos = event.pos;
-        if (isOneByOneHole(pos)) {
-            oneByOneHoles.add(pos);
-            mc.player.sendMessage(Text.of("1x1x1 hole detected at: " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ()), false);
-        }
-
-        // Also check surrounding blocks as their update might create/destroy a 1x1x1 hole
-        for (Direction direction : Direction.values()) {
-            BlockPos neighborPos = pos.offset(direction);
-            if (isOneByOneHole(neighborPos)) {
-                oneByOneHoles.add(neighborPos);
+        
+        Runnable updateTask = () -> {
+            if (isOneByOneHole(pos)) {
+                boolean wasAdded = oneByOneHoles.add(pos);
+                if (wasAdded && chatNotifications.get() && (!useThreading.get() || !limitChatSpam.get())) {
+                    mc.execute(() -> {
+                        if (mc.player != null) {
+                            mc.player.sendMessage(Text.of("1x1x1 hole detected at: " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ()), false);
+                        }
+                    });
+                }
             } else {
-                oneByOneHoles.remove(neighborPos);
+                oneByOneHoles.remove(pos);
             }
+
+            for (Direction direction : Direction.values()) {
+                BlockPos neighborPos = pos.offset(direction);
+                if (isOneByOneHole(neighborPos)) {
+                    oneByOneHoles.add(neighborPos);
+                } else {
+                    oneByOneHoles.remove(neighborPos);
+                }
+            }
+        };
+        
+        if (useThreading.get() && threadPool != null && !threadPool.isShutdown()) {
+            threadPool.submit(updateTask);
+        } else {
+            updateTask.run();
         }
     }
 
     private void scanChunk(WorldChunk chunk) {
-        for (int x = chunk.getPos().getStartX(); x < chunk.getPos().getEndX(); x++) {
-            for (int z = chunk.getPos().getStartZ(); z < chunk.getPos().getEndZ(); z++) {
+        ChunkPos cpos = chunk.getPos();
+        int xStart = cpos.getStartX();
+        int zStart = cpos.getStartZ();
+        Set<BlockPos> chunkHoles = new HashSet<>();
+        int foundCount = 0;
+
+        for (int x = xStart; x < xStart + 16; x++) {
+            for (int z = zStart; z < zStart + 16; z++) {
                 for (int y = chunk.getBottomY(); y < chunk.getBottomY() + chunk.getHeight(); y++) {
                     BlockPos pos = new BlockPos(x, y, z);
                     if (isOneByOneHole(pos)) {
-                        oneByOneHoles.add(pos);
-                        mc.player.sendMessage(Text.of("1x1x1 hole detected at: " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ()), false);
+                        chunkHoles.add(pos);
+                        foundCount++;
+                    }
+                }
+            }
+        }
+
+        oneByOneHoles.removeIf(pos -> {
+            ChunkPos blockChunk = new ChunkPos(pos);
+            return blockChunk.equals(cpos) && !chunkHoles.contains(pos);
+        });
+
+        int newHoles = 0;
+        for (BlockPos pos : chunkHoles) {
+            if (oneByOneHoles.add(pos)) {
+                newHoles++;
+            }
+        }
+
+        if (chatNotifications.get() && foundCount > 0) {
+            if (useThreading.get() && limitChatSpam.get()) {
+                if (newHoles > 0) {
+                    final int finalNewHoles = newHoles;
+                    final ChunkPos finalCpos = cpos;
+                    mc.execute(() -> {
+                        if (mc.player != null) {
+                            mc.player.sendMessage(Text.of("1x1x1 holes: " + finalNewHoles + " new in chunk " + finalCpos.x + "," + finalCpos.z), false);
+                        }
+                    });
+                }
+            } else {
+                for (BlockPos pos : chunkHoles) {
+                    if (oneByOneHoles.contains(pos)) {
+                        final BlockPos finalPos = pos;
+                        mc.execute(() -> {
+                            if (mc.player != null) {
+                                mc.player.sendMessage(Text.of("1x1x1 hole detected at: " + finalPos.getX() + ", " + finalPos.getY() + ", " + finalPos.getZ()), false);
+                            }
+                        });
                     }
                 }
             }
@@ -108,33 +231,34 @@ public class OneByOneHoles extends Module {
         if (mc.world == null) return false;
         BlockState selfState = mc.world.getBlockState(pos);
 
-        // Only highlight holes above Y level 1
         if (pos.getY() <= 1) return false;
 
         if (selfState.getBlock() != Blocks.AIR) return false;
 
-        // Check if all 6 sides are solid blocks
         for (Direction direction : Direction.values()) {
-            BlockState neighborState = mc.world.getBlockState(pos.offset(direction));
-            if (!neighborState.isSolidBlock(mc.world, pos.offset(direction))) {
+            BlockPos neighborPos = pos.offset(direction);
+            BlockState neighborState = mc.world.getBlockState(neighborPos);
+            if (!neighborState.isSolidBlock(mc.world, neighborPos)) {
                 return false;
             }
         }
 
-        // Refined check for natural generation (caves) within a 5-block radius
-        // Iterate through a 5x5x5 cube around the potential 1x1x1 hole
-        for (int x = -5; x <= 5; x++) {
-            for (int y = -5; y <= 5; y++) {
-                for (int z = -5; z <= 5; z++) {
-                    if (x == 0 && y == 0 && z == 0) continue; // Skip the current block (the 1x1x1 hole itself)
+        for (int radius = 1; radius <= 5; radius++) {
+            for (int x = -radius; x <= radius; x++) {
+                for (int y = -radius; y <= radius; y++) {
+                    for (int z = -radius; z <= radius; z++) {
+                        if (Math.abs(x) != radius && Math.abs(y) != radius && Math.abs(z) != radius) {
+                            continue;
+                        }
+                        
+                        if (x == 0 && y == 0 && z == 0) continue;
 
-                    BlockPos checkPos = pos.add(x, y, z);
-                    BlockState checkState = mc.world.getBlockState(checkPos);
+                        BlockPos checkPos = pos.add(x, y, z);
+                        BlockState checkState = mc.world.getBlockState(checkPos);
 
-                    // If any non-solid block is found within the 5-block radius, it's considered part of a larger natural formation.
-                    // This is a stricter check: any non-solid block within the radius means it's natural.
-                    if (!checkState.isSolidBlock(mc.world, checkPos)) {
-                        return false; // This 1x1x1 hole is too close to a natural air pocket (cave/mine)
+                        if (!checkState.isSolidBlock(mc.world, checkPos)) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -147,24 +271,19 @@ public class OneByOneHoles extends Module {
     private void onRender(Render3DEvent event) {
         if (mc.player == null) return;
 
-        // Use interpolated position for smooth movement
         Vec3d playerPos = mc.player.getLerpedPos(event.tickDelta);
         Color side = new Color(holeColor.get());
         Color outline = new Color(holeColor.get());
         Color tracerColorValue = new Color(tracerColor.get());
 
         for (BlockPos pos : oneByOneHoles) {
-            // Render ESP box
             event.renderer.box(pos, side, outline, shapeMode.get(), 0);
 
-            // Render tracer if enabled
             if (tracers.get()) {
                 Vec3d blockCenter = Vec3d.ofCenter(pos);
 
-                // Start tracer from slightly in front of camera to make it visible in first person
                 Vec3d startPos;
                 if (mc.options.getPerspective().isFirstPerson()) {
-                    // First person: start tracer slightly forward from camera
                     Vec3d lookDirection = mc.player.getRotationVector();
                     startPos = new Vec3d(
                         playerPos.x + lookDirection.x * 0.5,
@@ -172,7 +291,6 @@ public class OneByOneHoles extends Module {
                         playerPos.z + lookDirection.z * 0.5
                     );
                 } else {
-                    // Third person: use normal eye position
                     startPos = new Vec3d(
                         playerPos.x,
                         playerPos.y + mc.player.getEyeHeight(mc.player.getPose()),
