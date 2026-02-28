@@ -18,7 +18,10 @@
   "entrypoints": {
     "meteor": [
       "com.nnpg.glazed.GlazedAddon"
-    ]
+    ],
+  "mixinsquared": [
+    "com.nnpg.glazed.mixins.MeteorMixinCanceller"
+  ]
   },
   "mixins": [
     "mixins.json"
