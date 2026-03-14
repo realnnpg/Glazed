@@ -51,6 +51,14 @@ repositories {
 
 
 
+    sourceSets {
+        main {
+            java {
+                exclude("**/temp/**")
+            }
+        }
+    }
+
     tasks {
         processResources {
             val propertyMap = mapOf(
