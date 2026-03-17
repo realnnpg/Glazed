@@ -6,7 +6,8 @@
   "client": [
     "HandledScreenMixin",
     "DefaultSettingsWidgetFactoryAccessor",
-    "DefaultSettingsWidgetFactoryMixin"
+    "DefaultSettingsWidgetFactoryMixin",
+    "CrystalTweaksMixin"
   ],
   "injectors": {
     "defaultRequire": 1
