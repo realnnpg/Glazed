@@ -101,6 +101,12 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new PremiumTunnelBaseFinder());
         Modules.get().add(new AdminList());
         Modules.get().add(new AutoTreeFarmer());
+        // Modules.get().add(new MovementTest());
+        Modules.get().add(new STabSprintReset());
+        // Modules.get().add(new JumpReset());
+        Modules.get().add(new TriggerBot());
+        // Modules.get().add(new AttributeSwapper());
+        
     }
 
     @EventHandler
