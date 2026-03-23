@@ -15,29 +15,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * Two injections into ClientPlayerInteractionManager:
- *
- *  1. clickSlot    — HEAD, cancellable
- *     Handles: Cursor Guard, Hotbar Lock, Totem Slot Protection
- *     Fires before Minecraft applies the inventory change client-side
- *     AND before the ClickSlotC2SPacket is sent.
- *
- *  2. interactBlock — HEAD, cancellable
- *     Handles: Glowstone Block, Anchor Max Fill
- *     Fires before the block interaction is processed client-side
- *     AND before PlayerInteractBlockC2SPacket is sent.
- *     Returns ActionResult.FAIL to abort cleanly.
- *
- * ⚠ IMPORTANT — Register in glazed.mixins.json:
- *   "mixins": [ "CrystalTweaksMixin", ... ]
- */
 @Mixin(ClientPlayerInteractionManager.class)
 public class CrystalTweaksMixin {
-
-    // -------------------------------------------------------------------------
-    // 1. clickSlot
-    // -------------------------------------------------------------------------
 
     @Inject(
         method = "clickSlot",
@@ -57,10 +36,6 @@ public class CrystalTweaksMixin {
             ci.cancel();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // 2. interactBlock
-    // -------------------------------------------------------------------------
 
     @Inject(
         method = "interactBlock",
