@@ -31,3 +31,7 @@ bin/
 # fabric
 
 run/
+# temp files
+
+temp/
+gradlew
