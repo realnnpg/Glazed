@@ -20,12 +20,8 @@ import java.util.Optional;
 
 public class TriggerBot extends Module {
 
-    // ── Groups ────────────────────────────────────────────────────────────────
-
     private final SettingGroup sgFilter = settings.createGroup("Filter");
     private final SettingGroup sgAttack = settings.createGroup("Attack");
-
-    // ── Filter ────────────────────────────────────────────────────────────────
 
     private final Setting<Target> target = sgFilter.add(new EnumSetting.Builder<Target>()
         .name("target")
@@ -56,8 +52,6 @@ public class TriggerBot extends Module {
         .defaultValue(false)
         .build()
     );
-
-    // ── Attack ────────────────────────────────────────────────────────────────
 
     private final Setting<Integer> hitWindowMs = sgAttack.add(new IntSetting.Builder()
         .name("hit-window-ms")
@@ -145,26 +139,15 @@ public class TriggerBot extends Module {
         .build()
     );
 
-    // ── State ─────────────────────────────────────────────────────────────────
-
     private float randomOnFallFloat   = 0;
     private float randomHitSpeedFloat = 0;
-
-    // Sub-tick buffer: Render3DEvent fires every frame (~7ms at 144fps).
-    // Stores the last valid entity the crosshair touched so fast flick-overs
-    // between two ticks are not missed. Both Render3DEvent and TickEvent fire
-    // on the MC main thread – no synchronisation needed.
     private Entity bufferedTarget = null;
     private long   lastSeenNano   = 0L;
-
-    // ── Constructor ───────────────────────────────────────────────────────────
 
     public TriggerBot() {
         super(GlazedAddon.pvp, "triggerbot",
             "Attacks the entity you are looking at, optionally only when critting.");
     }
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
     public void onActivate() {
@@ -173,10 +156,6 @@ public class TriggerBot extends Module {
         bufferedTarget      = null;
         lastSeenNano        = 0L;
     }
-
-    // ── Render frame: update sub-tick buffer ──────────────────────────────────
-
-    // Runs every rendered frame. Only updates the buffer – no attack logic here.
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (mc.player == null || mc.world == null) return;
@@ -187,33 +166,21 @@ public class TriggerBot extends Module {
         }
     }
 
-    // ── Tick: attack ──────────────────────────────────────────────────────────
-
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.player.isDead()
                 || mc.player.getHealth() <= 0 || mc.world == null) return;
-
-        // ── Resolve target ────────────────────────────────────────────────────
-        // Prefer live crosshair, fall back to render-frame buffer (hit window).
         Entity entity = getTarget();
 
         if (entity == null) {
             long elapsedMs = (System.nanoTime() - lastSeenNano) / 1_000_000L;
             if (bufferedTarget == null || elapsedMs > hitWindowMs.get()) return;
             entity = bufferedTarget;
-            // Re-validate: entity may have moved/died since last render frame
             if (!entity.isAlive()) { bufferedTarget = null; return; }
             if (mc.player.squaredDistanceTo(entity) > range.get() * range.get()) { bufferedTarget = null; return; }
             if (!entityCheck(entity)) { bufferedTarget = null; return; }
         }
-
-        // Clear buffer – attack fires this tick, fresh data needed next tick
         bufferedTarget = null;
-
-        // ── On-fall / crit check ──────────────────────────────────────────────
-        // velocity.y is negative while falling; threshold is stored as positive.
-        // Jitter of ±0.016 ≈ ±10ms so the exact trigger moment varies slightly.
         OnFallMode currOnFallMode = onFallMode.get();
         if (currOnFallMode != OnFallMode.None) {
             float threshold = (currOnFallMode == OnFallMode.Value)
@@ -223,28 +190,21 @@ public class TriggerBot extends Module {
             double vy     = mc.player.getVelocity().y;
             float  jitter = (mc.world.random.nextFloat() * 0.032f) - 0.016f;
 
-            if (vy >= -(threshold + jitter)) return; // not falling fast enough
-            if (mc.player.isOnGround()) return;       // on ground = no crit
-            if (mc.player.isTouchingWater()) return;  // vanilla crit blocker
-            if (mc.player.isClimbing()) return;       // vanilla crit blocker
-            if (mc.player.hasVehicle()) return;       // vanilla crit blocker
+            if (vy >= -(threshold + jitter)) return;
+            if (mc.player.isOnGround()) return;
+            if (mc.player.isTouchingWater()) return;
+            if (mc.player.isClimbing()) return;
+            if (mc.player.hasVehicle()) return;
         }
-
-        // ── Hit-speed / cooldown check ────────────────────────────────────────
         HitSpeedMode currHitSpeedMode = hitSpeedMode.get();
         if (currHitSpeedMode != HitSpeedMode.None) {
             float hitSpeed = (currHitSpeedMode == HitSpeedMode.Value)
                 ? hitSpeedValue.get().floatValue()
                 : randomHitSpeedFloat;
-            // Vanilla: (scale * 17) >= 16 → scale >= ~0.941
             if ((mc.player.getAttackCooldownProgress(hitSpeed) * 17.0F) < 16) return;
         }
-
-        // ── Attack ────────────────────────────────────────────────────────────
         mc.interactionManager.attackEntity(mc.player, entity);
         mc.player.swingHand(Hand.MAIN_HAND);
-
-        // ── Randomise next thresholds ─────────────────────────────────────────
         if (currOnFallMode == OnFallMode.RandomValue) {
             float min = Math.min(onFallMinRandomValue.get().floatValue(), onFallMaxRandomValue.get().floatValue());
             float max = Math.max(onFallMinRandomValue.get().floatValue(), onFallMaxRandomValue.get().floatValue());
@@ -257,8 +217,6 @@ public class TriggerBot extends Module {
             randomHitSpeedFloat = min + mc.world.random.nextFloat() * (max - min);
         }
     }
-
-    // ── Target resolution ─────────────────────────────────────────────────────
 
     private Entity getTarget() {
         if (ignoreWalls.get()) return getTargetThroughWalls();
@@ -295,8 +253,6 @@ public class TriggerBot extends Module {
         return best;
     }
 
-    // ── Entity filter ─────────────────────────────────────────────────────────
-
     private boolean entityCheck(Entity entity) {
         if (entity == mc.player || entity == mc.getCameraEntity()) return false;
         if (!entity.isAlive()) return false;
@@ -314,8 +270,6 @@ public class TriggerBot extends Module {
 
         return true;
     }
-
-    // ── Enums ─────────────────────────────────────────────────────────────────
 
     public enum Target       { Players, Entities, All }
     public enum OnFallMode   { None, Value, RandomValue }
