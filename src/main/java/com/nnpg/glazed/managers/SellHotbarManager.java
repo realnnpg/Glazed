@@ -15,7 +15,7 @@ import net.minecraft.text.Text;
 public class SellHotbarManager {
     private static SellHotbarManager instance;
     
-    // mc instance manually since we don't extend Module/Command
+    
     private static final MinecraftClient mc = MinecraftClient.getInstance();
 
     private int delayCounter = 0;

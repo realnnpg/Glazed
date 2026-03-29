@@ -30,17 +30,17 @@ public class AHItemCommand extends Command {
                 return SINGLE_SUCCESS;
             }
 
-            // Get item name
+            
             String itemName = getItemName(mainHandItem);
 
-            // Get enchantments using the new API
+            
             List<String> enchantmentStrings = getEnchantments(mainHandItem);
 
-            // Build the search command
+            
             StringBuilder searchCommand = new StringBuilder("ah ");
             searchCommand.append(itemName);
 
-            // Add "stack" suffix if item is a full stack (64 items)
+            
             if (mainHandItem.getCount() == 64) {
                 searchCommand.append(" stack");
             }
@@ -50,7 +50,7 @@ public class AHItemCommand extends Command {
                 searchCommand.append(String.join(" ", enchantmentStrings));
             }
 
-            // Send the command
+            
             String command = searchCommand.toString();
             info("Searching: /" + command);
             mc.getNetworkHandler().sendChatCommand(command);
@@ -60,10 +60,10 @@ public class AHItemCommand extends Command {
     }
 
     private String getItemName(ItemStack stack) {
-        // Get the item ID
+        
         String itemId = stack.getItem().toString();
 
-        // Remove namespace if present (e.g., "minecraft:diamond_sword" -> "diamond_sword")
+        
         if (itemId.contains(":")) {
             itemId = itemId.split(":")[1];
         }
@@ -74,7 +74,7 @@ public class AHItemCommand extends Command {
     private List<String> getEnchantments(ItemStack stack) {
         List<String> result = new ArrayList<>();
 
-        // Use the new 1.20.5+ API
+        
         ItemEnchantmentsComponent enchantments = EnchantmentHelper.getEnchantments(stack);
 
         for (RegistryEntry<Enchantment> entry : enchantments.getEnchantments()) {
@@ -87,10 +87,10 @@ public class AHItemCommand extends Command {
     }
 
     private String getEnchantmentName(RegistryEntry<Enchantment> enchantmentEntry) {
-        // Get the enchantment ID from the registry
+        
         String enchantmentId = enchantmentEntry.getIdAsString();
 
-        // Remove namespace (e.g., "minecraft:protection" -> "protection")
+        
         if (enchantmentId.contains(":")) {
             enchantmentId = enchantmentId.split(":")[1];
         }

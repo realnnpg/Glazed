@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 public class AutoShopOrder extends Module {
     private final MinecraftClient mc = MinecraftClient.getInstance();
 
-    // ==================== CATEGORIES & ITEMS ====================
+    
     public enum ShopCategory { END, NETHER, GEAR, FOOD }
     
     public enum PriceMode { AUTO, CUSTOM }
@@ -50,14 +50,14 @@ public class AutoShopOrder extends Module {
         COOKED_CHICKEN, COOKED_BEEF, GOLDEN_CARROT, GOLDEN_APPLE
     }
 
-    // ==================== SHOP PRICES TABLE ====================
-    // Prices per item from /shop (per unit, not per stack)
+    
+    
     private int getShopPrice() {
         return switch (category.get()) {
             case END -> switch (endItem.get()) {
                 case ENDER_CHEST -> 2500;
                 case ENDER_PEARL -> 75;
-                case END_STONE -> 8;           // $128 for 16 = $8 each
+                case END_STONE -> 8;           
                 case DRAGON_BREATH -> 1000;
                 case END_ROD -> 100;
                 case CHORUS_FRUIT -> 108;
@@ -101,12 +101,12 @@ public class AutoShopOrder extends Module {
         };
     }
 
-    // Get default min price (shop price + $1)
+    
     private int getDefaultMinPrice() {
         return getShopPrice() + 1;
     }
 
-    // ==================== STAGES ====================
+    
     private enum Stage {
         NONE,
         SHOP_OPEN,
@@ -134,19 +134,19 @@ public class AutoShopOrder extends Module {
     private int buy_screen_retry_count = 0;
     private static final int MAX_BUY_RETRIES = 20;
     
-    // Anti-stuck system
-    private long last_action_time = 0;
-    private static final long STUCK_TIMEOUT_MS = 5000; // 5 seconds
     
-    // Buy spam tracking
+    private long last_action_time = 0;
+    private static final long STUCK_TIMEOUT_MS = 5000; 
+    
+    
     private long buy_spam_start_time = 0;
     private static final long BUY_SPAM_TIMEOUT_MS = 5000;
     
-    // Move attempts
+    
     private int move_pass_count = 0;
     private static final int MAX_MOVE_PASSES = 5;
 
-    // ==================== SETTINGS ====================
+    
     private final SettingGroup sg_general = settings.getDefaultGroup();
     private final SettingGroup sg_blacklist = settings.createGroup("Blacklist");
 
@@ -232,13 +232,13 @@ public class AutoShopOrder extends Module {
         super(GlazedAddon.CATEGORY, "Auto Shop Order", "Auto Shop Order - Buys items from shop and delivers to orders automatically.");
     }
 
-    // Get effective minimum price
+    
     private double getEffectiveMinPrice() {
         if (priceMode.get() == PriceMode.AUTO) {
             return getDefaultMinPrice();
         }
         
-        // Custom mode
+        
         String priceStr = customPrice.get().trim();
         double parsed = parse_price(priceStr);
         if (parsed < 0) {
@@ -271,12 +271,12 @@ public class AutoShopOrder extends Module {
         stage = Stage.NONE;
     }
 
-    // Record an action was performed (resets anti-stuck timer)
+    
     private void recordAction() {
         last_action_time = System.currentTimeMillis();
     }
 
-    // Check if we're stuck and should reset
+    
     private boolean checkAndHandleStuck() {
         if (mc.currentScreen instanceof GenericContainerScreen) {
             long now = System.currentTimeMillis();
@@ -299,11 +299,11 @@ public class AutoShopOrder extends Module {
         if (mc.player == null || mc.world == null) return;
         long now = System.currentTimeMillis();
 
-        // Anti-stuck check at the start of each tick
+        
         if (checkAndHandleStuck()) return;
 
         switch (stage) {
-            // ==================== SHOP PHASE ====================
+            
             case SHOP_OPEN -> {
                 ChatUtils.sendPlayerMsg("/shop");
                 stage = Stage.SHOP_CATEGORY;
@@ -345,7 +345,7 @@ public class AutoShopOrder extends Module {
                         if (!stack.isEmpty() && isTargetItem(stack) && slot.inventory != mc.player.getInventory()) {
                             mc.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.PICKUP, mc.player);
                             
-                            // If item is not stackable, skip to buy screen directly
+                            
                             if (!isTargetItemStackable()) {
                                 stage = Stage.SHOP_WAIT_FOR_BUY_SCREEN;
                                 stage_start = now;
@@ -424,7 +424,7 @@ public class AutoShopOrder extends Module {
             }
 
             case SHOP_BUY_SPAM -> {
-                // Check for timeout - prevent stuck
+                
                 if (now - buy_spam_start_time > BUY_SPAM_TIMEOUT_MS) {
                     mc.player.closeHandledScreen();
                     stage = Stage.SHOP_OPEN;
@@ -442,7 +442,7 @@ public class AutoShopOrder extends Module {
 
                 ScreenHandler handler = screen.getScreenHandler();
 
-                // Re-find confirm button if lost
+                
                 if (confirm_slot_id == -1) {
                     for (Slot slot : handler.slots) {
                         ItemStack stack = slot.getStack();
@@ -454,7 +454,7 @@ public class AutoShopOrder extends Module {
                 }
 
                 if (confirm_slot_id != -1) {
-                    // Check if inventory is full
+                    
                     if (is_inventory_full()) {
                         mc.player.closeHandledScreen();
                         stage = Stage.SHOP_EXIT;
@@ -463,12 +463,12 @@ public class AutoShopOrder extends Module {
                         return;
                     }
 
-                    // Click confirm button 2 times per tick
+                    
                     mc.interactionManager.clickSlot(handler.syncId, confirm_slot_id, 0, SlotActionType.PICKUP, mc.player);
                     mc.interactionManager.clickSlot(handler.syncId, confirm_slot_id, 0, SlotActionType.PICKUP, mc.player);
                     recordAction();
                 } else {
-                    // Button not found - retry search next tick
+                    
                     buy_screen_retry_count++;
                     if (buy_screen_retry_count > MAX_BUY_RETRIES) {
                         mc.player.closeHandledScreen();
@@ -493,7 +493,7 @@ public class AutoShopOrder extends Module {
                 }
             }
 
-            // ==================== ORDERS PHASE ====================
+            
             case WAIT -> {
                 if (now - stage_start >= click_delay.get()) {
                     ChatUtils.sendPlayerMsg("/orders " + getSearchKeyword());
@@ -509,7 +509,7 @@ public class AutoShopOrder extends Module {
 
                     ScreenHandler handler = screen.getScreenHandler();
                     
-                    // Find best order (highest price)
+                    
                     Slot best_order = null;
                     double best_price = -1;
                     double min_price_value = getEffectiveMinPrice();
@@ -550,20 +550,20 @@ public class AutoShopOrder extends Module {
                 }
             }
 
-            // BATCH MOVE: Move all items at once in the same tick
+            
             case ORDERS_SELECT -> {
                 if (mc.currentScreen instanceof GenericContainerScreen screen) {
                     ScreenHandler handler = screen.getScreenHandler();
 
-                    // Collect all slots with target items first
+                    
                     List<Integer> slots_to_move = new ArrayList<>();
                     
                     for (Slot slot : handler.slots) {
-                        // Only check player inventory slots (not container slots)
+                        
                         if (slot.inventory == mc.player.getInventory()) {
                             int slot_index = slot.getIndex();
-                            // Main inventory is slots 9-35, hotbar is 0-8
-                            // We want to move from player inventory to container
+                            
+                            
                             if (slot_index >= 0 && slot_index < 36) {
                                 ItemStack stack = slot.getStack();
                                 if (isTargetItem(stack)) {
@@ -574,7 +574,7 @@ public class AutoShopOrder extends Module {
                     }
 
                     if (slots_to_move.isEmpty()) {
-                        // No items to move - proceed to confirm
+                        
                         mc.player.closeHandledScreen();
                         stage = Stage.ORDERS_CONFIRM;
                         stage_start = now;
@@ -582,7 +582,7 @@ public class AutoShopOrder extends Module {
                         return;
                     }
 
-                    // BATCH MOVE: Send all QUICK_MOVE packets in rapid succession (same tick)
+                    
                     for (int slot_id : slots_to_move) {
                         mc.interactionManager.clickSlot(handler.syncId, slot_id, 0, SlotActionType.QUICK_MOVE, mc.player);
                     }
@@ -590,15 +590,15 @@ public class AutoShopOrder extends Module {
                     move_pass_count++;
                     recordAction();
 
-                    // Check after move if items remain
+                    
                     if (move_pass_count >= MAX_MOVE_PASSES) {
-                        // Max passes - continue anyway
+                        
                         mc.player.closeHandledScreen();
                         stage = Stage.ORDERS_CONFIRM;
                         stage_start = now;
                         recordAction();
                     }
-                    // Otherwise stay in ORDERS_SELECT to check again next tick
+                    
                 }
             }
 
@@ -667,7 +667,7 @@ public class AutoShopOrder extends Module {
         }
     }
 
-    // ==================== HELPER METHODS ====================
+    
 
     private boolean isCategoryIcon(ItemStack stack) {
         String name = stack.getName().getString().toLowerCase();
@@ -683,13 +683,13 @@ public class AutoShopOrder extends Module {
         return !stack.isEmpty() && stack.getItem() == getTargetMcItem();
     }
 
-    // Check if target item is stackable
+    
     private boolean isTargetItemStackable() {
         Item item = getTargetMcItem();
         return item.getMaxCount() > 1;
     }
 
-    // Check if any target items remain in inventory
+    
     private boolean hasTargetItemsInInventory() {
         for (int i = 0; i < 36; i++) {
             if (isTargetItem(mc.player.getInventory().getStack(i))) {
@@ -813,7 +813,7 @@ public class AutoShopOrder extends Module {
         return true;
     }
 
-    // ==================== PRICE PARSING ====================
+    
 
     private double parse_price(String price_str) {
         if (price_str == null || price_str.isEmpty()) {
@@ -869,7 +869,7 @@ public class AutoShopOrder extends Module {
             return -1.0;
         }
 
-        // Pattern to match "$5 each", "$1.5K each", etc.
+        
         Pattern[] price_patterns = {
             Pattern.compile("\\$([\\d,]+(?:\\.\\d+)?)([kmbKMB])?\\s*each", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\$([\\d,]+(?:\\.\\d+)?)([kmbKMB])?", Pattern.CASE_INSENSITIVE),
@@ -903,7 +903,7 @@ public class AutoShopOrder extends Module {
 
                         return base_price * multiplier;
                     } catch (NumberFormatException e) {
-                        // Continue to next pattern
+                        
                     }
                 }
             }
@@ -912,7 +912,7 @@ public class AutoShopOrder extends Module {
         return -1.0;
     }
 
-    // ==================== BLACKLIST ====================
+    
 
     private boolean is_blacklisted(String playerName) {
         if (playerName == null || blacklisted_players.get().isEmpty()) return false;
@@ -924,10 +924,10 @@ public class AutoShopOrder extends Module {
         Item.TooltipContext ctx = Item.TooltipContext.create(mc.world);
         List<Text> tooltip = stack.getTooltip(ctx, mc.player, TooltipType.BASIC);
         
-        // Pattern for "Click to deliver .Grumm7587 Cooked Chicken"
+        
         Pattern deliver_pattern = Pattern.compile("(?i)click to deliver\\s+\\.?([a-zA-Z0-9_]+)");
         
-        // Standard patterns
+        
         Pattern[] patterns = {
             deliver_pattern,
             Pattern.compile("(?i)player\\s*:\\s*([a-zA-Z0-9_]+)"),

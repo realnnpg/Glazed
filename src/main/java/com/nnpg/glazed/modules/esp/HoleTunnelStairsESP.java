@@ -36,7 +36,7 @@ public class HoleTunnelStairsESP extends Module {
     private final SettingGroup sgCParams  = settings.createGroup("Covered Hole Parameters");
     private final SettingGroup sgRender   = settings.createGroup("Rendering");
 
-    // == General ==
+    
     private final Setting<DetectionMode> detectionMode = sgGeneral.add(new EnumSetting.Builder<DetectionMode>()
         .name("Detection Mode")
         .description("Choose what to detect: holes, tunnels, stairs, or all.")
@@ -74,7 +74,7 @@ public class HoleTunnelStairsESP extends Module {
         .build()
     );
 
-    // == Hole Parameters ==
+    
     private final Setting<Integer> minHoleDepth = sgHParams.add(new IntSetting.Builder()
         .name("Min Hole Depth")
         .description("Minimum depth for a hole to be detected.")
@@ -82,7 +82,7 @@ public class HoleTunnelStairsESP extends Module {
         .build()
     );
 
-    // == Tunnel Parameters ==
+    
     private final Setting<Integer> minTunnelLength = sgTParams.add(new IntSetting.Builder()
         .name("Min Tunnel Length")
         .description("Minimum length for a tunnel to be detected.")
@@ -141,7 +141,7 @@ public class HoleTunnelStairsESP extends Module {
         .build()
     );
 
-    // == Stairs Parameters ==
+    
     private final Setting<Integer> minStaircaseLength = sgSParams.add(new IntSetting.Builder()
         .name("Min Staircase Length")
         .description("Minimum length for a staircase to be detected.")
@@ -161,7 +161,7 @@ public class HoleTunnelStairsESP extends Module {
         .build()
     );
     
-    // == Covered Hole Parameters ==
+    
     private final Setting<Boolean> detectCoveredHoles = sgCParams.add(new BoolSetting.Builder()
         .name("detect-covered-holes")
         .description("Detects and highlights holes that are covered by solid blocks.")
@@ -183,7 +183,7 @@ public class HoleTunnelStairsESP extends Module {
         .build()
     );
     
-    // == Rendering ==
+    
     private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
         .name("shape-mode").defaultValue(ShapeMode.Both).build());
     private final Setting<SettingColor> holeLineColor = sgRender.add(new ColorSetting.Builder()
@@ -214,7 +214,7 @@ public class HoleTunnelStairsESP extends Module {
     private static final Direction[] DIRECTIONS = { Direction.EAST, Direction.WEST, Direction.NORTH, Direction.SOUTH };
     private static final Direction[] CANONICAL_TUNNEL_DIRS = { Direction.EAST, Direction.SOUTH };
 
-    // State
+    
     private final Long2ObjectMap<TChunk> chunks     = new Long2ObjectOpenHashMap<>();
     private final Queue<Chunk>           chunkQueue = new LinkedList<>();
     
@@ -226,8 +226,8 @@ public class HoleTunnelStairsESP extends Module {
     private final Set<Box> notifiedHoles = ConcurrentHashMap.newKeySet();
 
     private final Set<Long> tunnelHashes    = ConcurrentHashMap.newKeySet();
-    // coveredHoleHashes is not needed if coveredHoles is a ConcurrentHashMap and Box has proper equals/hashCode
-    // private final Set<Long> coveredHoleHashes = ConcurrentHashMap.newKeySet();
+    
+    
 
     private final Set<Long> holeHashes      = ConcurrentHashMap.newKeySet();
     private final Set<Long> hole3x1Hashes   = ConcurrentHashMap.newKeySet();
@@ -235,12 +235,12 @@ public class HoleTunnelStairsESP extends Module {
     
     private final ThreadLocal<BitSet> visitedBlocksLocal = ThreadLocal.withInitial(BitSet::new);
 
-    // Underground Update Tracking
+    
     private final Set<Long> pendingUndergroundChunks = ConcurrentHashMap.newKeySet();
     private int undergroundBlockUpdates = 0;
     private boolean needsUndergroundRescan = false;
 
-    // Caches for covered hole detection
+    
     private final Map<BlockPos, Boolean> solidBlockCache = new ConcurrentHashMap<>();
     private final Map<BlockPos, BlockState> blockStateCache = new ConcurrentHashMap<>();
 
@@ -266,9 +266,9 @@ public class HoleTunnelStairsESP extends Module {
         blockStateCache.clear();
     }
 
-    // =========================================================================
-    //  PACKET RECEIVE - TARGETED THRESHOLD LOGIC
-    // =========================================================================
+    
+    
+    
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof BlockUpdateS2CPacket packet) {
@@ -293,11 +293,11 @@ public class HoleTunnelStairsESP extends Module {
     }
 
     private void triggerUndergroundRescan() {
-        // Snapshot ziehen, um Thread-Probleme zu verhindern
+        
         Set<Long> toProcess = new HashSet<>(pendingUndergroundChunks);
         pendingUndergroundChunks.removeAll(toProcess);
 
-        // 1. Chunks auf ein 3x3 Raster erweitern, um abgeschnittene Tunnel an Chunk-Grenzen zu reparieren
+        
         Set<Long> chunksToRescan = new HashSet<>();
         for (Long key : toProcess) {
             int cx = (int) key.longValue();
@@ -309,8 +309,8 @@ public class HoleTunnelStairsESP extends Module {
             }
         }
 
-        // 2. LÖSCHE NUR Boxen, die sich in DIESEN spezifischen Chunks befinden!
-        // Tunnel, die hinter dem Spieler liegen (und keine Updates bekommen), bleiben erhalten.
+        
+        
         removeIntersectingUnderground(holes, holeHashes, chunksToRescan);
         removeIntersectingUnderground(holes3x1, hole3x1Hashes, chunksToRescan);
         removeIntersectingUnderground(staircases, staircaseHashes, chunksToRescan);
@@ -327,7 +327,7 @@ public class HoleTunnelStairsESP extends Module {
             }
         }
 
-        // 3. Zielgerichtetes Rescannen: Nur diese betroffenen Chunks neu in die Queue werfen
+        
         synchronized (chunks) {
             for (Long chunkKey : chunksToRescan) {
                 chunks.remove(chunkKey);
@@ -338,9 +338,9 @@ public class HoleTunnelStairsESP extends Module {
     private void removeIntersectingUnderground(Set<Box> boxes, Set<Long> hashes, Set<Long> chunksToRescan) {
         Iterator<Box> iter = boxes.iterator();
         while (iter.hasNext()) {
-            Box b = iter.next(); // Box objects are immutable, so it's safe to iterate and remove
-            // For coveredHoles, we don't have a separate hash set, so hashes can be null.
-            // The Box itself is the identifier.
+            Box b = iter.next(); 
+            
+            
 
             if (b.minY < 0 && intersectsChunk(b, chunksToRescan)) {
                 hashes.remove(BlockPos.asLong((int) b.minX, (int) b.minY, (int) b.minZ));
@@ -349,7 +349,7 @@ public class HoleTunnelStairsESP extends Module {
         }
     }
 
-    // Präzise Prüfung, ob eine Box in einen der zu updatenden Chunks hineinragt
+    
     private boolean intersectsChunk(Box b, Set<Long> chunkKeys) {
         int minCx = ((int) Math.floor(b.minX)) >> 4;
         int maxCx = ((int) Math.floor(b.maxX - 0.001)) >> 4;
@@ -364,9 +364,9 @@ public class HoleTunnelStairsESP extends Module {
         return false;
     }
 
-    // =========================================================================
-    //  TICK / RENDER
-    // =========================================================================
+    
+    
+    
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (needsUndergroundRescan) {
@@ -388,14 +388,14 @@ public class HoleTunnelStairsESP extends Module {
     }
 
     private void clearOldCacheEntries() {
-        // Simple cache clearing strategy: clear if too large
-        // These caches are used by the searchChunk threads, so they need to be Concurrent.
-        // Clearing them entirely might cause temporary re-computation, but for ESP,
-        // it's generally acceptable as data is re-scanned frequently.
-        if (solidBlockCache.size() > 10000) { // Adjust size as needed
+        
+        
+        
+        
+        if (solidBlockCache.size() > 10000) { 
             solidBlockCache.clear();
         }
-        if (blockStateCache.size() > 10000) { // Adjust size as needed
+        if (blockStateCache.size() > 10000) { 
             blockStateCache.clear();
         }
     }
@@ -460,7 +460,7 @@ public class HoleTunnelStairsESP extends Module {
                 renderTunnels(event.renderer);
                 if (detectCoveredHoles.get()) renderCoveredHoles(event.renderer);
             }
-            default -> { // Fallback for any other mode that might render holes
+            default -> { 
                 renderHoles(event.renderer);
                 renderTunnels(event.renderer);
                 renderStaircases(event.renderer);
@@ -472,13 +472,13 @@ public class HoleTunnelStairsESP extends Module {
 
     private void renderHoles(Renderer3D r) {
         for (Box b : holes) {
-            if (detectCoveredHoles.get() && coveredHoles.containsKey(b)) continue; // Don't render if it's a covered hole
+            if (detectCoveredHoles.get() && coveredHoles.containsKey(b)) continue; 
             r.box(b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ, holeSideColor.get(), holeLineColor.get(), shapeMode.get(), 0);
         }
     }
     private void render3x1Holes(Renderer3D r) {
         for (Box b : holes3x1) {
-            if (detectCoveredHoles.get() && coveredHoles.containsKey(b)) continue; // Don't render if it's a covered hole
+            if (detectCoveredHoles.get() && coveredHoles.containsKey(b)) continue; 
             r.box(b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ, hole3x1SideColor.get(), hole3x1LineColor.get(), shapeMode.get(), 0);
         }
     }
@@ -497,20 +497,20 @@ public class HoleTunnelStairsESP extends Module {
             Box hole = entry.getKey();
             CoveredHoleInfo info = entry.getValue();
 
-            // Render the hole
+            
             r.box(hole.minX, hole.minY, hole.minZ, hole.maxX, hole.maxY, hole.maxZ,
                 coveredHoleSideColor.get(), coveredHoleLineColor.get(), shapeMode.get(), 0);
 
-            // Render the cover block
+            
             r.box(info.coverPos.getX(), info.coverPos.getY(), info.coverPos.getZ(),
                 info.coverPos.getX() + 1, info.coverPos.getY() + 1, info.coverPos.getZ() + 1,
                 coveredHoleSideColor.get(), coveredHoleLineColor.get(), shapeMode.get(), 0);
         }
     }
 
-    // =========================================================================
-    //  CHUNK PROCESSING
-    // =========================================================================
+    
+    
+    
     private void processChunkQueue() {
         int processed = 0;
         while (!chunkQueue.isEmpty() && processed < maxChunks.get()) {
@@ -561,7 +561,7 @@ public class HoleTunnelStairsESP extends Module {
                             findAndAddHole(pos, visited, Ymin);
                             findAndAdd3x1Hole(pos, visited, Ymin);
                         }
-                        if (hasSolidFloor) { // Tunnels and staircases require a solid floor
+                        if (hasSolidFloor) { 
                             if (mode == DetectionMode.ALL || mode == DetectionMode.TUNNELS
                                 || mode == DetectionMode.HOLES_AND_TUNNELS
                                 || mode == DetectionMode.TUNNELS_AND_STAIRCASES
@@ -585,9 +585,9 @@ public class HoleTunnelStairsESP extends Module {
         return (x & 15) | ((z & 15) << 4) | ((y - yMin) << 8);
     }
 
-    // =========================================================================
-    //  HOLE CHECKS
-    // =========================================================================
+    
+    
+    
     private void findAndAddHole(BlockPos pos, BitSet visited, int yMin) {
         if (!isValidHoleSection(pos)) return;
         BlockPos.Mutable cur = pos.mutableCopy();
@@ -658,9 +658,9 @@ public class HoleTunnelStairsESP extends Module {
         }
     }
 
-    // =========================================================================
-    //  STRAIGHT TUNNEL CHECK
-    // =========================================================================
+    
+    
+    
     private boolean isValidTunnelCrossSection(BlockPos pos, Direction lengthDir, int width, int refHeight) {
         Direction widthDir     = (lengthDir.getAxis() == Direction.Axis.X) ? Direction.SOUTH : Direction.EAST;
         Direction antiWidthDir = widthDir.getOpposite();
@@ -685,7 +685,7 @@ public class HoleTunnelStairsESP extends Module {
     }
 
     private void checkTunnelOptimized(BlockPos startPos, BitSet visited, int yMin) {
-        int chunkX = startPos.getX() >> 4;
+        int chunkX = startPos.getX() >> 4; 
         int chunkZ = startPos.getZ() >> 4;
 
         for (Direction dir : CANONICAL_TUNNEL_DIRS) {
@@ -749,9 +749,9 @@ public class HoleTunnelStairsESP extends Module {
         }
     }
 
-    // =========================================================================
-    //  STAIRCASE CHECK
-    // =========================================================================
+    
+    
+    
     private void checkStaircaseOptimized(BlockPos pos, BitSet visited, int yMin) {
         for (Direction dir : DIRECTIONS) {
             BlockPos.Mutable cur = pos.mutableCopy();
@@ -776,9 +776,9 @@ public class HoleTunnelStairsESP extends Module {
         }
     }
 
-    // =========================================================================
-    //  DIAGONAL TUNNEL CHECK
-    // =========================================================================
+    
+    
+    
     private void checkDiagonalTunnel(BlockPos pos, BitSet visited, int yMin) {
         for (Direction dir : DIRECTIONS) {
             for (int w = minDiagonalWidth.get(); w <= maxDiagonalWidth.get(); w++) {
@@ -812,9 +812,9 @@ public class HoleTunnelStairsESP extends Module {
         }
     }
 
-    // =========================================================================
-    //  HELPER METHODS
-    // =========================================================================
+    
+    
+    
     private int getTunnelHeight(BlockPos pos) {
         int h = 0;
         while (h < maxTunnelHeight.get() + 1 && isPassableBlock(pos.up(h))) h++;
@@ -878,9 +878,9 @@ public class HoleTunnelStairsESP extends Module {
         return shape.isEmpty() || !VoxelShapes.fullCube().equals(shape);
     }
 
-    // =========================================================================
-    //  COVERED HOLE CHECKS (Integrated from CoveredHole)
-    // =========================================================================
+    
+    
+    
     private static class CoveredHoleInfo {
         public final BlockPos coverPos;
         public final Box holeBox;
@@ -924,7 +924,7 @@ public class HoleTunnelStairsESP extends Module {
             BlockState state = getBlockStateCached(pos);
             if (state != null && state.getBlock() == coverBlock.getBlock()) matchingBlocks++;
         }
-        return matchingBlocks < 2; // If less than 2 adjacent blocks are the same, it's likely player-placed.
+        return matchingBlocks < 2; 
     }
 
     private boolean isCommonBuildingBlock(BlockState state) {
@@ -940,7 +940,7 @@ public class HoleTunnelStairsESP extends Module {
             blockName.contains("glass");
     }
 
-    // Caching methods for block states and solidity checks
+    
     private boolean isSolidBlockCached(BlockPos pos) {
         if (mc.world == null) return false;
 
@@ -966,9 +966,9 @@ public class HoleTunnelStairsESP extends Module {
         });
     }
 
-    // =========================================================================
-    //  ENUMS / INNER CLASSES
-    // =========================================================================
+    
+    
+    
     public enum DetectionMode {
         ALL, HOLES_AND_TUNNELS, HOLES_AND_STAIRCASES, TUNNELS_AND_STAIRCASES,
         HOLES, TUNNELS, STAIRCASES, HOLES_3X1_AND_TUNNELS

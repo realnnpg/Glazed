@@ -194,11 +194,11 @@ public class PearlLandingPredictor extends Module {
 
     private static class PearlEntry {
         final int entityId;
-        String ownerName; // Not final - can be updated if owner becomes known
-        UUID ownerUuid;   // Can be null for unknown pearls
+        String ownerName; 
+        UUID ownerUuid;   
         final Vector3d landingPos = new Vector3d();
         boolean isEstimated = false;
-        boolean isUnknown = false; // True if pearl owner is unknown
+        boolean isUnknown = false; 
         long timestamp;
 
         PearlEntry(int entityId, String ownerName, UUID ownerUuid) {
@@ -209,13 +209,13 @@ public class PearlLandingPredictor extends Module {
         }
     }
 
-    // FIX #2: Use ConcurrentHashMap for thread safety
+    
     private final Map<UUID, Deque<PearlEntry>> trackedPearls = new ConcurrentHashMap<>();
-    private final Deque<PearlEntry> unknownPearls = new ArrayDeque<>(); // Pearls with unknown owner
+    private final Deque<PearlEntry> unknownPearls = new ArrayDeque<>(); 
     private final Set<Integer> knownPearlIds = ConcurrentHashMap.newKeySet();
     private final ProjectileEntitySimulator simulator = new ProjectileEntitySimulator();
     
-    // FIX #8: Reusable Vector3d to avoid allocation every frame
+    
     private final Vector3d reusableScreenPos = new Vector3d();
 
     public PearlLandingPredictor() {
@@ -248,11 +248,11 @@ public class PearlLandingPredictor extends Module {
             if (!(entity instanceof EnderPearlEntity pearl)) continue;
             if (!showSelf.get() && pearl.getOwner() == mc.player) continue;
 
-            // FIX: Handle pearls with unknown owner
+            
             UUID ownerUuid = pearl.getOwner() != null ? pearl.getOwner().getUuid() : null;
             String ownerName = pearl.getOwner() != null ? pearl.getOwner().getName().getString() : "Unknown";
             
-            // Check filter only if owner is known
+            
             if (pearl.getOwner() != null && !isAllowed(ownerName)) continue;
             
             if (pearl.getOwner() != null) {
@@ -275,7 +275,7 @@ public class PearlLandingPredictor extends Module {
                         while (deque.size() > maxPerPlayer.get()) deque.removeLast();
                     }
                 } else {
-                    // Track unknown pearls separately
+                    
                     synchronized (unknownPearls) {
                         unknownPearls.addFirst(entry);
                         while (unknownPearls.size() > maxPerPlayer.get()) unknownPearls.removeLast();
@@ -283,7 +283,7 @@ public class PearlLandingPredictor extends Module {
                 }
 
             } else if (liveUpdate.get()) {
-                // FIX #5: Better null handling with re-creation of missing entries
+                
                 PearlEntry entryToUpdate = null;
                 
                 if (ownerUuid != null) {
@@ -310,7 +310,7 @@ public class PearlLandingPredictor extends Module {
                 }
                 
                 if (entryToUpdate != null) {
-                    // Update owner info if it was previously unknown
+                    
                     if (entryToUpdate.isUnknown && pearl.getOwner() != null) {
                         entryToUpdate.ownerName = ownerName;
                         entryToUpdate.ownerUuid = ownerUuid;
@@ -321,16 +321,16 @@ public class PearlLandingPredictor extends Module {
             }
         }
 
-        // FIX #1: Clean up stale entries from trackedPearls
+        
         knownPearlIds.removeIf(id -> !activeIds.contains(id));
         
-        // Clean up unknown pearls that are no longer active
+        
         synchronized (unknownPearls) {
             unknownPearls.removeIf(entry -> !activeIds.contains(entry.entityId));
         }
         
-        // FIX #4: Clean up entries for disconnected players
-        // Remove tracked pearls for players no longer in the world
+        
+        
         trackedPearls.keySet().removeIf(uuid -> !activePlayers.contains(uuid));
     }
 
@@ -405,22 +405,22 @@ public class PearlLandingPredictor extends Module {
 
         double half = boxSize.get() / 2.0;
 
-        // FIX #3: Wrap depth test in try-finally for safety
+        
         try {
             if (seeThrough.get()) RenderSystem.disableDepthTest();
 
-            // Render known player pearls
+            
             for (Deque<PearlEntry> deque : trackedPearls.values()) {
                 synchronized (deque) {
-                    for (PearlEntry entry : deque) { // Pass event.renderer to renderPearlEntry
+                    for (PearlEntry entry : deque) { 
                         renderPearlEntry(event.renderer, entry, half);
                     }
                 }
             }
             
-            // Render unknown pearls
+            
             synchronized (unknownPearls) {
-                for (PearlEntry entry : unknownPearls) { // Pass event.renderer to renderPearlEntry
+                for (PearlEntry entry : unknownPearls) { 
                     renderPearlEntry(event.renderer, entry, half);
                 }
             }
@@ -444,7 +444,7 @@ public class PearlLandingPredictor extends Module {
             lc = lineColor.get();
         }
         
-        // Render the box
+        
         r.box(pos.x - half, pos.y, pos.z - half,
               pos.x + half, pos.y + boxSize.get(), pos.z + half,
               sc, lc, shapeMode.get(), 0);
@@ -458,7 +458,7 @@ public class PearlLandingPredictor extends Module {
 
         double half = boxSize.get() / 2.0;
 
-        // Render known player pearl names
+        
         for (Deque<PearlEntry> deque : trackedPearls.values()) {
             synchronized (deque) {
                 for (PearlEntry entry : deque) {
@@ -467,7 +467,7 @@ public class PearlLandingPredictor extends Module {
             }
         }
         
-        // Render unknown pearl names
+        
         synchronized (unknownPearls) {
             for (PearlEntry entry : unknownPearls) {
                 renderPearlName(entry, half);
@@ -476,7 +476,7 @@ public class PearlLandingPredictor extends Module {
     }
     
     private void renderPearlName(PearlEntry entry, double half) {
-        // FIX #8: Reuse Vector3d instead of creating new one
+        
         Vector3d pos = entry.landingPos;
         reusableScreenPos.set(pos.x, pos.y + half + 0.15, pos.z);
 
