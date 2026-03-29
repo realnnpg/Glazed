@@ -30,8 +30,9 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new PlayerDetection());
         Modules.get().add(new AHSniper());
         Modules.get().add(new RTPer());
+        Modules.get().add(new ShulkerDropper());
         Modules.get().add(new AutoSell());
-        Modules.get().add(new AutoShulkerOrder());
+        Modules.get().add(new SpawnerDropper());
         Modules.get().add(new AutoOrder());
         Modules.get().add(new HideScoreboard());
         Modules.get().add(new CrystalMacro());
@@ -49,12 +50,14 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new TabDetector());
         Modules.get().add(new OrderSniper());
         Modules.get().add(new LamaESP());
+        Modules.get().add(new PillagerESP());
         Modules.get().add(new HoleTunnelStairsESP());
+        Modules.get().add(new CoveredHole());
         Modules.get().add(new ClusterFinder());
-        Modules.get().add(new AutoShulkerShellOrder());
         Modules.get().add(new EmergencySeller());
         Modules.get().add(new RTPEndBaseFinder());
         Modules.get().add(new ShopBuyer());
+        Modules.get().add(new OrderDropper());
         Modules.get().add(new CollectibleESP());
         Modules.get().add(new SpawnerNotifier());
         Modules.get().add(new VineESP());
@@ -80,23 +83,27 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new HoverTotem());
         Modules.get().add(new TunnelBaseFinder());
         Modules.get().add(new AimAssist());
+        Modules.get().add(new SkeletonESP());
+        Modules.get().add(new RainNoti());
         Modules.get().add(new AutoPearlChain());
-        Modules.get().add(new AutoBlazeRodOrder());
         Modules.get().add(new BlazeRodDropper());
         Modules.get().add(new BreachSwap());
         Modules.get().add(new FakeScoreboard());
         Modules.get().add(new AutoInvTotem());
         Modules.get().add(new FreecamMining());
+        Modules.get().add(new BedrockVoidESP());
         Modules.get().add(new UIHelper());
         Modules.get().add(new ShieldBreaker());
         Modules.get().add(new InvisESP());
-        Modules.get().add(new AutoTotemOrder());
         Modules.get().add(new LightESP());
         Modules.get().add(new PremiumTunnelBaseFinder());
         Modules.get().add(new AdminList());
         Modules.get().add(new AutoTreeFarmer());
         Modules.get().add(new PearlLandingPredictor());
         Modules.get().add(new AutoShopOrder());
+
+
+        // Commands
         Commands.add(new SellHotbarCommand());
         Commands.add(new AHItemCommand());
         
