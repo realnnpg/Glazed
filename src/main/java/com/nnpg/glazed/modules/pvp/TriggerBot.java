@@ -38,7 +38,7 @@ public class TriggerBot extends Module {
         .sliderMax(4.5)
         .build()
     );
-
+    // test
     private final Setting<Boolean> ignoreFriends = sgFilter.add(new BoolSetting.Builder()
         .name("ignore-friends")
         .description("Won't attack players on your friends list.")
